@@ -1,0 +1,15 @@
+# Chuẩn hoá xuống dòng: kho lưu LUÔN dùng LF, máy Windows tự đổi khi checkout.
+# Không có dòng này thì làm việc trên hai máy sẽ thấy hàng chục file "đã đổi"
+# trong khi nội dung y hệt — chỉ khác CRLF/LF.
+* text=auto eol=lf
+
+# Nhị phân: đừng đụng vào
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.webp binary
+*.db  binary
+*.zip binary
+*.mp4 binary
+*.mkv binary
