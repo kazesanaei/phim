@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+du-lieu/
+*.db
+*.db-wal
+*.db-shm
+
+# Thư mục đóng gói tạm khi chuyển máy
+.goi-tam/
+goi-phim-len-drive/
+
+# Ảnh do ffmpeg tự sinh — dựng lại được, đừng đưa vào repo
+/public/poster/
+/public/tua/
