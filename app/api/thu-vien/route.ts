@@ -10,8 +10,9 @@ import { coFfmpeg, trichKhungHinh } from '@/lib/ffmpeg'
 import { timKiem, layChiTiet } from '@/lib/vsmov'
 import { phimLocal, tapCuaPhim, layHangPhim } from '@/lib/thu-vien'
 import { batDauQuet, dungQuet, xoaKho, tienDoQuet } from '@/lib/kho-nguon'
+import { batDauQuetNguoi, dungQuetNguoi, xoaChiMucNguoi, tienDoQuetNguoi } from '@/lib/quet-nguoi'
 import { quetSlug18 } from '@/lib/nguon-kkphim'
-import { themVaoSoDen, demSoDen } from '@/lib/loc-18'
+import { themVaoSoDen, demSoDen, donKho18 } from '@/lib/loc-18'
 import { nguonDangBat, NGUON } from '@/lib/nguon'
 import { datMatKhau, xoaMatKhau, laCheDoLan, daDatMatKhau } from '@/lib/xac-thuc'
 import { networkInterfaces } from 'node:os'
@@ -45,6 +46,12 @@ export async function GET(req: Request) {
         // giữa chừng (hay gặp khi hot-reload lúc đang quét). Khởi động lại luôn.
         if (k.treo) void batDauQuet()
         return k
+      })(),
+      nguoi: (() => {
+        const n = tienDoQuetNguoi()
+        // Cùng cơ chế tự hồi phục như kho đệm: nhịp tim tắt thì chạy lại.
+        if (n.treo) void batDauQuetNguoi()
+        return n
       })(),
       nguon: { danhSach: NGUON, dangBat: nguonDangBat(), soChan18: demSoDen() },
       lan: {
@@ -120,10 +127,26 @@ export async function POST(req: Request) {
       return Response.json({ ok: true, kho: tienDoQuet() })
     }
 
+    if (viec === 'quet-nguoi') {
+      await batDauQuetNguoi(b.lamLai === true)
+      return Response.json({ ok: true, nguoi: tienDoQuetNguoi() })
+    }
+    if (viec === 'dung-quet-nguoi') {
+      dungQuetNguoi()
+      return Response.json({ ok: true, nguoi: tienDoQuetNguoi() })
+    }
+    if (viec === 'xoa-chi-muc-nguoi') {
+      xoaChiMucNguoi()
+      return Response.json({ ok: true, nguoi: tienDoQuetNguoi() })
+    }
+
     if (viec === 'quet-18') {
       const ds = await quetSlug18()
       themVaoSoDen(ds)
-      return Response.json({ ok: true, them: ds.length, tong: demSoDen() })
+      // Quét sổ đen xong thì dọn luôn kho: phim lọt lưới CŨ vẫn còn nằm đó,
+      // không dọn thì siết lưới mấy cũng vô ích với dữ liệu đã ghi.
+      const don = donKho18()
+      return Response.json({ ok: true, them: ds.length, don, tong: demSoDen() })
     }
 
     if (viec === 'nguon-bat') {

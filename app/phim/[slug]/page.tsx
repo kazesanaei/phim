@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Anh from '@/components/Anh'
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { layChiTiet } from '@/lib/nguon'
@@ -11,6 +12,7 @@ import NutTaiVe from '@/components/NutTaiVe'
 import ChonPhan from '@/components/ChonPhan'
 import NutTheoDoi from '@/components/NutTheoDoi'
 import { tachPhan } from '@/lib/ten-phan'
+import GoiYPhim from '@/components/GoiYPhim'
 
 export const revalidate = 300
 
@@ -61,29 +63,25 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
   return (
     <div>
       <div className="relative">
-        {anh && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={anh} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-        )}
+        <Anh src={anh} rong={1280} uuTien anAnToan className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-[var(--color-nen)]/80 backdrop-blur-sm" />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[var(--color-nen)] to-transparent" />
 
         <div className="relative mx-auto flex max-w-[1400px] flex-col gap-6 px-4 py-8 md:flex-row md:py-10">
           <div className="w-40 shrink-0 self-center md:w-56 md:self-start">
-            {ct.poster ? (
-              // aspect-[2/3] giữ khung trước khi ảnh tải xong, không thì poster
-              // nhảy chiều cao và đẩy nội dung dưới (CLS), rõ nhất trên mobile.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+            {/* aspect-[2/3] giữ khung trước khi ảnh tải xong, không thì poster
+                nhảy chiều cao và đẩy nội dung dưới (CLS), rõ nhất trên mobile. */}
+            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg shadow-2xl ring-1 ring-white/10">
+              <Anh
                 src={ct.poster}
                 alt={ct.ten}
-                className="aspect-[2/3] w-full rounded-lg object-cover shadow-2xl ring-1 ring-white/10"
+                rong={400}
+                uuTien
+                khungCho
+                duPhong={ct.ten}
+                className="h-full w-full object-cover"
               />
-            ) : (
-              <div className="grid aspect-[2/3] place-items-center rounded-lg bg-[var(--color-nen-2)] text-4xl font-black text-white/15">
-                {ct.ten.charAt(0)}
-              </div>
-            )}
+            </div>
           </div>
 
           <div className="min-w-0 flex-1">
@@ -192,12 +190,31 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
               )}
               {ct.daoDien.length > 0 && (
                 <Dong nhan="Đạo diễn">
-                  <span className="text-white/70">{ct.daoDien.join(', ')}</span>
+                  {ct.daoDien.map((ten) => (
+                    <Link
+                      key={ten}
+                      href={`/dien-vien/${encodeURIComponent(ten)}`}
+                      className="rounded bg-white/5 px-2 py-0.5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                    >
+                      {ten}
+                    </Link>
+                  ))}
                 </Dong>
               )}
               {ct.dienVien.length > 0 && (
                 <Dong nhan="Diễn viên">
-                  <span className="text-white/70">{ct.dienVien.slice(0, 12).join(', ')}</span>
+                  {/* Bấm được: 108.908 tên đã có trong chỉ mục nên mỗi tên đều
+                      mở ra được danh sách phim của người đó. Để chữ chết thì
+                      công quét đó chỉ phục vụ mỗi ô tìm kiếm. */}
+                  {ct.dienVien.slice(0, 12).map((ten) => (
+                    <Link
+                      key={ten}
+                      href={`/dien-vien/${encodeURIComponent(ten)}`}
+                      className="rounded bg-white/5 px-2 py-0.5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                    >
+                      {ten}
+                    </Link>
+                  ))}
                 </Dong>
               )}
             </dl>
@@ -227,6 +244,9 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
         {ct.mayChu.length === 0 && (
           <p className="py-10 text-center text-sm text-white/40">Phim này chưa có nguồn phát.</p>
         )}
+
+        {/* Gợi ý dựng từ kho trong máy, không gọi mạng — xem GoiYPhim.tsx */}
+        {!laLocal && <GoiYPhim slug={slug} />}
       </div>
     </div>
   )

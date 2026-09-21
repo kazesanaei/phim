@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Anh from '@/components/Anh'
 import Link from 'next/link'
 
 type Hang = {
@@ -101,7 +102,7 @@ export default function TrangTaiVe() {
             >
               {h.poster && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={h.poster} alt="" className="h-16 w-11 shrink-0 rounded object-cover" />
+                <Anh src={h.poster} rong={200} anAnToan className="h-16 w-11 shrink-0 rounded object-cover" />
               )}
 
               <div className="min-w-0 flex-1">

@@ -115,7 +115,11 @@ const themPhim = () =>
  */
 function chuoiHoacNull(v: unknown): string | null {
   if (v === null || v === undefined || v === '') return null
-  return typeof v === 'string' ? v : String(v)
+  if (typeof v === 'string') return v
+  // KHÔNG String() object: nó cho ra chuỗi "[object Object]" và chuỗi rác đó
+  // nằm lại trong kho vĩnh viễn (đã có 360 poster như vậy). Số thì ép được.
+  if (typeof v === 'number' || typeof v === 'bigint') return String(v)
+  return null
 }
 
 function soHoacNull(v: unknown): number | null {
@@ -369,6 +373,27 @@ export function locKho(loc: LocKho): { items: HangKho[]; tongSo: number; tongTra
   return { items, tongSo, tongTrang: Math.max(1, Math.ceil(tongSo / moiTrang)), trang }
 }
 
+/**
+ * Lấy phim trong kho theo danh sách slug, giữ thứ tự hay trước (điểm có trọng số).
+ * Dùng cho tìm theo tên diễn viên: chỉ mục người trả về slug, phần dữ liệu để
+ * dựng thẻ phim thì lấy ở đây.
+ */
+export function phimTheoSlug(slugs: string[], gioiHan = 60): HangKho[] {
+  if (!slugs.length) return []
+  const cho = slugs.map(() => '?').join(',')
+  try {
+    return db
+      .prepare(
+        `select * from kho_phim where slug in (${cho})
+         order by ${bieuThucHang(diemTrungBinh())}
+         limit ?`,
+      )
+      .all(...slugs, gioiHan) as never
+  } catch {
+    return []
+  }
+}
+
 /** Chuyển hàng trong kho về dạng PhimTom để dùng chung thẻ phim. */
 export function veTom(h: HangKho): PhimTom {
   return {
@@ -393,6 +418,54 @@ export function theLoaiTrongKho(): { slug: string; n: number }[] {
     return db
       .prepare('select slug_the_loai as slug, count(*) as n from kho_the_loai group by slug_the_loai order by n desc')
       .all() as never
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Phim cùng thể loại với phim đã cho, xếp theo SỐ THỂ LOẠI TRÙNG rồi mới tới
+ * xếp hạng có trọng số.
+ *
+ * Vì sao không chỉ lấy một thể loại: phim nào cũng dính "Chính Kịch", lấy theo
+ * một thể loại thì gợi ý ra toàn phim chẳng liên quan. Trùng ba thể loại
+ * (Hành Động + Khoa Học Viễn Tưởng + Phiêu Lưu) mới thật sự là "cùng loại".
+ *
+ * Bỏ các phần khác của chính bộ phim đó — chúng đã có ô riêng ở trên.
+ */
+export function phimCungTheLoai(slug: string, gioiHan = 12): HangKho[] {
+  try {
+    return db
+      .prepare(
+        `with tl as (select slug_the_loai from kho_the_loai where slug_phim = ?),
+              goc as (select goc_khong_dau from kho_phim where slug = ?)
+         select k.*, count(*) as trung from kho_phim k
+           join kho_the_loai t on t.slug_phim = k.slug
+          where t.slug_the_loai in (select slug_the_loai from tl)
+            and k.slug <> ?
+            and (k.goc_khong_dau is null or k.goc_khong_dau <> (select goc_khong_dau from goc))
+            and k.slug not in (select slug from chan_18)
+          group by k.slug
+          order by trung desc, ${bieuThucHang(diemTrungBinh())}
+          limit ?`,
+      )
+      .all(slug, slug, slug, gioiHan) as never
+  } catch {
+    return []
+  }
+}
+
+/** Các năm có thật trong kho, mới nhất trước — để thanh lọc không đưa ra năm rỗng. */
+export function namTrongKho(gioiHan = 10): number[] {
+  try {
+    return (
+      db
+        .prepare(
+          `select nam from kho_phim where nam is not null and nam > 1900
+            group by nam order by nam desc limit ?`,
+        )
+        .all(gioiHan) as { nam: number }[]
+    ).map((r) => r.nam)
   } catch {
     return []
   }

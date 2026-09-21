@@ -15,11 +15,12 @@ const MIEN_CHO_PHEP = ['vsmov.com', 'streamvsmov.com', 'phimapi.com', 'kkphim.co
  */
 const MAU_MIEN = [/^(?:[a-z0-9-]+\.)?kkphimplayer\d{1,2}\.com$/]
 
-/**
- * Chỉ cho proxy tới các miền của nguồn phim. Thiếu hàm này thì /api/tep
- * trở thành một proxy mở cho cả internet.
- */
-export function urlChoPhep(raw: string): URL {
+/** CDN ảnh của các nguồn. Cố ý TÁCH khỏi MIEN_CHO_PHEP: /api/tep (video, phụ
+ *  đề) không có việc gì với CDN ảnh, và /api/anh không có việc gì với host phát
+ *  video — nới một bên không nên nới luôn bên kia. */
+const MIEN_ANH = ['vsmov.com', 'phimapi.com', 'phimimg.com', 'kkphim.com']
+
+function phanTich(raw: string): URL {
   let u: URL
   try {
     u = new URL(raw)
@@ -27,10 +28,34 @@ export function urlChoPhep(raw: string): URL {
     throw new LoiChan('URL không hợp lệ')
   }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new LoiChan('Chỉ nhận http/https')
+  return u
+}
+
+/**
+ * Chỉ cho proxy tới các miền của nguồn phim. Thiếu hàm này thì /api/tep
+ * trở thành một proxy mở cho cả internet.
+ */
+export function urlChoPhep(raw: string): URL {
+  const u = phanTich(raw)
   const host = u.hostname.toLowerCase()
   const ok =
     MIEN_CHO_PHEP.some((m) => host === m || host.endsWith('.' + m)) || MAU_MIEN.some((r) => r.test(host))
   if (!ok) throw new LoiChan('Miền không được phép: ' + host)
+  return u
+}
+
+/**
+ * Cửa riêng cho /api/anh. Dữ liệu nguồn thỉnh thoảng trỏ poster sang một CDN
+ * lạ hoắc (báo điện tử, ảnh tự đăng...). Những ảnh đó bị chặn và hiện khung
+ * chữ cái đầu — chấp nhận được, vì mở allowlist theo dữ liệu người ngoài kiểm
+ * soát là biến máy chủ thành công cụ dò mạng nội bộ hộ họ.
+ */
+export function urlAnhChoPhep(raw: string): URL {
+  const u = phanTich(raw)
+  const host = u.hostname.toLowerCase()
+  if (!MIEN_ANH.some((m) => host === m || host.endsWith('.' + m))) {
+    throw new LoiChan('Miền ảnh không được phép: ' + host)
+  }
   return u
 }
 

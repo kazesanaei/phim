@@ -69,7 +69,10 @@ async function duyetThuMuc(goc: string, ra: TepVideo[], sau = 0) {
   if (sau > 6) return
   let muc
   try {
-    muc = await readdir(goc, { withFileTypes: true })
+    // turbopackIgnore: đường dẫn do người dùng nhập, Turbopack không truy vết được.
+    // Không có nó thì nó truy vết CẢ dự án rồi băm từng .mp4 trong upload/ và
+    // build chết với "Insufficient system resources (os error 1450)".
+    muc = await readdir(/* turbopackIgnore: true */ goc, { withFileTypes: true })
   } catch {
     return
   }
@@ -97,7 +100,7 @@ async function timPhuDe(tepVideo: string): Promise<{ duongDan: string; ngonNgu: 
   for (const noi of noiTim) {
     let muc
     try {
-      muc = await readdir(noi, { withFileTypes: true })
+      muc = await readdir(/* turbopackIgnore: true */ noi, { withFileTypes: true })
     } catch {
       continue
     }

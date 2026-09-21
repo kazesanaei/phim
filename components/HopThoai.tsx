@@ -27,13 +27,13 @@ export default function HopThoai({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="fixed inset-0 z-[90] overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
+      className="mo-man fixed inset-0 z-[90] overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === oRef.current) router.back()
       }}
       ref={oRef}
     >
-      <div className="mx-auto my-8 w-full max-w-3xl overflow-hidden rounded-xl bg-[#181818] shadow-2xl ring-1 ring-white/10">
+      <div className="no-hop mx-auto my-8 w-full max-w-3xl overflow-hidden rounded-xl bg-[#181818] shadow-2xl ring-1 ring-white/10">
         <div className="relative">
           <button
             onClick={() => router.back()}

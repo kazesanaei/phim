@@ -89,3 +89,28 @@ export function danhSachTheoDoi(): HangTheoDoi[] {
 export function demTapMoi(): number {
   return (db.prepare('select count(*) as n from theo_doi where tap_moi = 1').get() as { n: number }).n
 }
+
+/**
+ * Phim đã xem xong, để dựng hàng "Xem lại".
+ *
+ * Xem hết là bản ghi rơi khỏi `danhSachTiepTuc` (nó lọc `xong = 0`) và phim biến
+ * mất khỏi trang chủ không còn dấu vết nào — muốn xem lại phải đi tìm bằng tay.
+ *
+ * `not exists` loại phim bộ đang xem dở: tập 3 xem xong nhưng tập 4 mới nửa
+ * chừng thì phim vẫn thuộc "Tiếp tục xem", đưa sang đây là hiện hai lần.
+ *
+ * `max(cap_nhat)` nằm trong SELECT chứ không chỉ ở ORDER BY: SQLite chỉ bảo đảm
+ * các cột trần lấy đúng từ hàng có giá trị lớn nhất khi max() có mặt ở SELECT.
+ */
+export function danhSachXemLai(gioiHan = 20): BanGhiXem[] {
+  return db
+    .prepare(
+      `select *, max(cap_nhat) as moi_nhat from xem x
+        where x.xong = 1
+          and not exists (select 1 from xem y where y.slug = x.slug and y.xong = 0 and y.vi_tri > 30)
+        group by x.slug
+        order by moi_nhat desc
+        limit ?`,
+    )
+    .all(gioiHan) as never
+}

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Anh from '@/components/Anh'
 import { connection } from 'next/server'
 import { tongQuan, theLoaiHayXem, theoNgay, xemNhieuNhat, gioPhut } from '@/lib/thong-ke'
 
@@ -150,7 +151,7 @@ export default async function TrangThongKe() {
                 <span className="w-6 shrink-0 text-center text-sm font-bold tabular-nums text-white/30">{i + 1}</span>
                 {p.poster ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.poster} alt="" className="h-14 w-10 shrink-0 rounded object-cover" />
+                  <Anh src={p.poster} rong={200} anAnToan className="h-14 w-10 shrink-0 rounded object-cover" />
                 ) : (
                   <div className="h-14 w-10 shrink-0 rounded bg-black/40" />
                 )}

@@ -11,20 +11,16 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import Anh from '@/components/Anh'
 import type { PhimTom } from '@/lib/vsmov'
+import { dungCheDo } from '@/components/dung-che-do'
+import { docCheDo } from '@/lib/che-do'
+import NutLuuNhanh from '@/components/NutLuuNhanh'
 
 export type TienDoThe = { phanTram: number; nhan?: string }
 
 const TRE_HIEN = 450
 const TRE_AN = 120
-
-function KhungTrong({ ten }: { ten: string }) {
-  return (
-    <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[var(--color-nen-2)] to-black text-3xl font-black text-white/15">
-      {ten.trim().charAt(0).toUpperCase() || '?'}
-    </div>
-  )
-}
 
 type ViTri = { trai: number; tren: number; rong: number }
 
@@ -54,6 +50,7 @@ export default function TheePhim({
   const hen = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [viTri, datViTri] = useState<ViTri | null>(null)
 
+  const laTv = dungCheDo() === 'tv'
   const dich = href || `/phim/${phim.slug}`
   const ten = tenHienThi || phim.ten
   const nhieuPhan = (soPhan ?? 0) > 1
@@ -64,6 +61,14 @@ export default function TheePhim({
   }
 
   const moBang = useCallback(() => {
+    /**
+     * Không mở bảng ở chế độ TV.
+     *
+     * Remote lái một con trỏ ảo; nó đi ngang qua thẻ là bảng bật lên che mất
+     * phần đang xem, mà bảng lại nằm ngoài luồng nên khó thoát. Trên máy tính
+     * có chuột thật thì rê chuột là chủ ý, nên giữ nguyên.
+     */
+    if (docCheDo() === 'tv') return
     huyHen()
     hen.current = setTimeout(() => {
       const e = oRef.current
@@ -109,24 +114,50 @@ export default function TheePhim({
   }
 
   return (
-    <div ref={oRef} className="group/the relative" onMouseEnter={moBang} onMouseLeave={dongBang}>
-      {thuHang !== undefined && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -left-3 bottom-8 z-0 select-none text-[64px] font-black leading-none text-black [-webkit-text-stroke:2px_rgba(255,255,255,.35)] sm:text-[76px]"
-        >
-          {thuHang}
-        </span>
-      )}
+    <div ref={oRef} className="the-phim group/the relative" onMouseEnter={moBang} onMouseLeave={dongBang}>
+      {/* Đặt NGOÀI <Link> để bấm lưu không kích hoạt link mở phim */}
+      <NutLuuNhanh phim={phim} ten={ten} />
 
-      <Link href={dich} title={ten} className="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
-        <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-[var(--color-nen-2)] shadow-lg ring-1 ring-white/5 transition duration-300 group-hover/the:ring-white/30">
-          {phim.poster ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={phim.poster} alt={ten} loading="lazy" className="h-full w-full object-cover" />
-          ) : (
-            <KhungTrong ten={ten} />
-          )}
+      <Link href={dich} title={ten} aria-label={ten} className="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+        {thuHang !== undefined && (
+          /**
+           * Số thứ hạng nằm BÊN TRÁI poster, chỉ gối lên mép một đoạn nhỏ.
+           *
+           * Neo theo <Link> (bọc đúng phần poster) chứ KHÔNG theo cả thẻ: neo
+           * theo thẻ thì `bottom` rơi vào vùng chữ và số đè lên tên phim — đã
+           * thấy thật trên ảnh chụp.
+           *
+           * `translate-x-full` đẩy số sang trái trọn bề rộng của chính nó, nên
+           * mép phải của số luôn dừng đúng ở mốc `left`, không phụ thuộc số có
+           * mấy chữ. Cách cũ đặt `-left-3` cố định nên số 1 chữ lòi ra 35%, số 2
+           * chữ chỉ 22%; giờ mọi số đều gối vào poster đúng 12px.
+           */
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -bottom-1 left-3 z-0 select-none text-[64px] font-black leading-none text-black [-webkit-text-stroke:2px_rgba(255,255,255,.35)] -translate-x-full sm:text-[76px]"
+          >
+            {thuHang}
+          </span>
+        )}
+
+        {/* `khung-anh`: tỉ lệ khung do CSS quyết định (TV đổi sang 16/9), nên đổi
+            chế độ không làm nhảy bố cục. Nguồn ảnh thì phải đổi bằng JS vì CSS
+            không thay được `src`. */}
+        <div className="khung-anh relative aspect-[2/3] overflow-hidden rounded-lg bg-[var(--color-nen-2)] shadow-lg ring-1 ring-white/5 transition duration-300 group-hover/the:ring-white/30">
+          <Anh
+            /**
+             * TV dùng ảnh ngang 16:9 như Netflix/YouTube trên TV: ở 2,5 m mắt
+             * đọc ảnh ngang kèm tên nhanh hơn poster dọc, và màn chỉ cao 540px
+             * nên thẻ thấp hơn là thấy được nhiều hàng hơn. 18.351/18.719 phim
+             * đã có sẵn ảnh ngang; phim nào không có thì lùi về poster.
+             */
+            src={laTv ? phim.anhNgang || phim.poster : phim.poster}
+            alt={ten}
+            rong={400}
+            duPhong={ten}
+            khungCho
+            className="h-full w-full object-cover transition-transform duration-500 group-hover/the:scale-[1.06]"
+          />
 
           {huyHieu ? (
             <span className="absolute left-1.5 top-1.5 rounded bg-[var(--color-nhan)] px-1.5 py-0.5 text-[10px] font-bold uppercase">
@@ -178,10 +209,7 @@ export default function TheePhim({
           >
             <Link href={dich} className="block">
               <div className="relative aspect-video w-full bg-black">
-                {(phim.anhNgang || phim.poster) && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={phim.anhNgang || phim.poster} alt="" className="h-full w-full object-cover" />
-                )}
+                <Anh src={phim.anhNgang || phim.poster} rong={400} anAnToan className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-transparent to-transparent" />
               </div>
             </Link>

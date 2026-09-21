@@ -7,6 +7,7 @@
  */
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import { urlAnh } from '@/components/Anh'
 import type { PhimTom } from '@/lib/vsmov'
 
 export type MucHero = { phim: PhimTom; moTa?: string }
@@ -50,11 +51,12 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               key={m.phim.slug}
-              src={a}
+              src={urlAnh(a, 1280)}
               alt=""
               aria-hidden
+              loading={k === 0 ? 'eager' : 'lazy'}
               className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
-                k === i ? 'opacity-100' : 'opacity-0'
+                k === i ? 'anh-troi opacity-100' : 'opacity-0'
               }`}
             />
           )
@@ -97,7 +99,9 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
         </div>
 
         {ds.length > 1 && (
-          <div className="mt-4 flex gap-2">
+          /* Chấm chuyển banner: bấm bằng remote thì phải lách qua từng chấm rất
+             phiền, mà banner vốn tự đổi. Ở chế độ TV ẩn đi (data-nut-chuot). */
+          <div data-nut-chuot="1" className="mt-4 flex gap-2">
             {ds.map((m, k) => (
               <button
                 key={m.phim.slug}

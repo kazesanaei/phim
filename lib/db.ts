@@ -190,6 +190,27 @@ create table if not exists kho_nguon_phim (
   primary key (slug, nguon)
 );
 create index if not exists idx_knp_nguon on kho_nguon_phim(nguon);
+
+-- Chỉ mục diễn viên / đạo diễn.
+-- BẮT BUỘC phải tự dựng: không nguồn nào tìm được theo tên người. Đã thử
+-- /dien-vien/<slug> (404) và /tim-kiem?actor= (422); ?keyword= chỉ khớp TÊN PHIM.
+-- Tên người chỉ có ở endpoint chi tiết từng phim, nên phải quét (lib/quet-nguoi.ts).
+create table if not exists nguoi_phim (
+  slug_phim text not null,
+  ten text not null,
+  khong_dau text not null,
+  loai text not null default 'dv',   -- 'dv' diễn viên, 'dd' đạo diễn
+  primary key (slug_phim, ten, loai)
+);
+create index if not exists idx_np_khong_dau on nguoi_phim(khong_dau);
+create index if not exists idx_np_phim on nguoi_phim(slug_phim);
+
+-- Phim nào đã lấy xong danh sách người, để quét lại không phải gọi lại từ đầu.
+create table if not exists nguoi_da_quet (
+  slug_phim text primary key,
+  so_nguoi integer not null default 0,
+  quet_luc text not null default (datetime('now'))
+);
 `
 
 /**
@@ -209,8 +230,24 @@ function nangCap(db: DatabaseSync) {
 }
 
 function moDb(): DatabaseSync {
-  mkdirSync(path.dirname(DUONG_DAN_DB), { recursive: true })
+  // turbopackIgnore: đường dẫn dựng từ process.cwd() nên Turbopack coi là "truy
+  // cập tệp động" và đi truy vết CẢ dự án — kể cả vài GB .mp4 trong upload/.
+  // Đây là mắt xích middleware -> lib/xac-thuc -> lib/db làm build chết.
+  mkdirSync(/* turbopackIgnore: true */ path.dirname(DUONG_DAN_DB), { recursive: true })
   const db = new DatabaseSync(DUONG_DAN_DB)
+  /**
+   * PHẢI LÀ CÂU ĐẦU TIÊN, trước cả `journal_mode`.
+   *
+   * `next build` chạy 15 tiến trình con song song, mỗi cái import tệp này và
+   * cùng lúc đụng vào một tệp SQLite → "database is locked", build gãy ở khâu
+   * thu thập cấu hình route. Đã gặp thật hai lần, và chính nó là thủ phạm của
+   * lần "Failed to collect page data" tưởng là do thiếu tệp DB.
+   *
+   * Đặt sau `journal_mode = wal` là vô dụng: chuyển journal mode cần lấy khoá
+   * độc quyền, nên nó mới là câu chết trước — đúng dòng báo lỗi lần thứ hai.
+   * Không có pragma này thì SQLite bỏ cuộc ngay thay vì chờ tới lượt.
+   */
+  db.exec('pragma busy_timeout = 10000')
   db.exec('pragma journal_mode = wal')
   db.exec('pragma foreign_keys = on')
   db.exec(LUOC_DO)

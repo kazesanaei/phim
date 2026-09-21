@@ -11,7 +11,21 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { daQuaCua } from '@/lib/xac-thuc'
 
 // Những đường không được chặn, nếu không sẽ lặp vô hạn hoặc vỡ giao diện.
-const CHO_QUA = ['/dang-nhap', '/api/dang-nhap', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png']
+/**
+ * `/do-man-hinh` để ngoài cửa vì nó là trang THỬ TRÌNH DUYỆT: mở nó trên một
+ * trình duyệt lạ trên TV Box để xem khung màn hình bao nhiêu và remote có gửi
+ * phím xuống trang không. Bắt đăng nhập trước thì hỏng mục đích — chính cái
+ * trình duyệt đang cần thử lại là cái phải vượt qua màn đăng nhập.
+ * Trang này chỉ đọc thông tin của chính máy khách, không chạm dữ liệu app.
+ */
+const CHO_QUA = [
+  '/dang-nhap',
+  '/api/dang-nhap',
+  '/do-man-hinh',
+  '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
+]
 
 export async function proxy(req: NextRequest) {
   const duong = req.nextUrl.pathname

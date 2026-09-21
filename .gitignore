@@ -52,3 +52,8 @@ goi-phim-len-drive/
 # Ảnh do ffmpeg tự sinh — dựng lại được, đừng đưa vào repo
 /public/poster/
 /public/tua/
+
+# Kho phim KHÔNG còn nằm trong dự án — từ 21/09/2026 để ở D:\Phim và đăng ký
+# trong Quản trị. Để trong dự án thì Turbopack đi băm từng tệp .mp4 và build chết
+# "os error 1450"; loại trừ bằng outputFileTracingExcludes không đủ chắc.
+# Đừng đăng ký lại thư mục phim vào bên trong thư mục này.

@@ -6,6 +6,7 @@
  * đầy đủ — đúng hành vi mong muốn, không phải hạn chế.
  */
 import Link from 'next/link'
+import Anh from '@/components/Anh'
 import { notFound } from 'next/navigation'
 import { layChiTiet } from '@/lib/nguon'
 import { layChiTietLocal } from '@/lib/thu-vien'
@@ -47,10 +48,7 @@ export default async function XemNhanh({ params }: PageProps<'/phim/[slug]'>) {
   return (
     <HopThoai>
       <div className="relative aspect-video w-full bg-black">
-        {anh && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={anh} alt="" aria-hidden className="h-full w-full object-cover" />
-        )}
+        <Anh src={anh} rong={800} uuTien anAnToan khungCho className="h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-[#181818]/20 to-transparent" />
 
         <div className="absolute inset-x-0 bottom-0 p-5">

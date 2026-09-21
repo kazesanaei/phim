@@ -24,7 +24,7 @@ export default function HangPhim({
   }
 
   return (
-    <section className="group/hang relative py-3">
+    <section className="hang-phim group/hang relative py-3">
       <div className="mb-2 flex items-baseline gap-3 px-4">
         <h2 className="text-base font-semibold">{tieuDe}</h2>
         {xemThem && (
@@ -54,6 +54,10 @@ function NutCuon({ huong, onClick }: { huong: -1 | 1; onClick: () => void }) {
     <button
       onClick={onClick}
       aria-label={huong < 0 ? 'Cuộn sang trái' : 'Cuộn sang phải'}
+      /* Nút cuộn là thứ dành cho chuột. Ở chế độ TV nó hút hết tiêu điểm: bấm
+         Phải ở cuối hàng là rơi vào đây rồi kẹt luôn, không quay lại được.
+         Có remote thì hàng tự cuộn theo tiêu điểm nên nút này thừa. */
+      data-nut-chuot="1"
       className={`absolute top-0 hidden h-full w-10 items-center justify-center bg-gradient-to-r from-black/80 to-transparent text-white/80 opacity-0 transition group-hover/hang:opacity-100 hover:text-white md:flex ${
         huong < 0 ? 'left-0' : 'right-0 rotate-180'
       }`}

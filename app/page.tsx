@@ -5,10 +5,12 @@ import TheePhim from '@/components/TheePhim'
 import { type PhimTom } from '@/lib/vsmov'
 import { danhSach as layDanhSach, layChiTiet, duyet } from '@/lib/nguon'
 import { layPhimLocalMoi } from '@/lib/thu-vien'
-import { danhSachTiepTuc } from '@/lib/theo-doi'
+import { danhSachTiepTuc, danhSachXemLai } from '@/lib/theo-doi'
 import { gomPhan, tachPhan } from '@/lib/phan-phim'
 import { goiY } from '@/lib/goi-y'
 import { danhSachTapMoi, kiemTapMoi } from '@/lib/tap-moi'
+import { goiYTheoPhimDaXem } from '@/lib/quet-nguoi'
+import { phimTheoSlug, veTom } from '@/lib/kho-nguon'
 import Link from 'next/link'
 
 // Trang này trộn dữ liệu API (cache 600s ở lớp fetch) với hàng "Tiếp tục xem"
@@ -66,6 +68,7 @@ export default async function TrangChu() {
   await connection()
   const tiepTuc = danhSachTiepTuc(20)
   const local = layPhimLocalMoi(20)
+  const xemLai = danhSachXemLai(20)
 
   // Kiểm tập mới cho phim đang theo dõi — chạy nền, tự giới hạn nhịp nên mở
   // trang liên tục cũng không làm nguồn bị dồn.
@@ -73,12 +76,54 @@ export default async function TrangChu() {
   const tapMoi = danhSachTapMoi()
   const cacGoiY = await goiY()
 
+  /* "Vì bạn đã xem <phim>" — nêu đích danh bộ phim vừa xem thay vì chỉ nói thể
+     loại. Dựng từ chỉ mục diễn viên trong máy, không gọi thêm ra nguồn. */
+  const theoPhimDaXem = goiYTheoPhimDaXem(2).map((g) => ({
+    ...g,
+    items: phimTheoSlug(g.goiY, 14).map(veTom),
+  }))
+
+  /**
+   * Hâm nóng kho ảnh cho đúng những poster sắp hiện. Bắn rồi quên, không chờ.
+   *
+   * Ảnh đã đệm về trong 6–20 ms, chưa đệm thì 150 ms đến 1,8 giây — mà trang này
+   * có gần 190 poster trong khi chỉ được mở 3 kết nối ra CDN cùng lúc. Hâm trước
+   * là cách duy nhất để người xem không phải đợi cái hàng đó.
+   *
+   * Hâm cả poster dọc lẫn ảnh ngang vì máy chủ không biết máy khách đang ở chế
+   * độ PC hay TV — hai chế độ dùng hai loại ảnh khác nhau. Hàng hâm tự bỏ qua
+   * ảnh đã có trên đĩa nên lần tải trang thứ hai không sinh việc gì.
+   */
+  const anhCanHam = [...tiepTuc, ...xemLai, ...local, ...top10, ...moi.items, ...le.items, ...bo.items,
+    ...theLoai.flatMap((t) => t.items), ...cacGoiY.flatMap((g) => g.items),
+    ...theoPhimDaXem.flatMap((g) => g.items)]
+  /**
+   * Nạp `lib/anh.ts` bằng import ĐỘNG, và không chạy lúc `next build`.
+   *
+   * Import tĩnh làm build gãy thật: `next build` dựng sẵn trang này, mà
+   * `lib/anh.ts` có `existsSync(tepDem(...))` với đường dẫn ghép động.
+   * Turbopack phân tích tĩnh cái đó thành một mẫu khớp 10.360 tệp trong
+   * `du-lieu/anh/`, và trang `/` hết 60 giây vẫn chưa dựng xong — hỏng cả ba
+   * lần thử, build thoát mã 1. Đưa vào import động là lib/anh.ts không còn nằm
+   * trong đồ thị mô-đun của trang.
+   *
+   * Chặn theo NEXT_PHASE vì hâm ảnh lúc build là vô nghĩa: tiến trình dựng
+   * xong là chết, đệm chưa kịp đầy mà lại giữ worker bận.
+   */
+  if (process.env.NEXT_PHASE !== 'phase-production-build') {
+    void import('@/lib/anh')
+      .then((m) => m.hamNongAnh(anhCanHam.flatMap((p) => [p.poster, 'anhNgang' in p ? p.anhNgang : null]), 400))
+      .catch(() => {
+        // Hâm ảnh là việc phụ — hỏng thì trang vẫn phải hiện bình thường.
+      })
+  }
+
   return (
     <div className="pb-10">
       <HeroXoay ds={dsHero} />
 
       {/* Các hàng đè lên đáy banner một chút, đúng kiểu trang phim */}
-      <div className="relative z-10 mx-auto -mt-8 max-w-[1600px] md:-mt-16">
+      <div className="troi-len relative z-10 mx-auto -mt-8 max-w-[1600px] md:-mt-16">
         {tiepTuc.length > 0 && (
           <HangPhim tieuDe="Tiếp tục xem" xemThem="/bo-suu-tap">
             {tiepTuc.map((x) => {
@@ -127,8 +172,11 @@ export default async function TrangChu() {
             cũng đủ 10 — thà ít mà thật còn hơn độn phim vài phiếu vào cho tròn số */}
         {top10.length >= 5 && (
           <HangPhim tieuDe={`Top ${top10.length} điểm cao`} xemThem="/duyet">
+            {/* pl-14 chừa chỗ cho số thứ hạng nằm bên trái poster. Số 2 chữ rộng
+                ~66px ở khung 1440, nên pl-8 (32px) cũ là không đủ — đo được số
+                chỉ lòi ra 12px, tức khuất sau poster tới 65–78%. */}
             {top10.map((p, i) => (
-              <div key={p.slug} className="w-40 shrink-0 snap-start pl-8 sm:w-44 md:w-48">
+              <div key={p.slug} className="w-40 shrink-0 snap-start pl-14 sm:w-44 md:w-48">
                 <TheePhim phim={p} thuHang={i + 1} tenHienThi={tachPhan(p.ten).goc} />
               </div>
             ))}
@@ -179,6 +227,20 @@ export default async function TrangChu() {
           </HangPhim>
         ))}
 
+        {/* Đặt TRƯỚC "Vì bạn hay xem <thể loại>": gọi đích danh bộ phim thì
+            thuyết phục hơn hẳn một cái tên thể loại chung chung. */}
+        {theoPhimDaXem.map((g) =>
+          g.items.length >= 4 ? (
+            <HangPhim key={'dx-' + g.slug} tieuDe={`Vì bạn đã xem ${g.ten}`} xemThem={`/phim/${g.slug}`}>
+              {g.items.map((p) => (
+                <Cuon key={p.slug}>
+                  <TheePhim phim={p} tenHienThi={tachPhan(p.ten).goc} />
+                </Cuon>
+              ))}
+            </HangPhim>
+          ) : null,
+        )}
+
         {cacGoiY.map((g) => (
           <HangPhim key={g.theLoai} tieuDe={`Vì bạn hay xem ${g.tenTheLoai}`} xemThem={`/duyet?the-loai=${g.theLoai}`}>
             {gomPhan(g.items).map((n) => (
@@ -188,6 +250,30 @@ export default async function TrangChu() {
             ))}
           </HangPhim>
         ))}
+
+        {/* Xem xong là bản ghi rơi khỏi "Tiếp tục xem", phim biến mất hẳn khỏi
+            trang chủ. Hàng này giữ lại lối về. Đặt gần cuối vì nội dung mới vẫn
+            phải được ưu tiên hơn phim đã xem rồi.
+            Link không kèm `?tap=`: xem lại thì bắt đầu từ tập đầu. Player cũng
+            không nhảy tới chỗ cũ — nó bỏ qua tiến độ nằm trong 20 giây cuối. */}
+        {xemLai.length > 0 && (
+          <HangPhim tieuDe="Xem lại" xemThem="/bo-suu-tap">
+            {xemLai.map((x) => (
+              <Cuon key={x.khoa}>
+                <TheePhim
+                  phim={{
+                    slug: x.slug,
+                    ten: x.ten || x.slug,
+                    poster: x.poster || undefined,
+                    nguon: (x.nguon as 'vsmov' | 'local') || 'vsmov',
+                  }}
+                  href={`/xem/${x.slug}`}
+                  huyHieu="Đã xem"
+                />
+              </Cuon>
+            ))}
+          </HangPhim>
+        )}
 
         {local.length === 0 && (
           <p className="px-4 pt-6 text-sm text-white/40">

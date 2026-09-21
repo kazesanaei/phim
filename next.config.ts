@@ -26,9 +26,20 @@ const nextConfig: NextConfig = {
    * cố đọc `phim.db-shm` — file WAL đang bị server khoá, build gãy với
    * "The process cannot access the file... (os error 33)".
    * Dữ liệu chạy thì đọc lúc chạy, không việc gì phải gói vào bản build.
+   *
+   * Khoá là GLOB THEO ĐƯỜNG ROUTE (khớp bằng picomatch với '/api/...'), không
+   * phải glob theo tệp. `'*'` một mình KHÔNG khớp route nhiều đoạn như
+   * `/api/tai-len`, cũng không khớp `proxy.ts` — nên phải có `'**'`.
+   *
+   * Thư mục phim KHÔNG còn nằm trong danh sách này: từ 21/09/2026 phim để ở
+   * `D:\Phim`, ngoài dự án. Loại trừ theo khoá route hoá ra không đủ chắc —
+   * build vẫn thỉnh thoảng chết "Insufficient system resources (os error 1450)"
+   * vì Turbopack đi băm từng .mp4 vài GB. Ở ngoài dự án thì nó không với tới.
+   * Đừng đăng ký lại thư mục phim vào trong dự án.
    */
   outputFileTracingExcludes: {
     '*': ['./du-lieu/**', './public/tua/**', './public/poster/**'],
+    '**': ['./du-lieu/**', './public/tua/**', './public/poster/**'],
   },
 
   async headers() {

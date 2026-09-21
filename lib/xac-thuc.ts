@@ -13,7 +13,13 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 import { layCaiDat, datCaiDat } from './db'
 
 const TEN_COOKIE = 'phim_phien'
-const HAN_NGAY = 30
+/**
+ * Hạn của vé phiên. Dài vì gõ mật khẩu bằng remote TV rất khổ — mạng ở đây là
+ * wifi trong nhà, không phải máy công cộng.
+ * Đổi số này thì các vé ĐÃ CẤP vẫn giữ hạn cũ. Muốn đá hết thiết bị ra thì
+ * đặt lại mật khẩu — `datMatKhau` xoay khoá ký nên vé cũ chết ngay.
+ */
+const HAN_NGAY = 365
 
 export function laCheDoLan(): boolean {
   return layCaiDat('che_do_lan', '') === 'bat'
@@ -37,6 +43,15 @@ export function datMatKhau(matKhau: string) {
   const muoi = randomBytes(16).toString('hex')
   const bam = scryptSync(matKhau, muoi, 64).toString('hex')
   datCaiDat('mat_khau_bam', muoi + ':' + bam)
+  /**
+   * Xoay luôn khoá ký, nhờ đó mọi vé phiên cũ chết ngay.
+   *
+   * Vé ký bằng `khoa_ky` chứ không bằng mật khẩu, nên nếu không xoay thì đổi
+   * mật khẩu chẳng đuổi được thiết bị nào — mà vé sống tới HAN_NGAY. Đây là
+   * đường thu hồi duy nhất: mất điện thoại hay cho mượn nhà thì đặt lại mật
+   * khẩu, mọi máy phải đăng nhập lại.
+   */
+  datCaiDat('khoa_ky', randomBytes(32).toString('hex'))
 }
 
 export function xoaMatKhau() {

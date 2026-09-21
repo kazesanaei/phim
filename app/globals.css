@@ -8,6 +8,14 @@
   --color-nhan: #e5251f;
 }
 
+/* Nhịp chung cho mọi chuyển động. Đổi ở đây là đổi cả trang. */
+:root {
+  --nhip-nhanh: 150ms;
+  --nhip: 240ms;
+  --nhip-cham: 400ms;
+  --duong-cong: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
 html {
   color-scheme: dark;
 }
@@ -56,4 +64,558 @@ body {
   .so-hang {
     color: rgba(255, 255, 255, 0.25);
   }
+}
+
+/* ==================================================================
+   Chuyển động
+   ================================================================== */
+
+/* Ảnh: hiện dần khi byte về tới nơi, thay vì nhảy đánh phịch một cái. */
+@keyframes hienAnh {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.anh-hien {
+  animation: hienAnh var(--nhip-cham) var(--duong-cong) both;
+}
+
+/* Vệt sáng chạy ngang ô chờ — cho biết đang tải chứ không phải hỏng. */
+@keyframes loeSang {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.o-cho::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  animation: loeSang 1.4s ease-in-out infinite;
+}
+
+/* Banner trôi rất chậm — đủ để trang có nhịp thở, không đủ để gây chú ý.
+   Dài hơn NHIP của HeroXoay một chút nên không bao giờ chạm tới điểm cuối. */
+@keyframes troiAnh {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.07);
+  }
+}
+.anh-troi {
+  animation: troiAnh 9s ease-out both;
+}
+
+/* Nội dung trồi lên khi vào khung nhìn / khi mới dựng */
+@keyframes troiLen {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.troi-len {
+  animation: troiLen var(--nhip-cham) var(--duong-cong) both;
+}
+
+/* Hộp thoại xem nhanh nở ra thay vì hiện đánh phịch */
+.no-hop {
+  animation: hienBang var(--nhip) var(--duong-cong) both;
+}
+
+/* Menu thả xuống */
+@keyframes buongXuong {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.buong-xuong {
+  animation: buongXuong var(--nhip) var(--duong-cong) both;
+  transform-origin: top;
+}
+
+/* Ngăn kéo cho màn hình nhỏ */
+@keyframes truotVao {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.truot-vao {
+  animation: truotVao var(--nhip) var(--duong-cong) both;
+}
+
+@keyframes moMan {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.mo-man {
+  animation: moMan var(--nhip) ease-out both;
+}
+
+/* Con trỏ đang ở mục nào trong thanh điều hướng */
+.gach-chan {
+  position: relative;
+}
+.gach-chan::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-nhan);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--nhip) var(--duong-cong);
+}
+.gach-chan:hover::after,
+.gach-chan[data-chon="1"]::after {
+  transform: scaleX(1);
+}
+
+/* Chuyển trang: nội dung cũ mờ đi nhanh, nội dung mới về chậm hơn một nhịp.
+   React ViewTransition tự gắn hai lớp giả này khi điều hướng. */
+::view-transition-old(root) {
+  animation: var(--nhip-nhanh) ease-out both moMan reverse;
+}
+::view-transition-new(root) {
+  animation: var(--nhip) ease-in var(--nhip-nhanh) both moMan;
+}
+
+/* ==================================================================
+   Ai tắt hiệu ứng thì tắt hẳn — không phải làm cho có
+   ================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .o-cho::after {
+    display: none;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+/* ==================================================================
+   CHẾ ĐỘ TV — Sharp LC-40SA5500X 40" qua Xiaomi Box, xem cách màn 2–3 m
+   ==================================================================
+   Ba việc phải làm khác hẳn màn hình bàn:
+
+   1. VIỀN AN TOÀN. TV vẫn cắt mép ảnh (overscan). Chữ hay nút chạm mép là
+      mất. Chừa 3.5% mỗi bên, phần cuộn ngang thì chỉ chừa hai bên trái phải
+      để hàng phim vẫn "chảy" ra ngoài mép cho đẹp.
+   2. CHỮ TO. Cỡ chữ tính cho khoảng cách gấp 5 lần màn hình bàn. Đặt ở
+      html để mọi rem trong trang giãn theo, khỏi phải sửa từng chỗ.
+   3. TIÊU ĐIỂM THẤY RÕ. Không dùng chuột: điều khiển hoàn toàn bằng 4 mũi
+      tên trên remote (components/PhimRemote.tsx). Viền tiêu điểm là thứ DUY
+      NHẤT cho biết đang đứng ở đâu, nên phải nổi bật hẳn, không phải nhấn nhá.
+
+   Mọi thứ dưới đây chỉ chạy khi thẻ <html> có data-che-do="tv" — đặt bởi
+   đoạn script trong lib/che-do.ts, chạy trước khi trang vẽ. */
+
+[data-che-do='tv'] {
+  --vien-an-toan: 3.5vw;
+  /**
+   * Cỡ chữ theo BỀ RỘNG KHUNG, không phải số px cứng.
+   *
+   * Lý do: Chrome trên Android TV báo khung 960 hoặc 1280 CSS px chứ không phải
+   * 1920 — cùng một cái TV 40 inch. Đặt cứng 20px thì ở khung 960 chữ hoá ra to
+   * gần gấp đôi mức cần, và cụm nút bên phải đầu trang tràn hẳn ra ngoài mép
+   * (đo được: chạy tới x=977 trên khung rộng 960).
+   *
+   * Tính theo vw thì cỡ chữ VẬT LÝ trên màn hình như nhau ở mọi khung: 1.55vw
+   * ≈ 15px ở khung 960 và ≈ 30px ở khung 1920, hai cái hiện ra bằng nhau trên
+   * cùng tấm màn. clamp() chặn hai đầu cho màn quá nhỏ hoặc quá to.
+   */
+  font-size: clamp(15px, 1.55vw, 26px);
+}
+
+[data-che-do='tv'] body {
+  /* Nền TV kém tương phản hơn màn hình bàn: đẩy chữ sáng lên hẳn trắng. */
+  color: #fff;
+}
+
+/* Chừa viền an toàn cho phần nội dung, trừ các dải cuộn ngang */
+[data-che-do='tv'] main > * > *:not(.cuon-ngang):not(.co-banner) {
+  padding-inline: max(1rem, var(--vien-an-toan));
+}
+
+/* Đầu trang và chân trang cũng phải lùi khỏi mép */
+/* Cũng chỉ thanh công cụ, không đụng bảng thả xuống — bảng tự lo lề của nó. */
+[data-che-do='tv'] header > div:first-child,
+[data-che-do='tv'] footer {
+  padding-inline: max(1rem, var(--vien-an-toan));
+}
+
+/* Đầu trang: 4.5rem với cỡ chữ gốc theo vw hoá ra 89px ở khung 1280 — quá dày,
+   ăn mất chỗ của nội dung. 3.4rem vừa đủ to để nhìn từ xa.
+
+   BẮT BUỘC dùng :first-child. Bảng "Duyệt" cũng là con trực tiếp của <header>,
+   nên `header > div` khớp luôn cả nó và ép nó cao 54px — bảng bị cắt cụt, chỉ
+   còn ba dòng tiêu đề THỂ LOẠI / QUỐC GIA / NĂM. Đã xảy ra thật trên TV. */
+[data-che-do='tv'] header > div:first-child {
+  height: 3.4rem;
+}
+[data-che-do='tv'] main {
+  padding-top: 3.4rem;
+}
+[data-che-do='tv'] main:has(.co-banner) {
+  padding-top: 0;
+}
+
+/* --- Tiêu điểm: dày, sáng, có khoảng thở, không bị cắt bởi overflow --- */
+[data-che-do='tv'] a:focus-visible,
+[data-che-do='tv'] button:focus-visible,
+[data-che-do='tv'] input:focus-visible,
+[data-che-do='tv'] select:focus-visible,
+[data-che-do='tv'] [tabindex]:focus-visible {
+  outline: 4px solid #fff;
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+/* Thẻ phim đang trỏ tới thì nhô lên hẳn, nhìn từ xa vẫn biết đang ở đâu */
+[data-che-do='tv'] .the-phim:focus-within {
+  transform: scale(1.07);
+  z-index: 20;
+}
+[data-che-do='tv'] .the-phim {
+  transition: transform var(--nhip) var(--duong-cong);
+}
+
+/* --- Poster to hơn, mỗi hàng ít phim hơn ---
+   Đo bằng vw chứ KHÔNG bằng rem: cỡ chữ gốc ở chế độ TV đã tính theo vw rồi,
+   nên rem ở đây sẽ nhân hiệu ứng phóng lên hai lần. Đã thấy thật ở khung
+   1280x720: thẻ phim cao quá màn hình, bị cắt mất nửa dưới. */
+[data-che-do='tv'] .cuon-ngang > * {
+  width: clamp(140px, 13vw, 240px);
+}
+
+/* Lưới kết quả: bớt cột để mỗi ô to lên */
+[data-che-do='tv'] .luoi-phim {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.5rem 1.25rem;
+}
+@media (min-width: 1400px) {
+  [data-che-do='tv'] .luoi-phim {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Chữ phụ dưới poster: từ 2–3 m thì cỡ 11px là không đọc được */
+[data-che-do='tv'] .the-phim p {
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+/* Banner trên TV.
+
+   Đo trên đúng máy người dùng (Xiaomi Box S, khung 960x540 CSS px): banner cao
+   390px trên màn cao 540px, nên hàng phim đầu tiên bắt đầu ở y=330 và bị cắt
+   đáy — mở trang lên KHÔNG thấy trọn một thẻ phim nào.
+
+   Phải ép cả khung ngoài lẫn khung trong: chỉ đặt min-height ở khung ngoài thì
+   nội dung bên trong vẫn tự đẩy cao lên. Kèm nén phần chữ ở dưới. */
+[data-che-do='tv'] .co-banner,
+[data-che-do='tv'] .co-banner > div:last-child {
+  /* Đo trên khung 960x540 thật: 37vh (=200px) là mức để hàng phim đầu tiên
+     nằm TRỌN trong màn sau khi đã bỏ phần kéo ngược ở dưới. */
+  min-height: 37vh;
+}
+
+/* Thứ chỉ có nghĩa khi dùng chuột và bàn phím thì giấu đi trên TV */
+[data-che-do='tv'] .an-tren-tv {
+  display: none !important;
+}
+
+/* --- Trình phát ở chế độ TV ------------------------------------------
+   Remote chỉ có con trỏ ảo nhỏ xíu, mà thanh điều khiển vốn thiết kế cho
+   chuột. Phóng to vùng bấm là việc quan trọng nhất; phần phím tắt thì
+   Player.tsx đã lo (mũi tên tua và chỉnh tiếng, Enter là phát/dừng). */
+
+[data-che-do='tv'] .trinh-phat button,
+[data-che-do='tv'] .trinh-phat a {
+  /* 44px là ngưỡng bấm trúng quen dùng; trên TV cần rộng hơn nữa. */
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+
+[data-che-do='tv'] .trinh-phat svg {
+  transform: scale(1.15);
+}
+
+/* Thanh tua: mỏng quá thì con trỏ ảo không tài nào trúng */
+[data-che-do='tv'] .trinh-phat input[type='range'] {
+  height: 1.5rem;
+}
+
+/* Phụ đề mặc định to hơn — vẫn chỉnh tay được trong bảng cài đặt trình phát */
+[data-che-do='tv'] #video-chinh::cue {
+  font-size: 165%;
+}
+
+/* Bảng chọn trong trình phát (phụ đề, tốc độ...) cách nhau rộng ra */
+[data-che-do='tv'] .trinh-phat [role='menu'] button,
+[data-che-do='tv'] .trinh-phat .bang-chon button {
+  padding-block: 0.6rem;
+  font-size: 0.9rem;
+}
+
+/* --- Trang chủ gọn lại trên TV ---------------------------------------
+   Cuộn bằng remote chậm hơn chuột nhiều. Giữ 7 hàng đầu (Tiếp tục xem,
+   Tập mới, Top điểm, Mới cập nhật, Kho của tôi, Phim lẻ, Phim bộ) và cắt
+   phần đuôi liệt kê theo thể loại — vốn đã vào được qua menu Duyệt. */
+[data-che-do='tv'] .hang-phim:nth-of-type(n + 8) {
+  display: none;
+}
+
+/* Tiêu đề hàng to lên cho đọc được từ xa */
+[data-che-do='tv'] .hang-phim h2 {
+  font-size: 1.15rem;
+}
+
+/* Chừa viền an toàn cho phần cuộn ngang: chỉ hai bên, để hàng phim vẫn
+   chảy hết bề ngang màn hình thay vì bị đóng khung. */
+[data-che-do='tv'] .hang-phim > div > div,
+[data-che-do='tv'] .hang-phim > div:first-child {
+  padding-inline: max(1rem, var(--vien-an-toan));
+}
+
+/* --- Thanh đầu trang trên TV -----------------------------------------
+   Chữ to lên 25% mà chiều ngang không đổi, nên hàng menu vỡ thành 2–3 dòng
+   (đã thấy trên ảnh chụp 1920×1080). Giữ lại đúng những lối đi chính và
+   cấm ngắt dòng; phần bị giấu vẫn vào được qua menu Duyệt. */
+
+[data-che-do='tv'] .muc-menu[data-phu-tv] {
+  display: none;
+}
+
+/* Nhãn trong đầu trang KHÔNG được ngắt dòng — ở mọi chế độ, không riêng TV.
+   Thanh này chỉ cao một hàng; nhãn vỡ dòng là chữ tràn ra ngoài khung nút.
+   Đã thấy trên máy tính ở khung 1440px sau khi nút PC/TV tách làm hai. */
+header button,
+header a {
+  white-space: nowrap;
+}
+
+/* Ô tìm co giãn theo khung. 16rem cứng thì ở khung 960 nó chiếm gần nửa
+   đầu trang và đẩy cụm nút bên phải ra ngoài mép. */
+[data-che-do='tv'] header input[type='text'],
+[data-che-do='tv'] header input:not([type]) {
+  width: clamp(8rem, 14vw, 16rem);
+}
+
+/* --- Điều khiển bằng remote: tiêu điểm là con trỏ duy nhất -----------
+   Dùng :focus chứ không phải :focus-visible. Trình duyệt chỉ coi là
+   "visible" khi tiêu điểm đến từ bàn phím; điều hướng bằng mũi tên qua
+   JS thì có trình duyệt TV không tính, và ô đang chọn sẽ không hiện viền
+   — tức là mất luôn con trỏ. */
+
+[data-che-do='tv'] a:focus,
+[data-che-do='tv'] button:focus,
+[data-che-do='tv'] input:focus,
+[data-che-do='tv'] select:focus,
+[data-che-do='tv'] [tabindex]:focus {
+  outline: 4px solid #fff;
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+/* Thẻ phim đang chọn: nhô lên để nhìn từ xa thấy ngay, kể cả khi viền
+   trắng lẫn vào poster sáng màu. */
+[data-che-do='tv'] .the-phim:focus-within {
+  transform: scale(1.07);
+  z-index: 20;
+}
+
+/* Không có chuột thì bảng nở khi rê chuột là thứ không bao giờ tới được,
+   mà nó lại vẽ đè lên nội dung nếu vô tình kích hoạt. Tắt hẳn. */
+[data-che-do='tv'] .the-phim .group-hover\/the\:scale-\[1\.06\] {
+  transform: none !important;
+}
+
+/* Nút chỉ có nghĩa với chuột: nút cuộn hai bên hàng phim, chấm chuyển banner.
+
+   CHỈ ẩn khi đã biết chắc trình duyệt gửi phím xuống trang — thuộc tính
+   `data-remote` do components/PhimRemote.tsx đặt ở lần nhận phím đầu tiên.
+
+   Vì sao phải rào như vậy: Cốc Cốc trên TV nuốt sạch D-pad để lái con trỏ ảo.
+   Đo thật trên máy người dùng — bấm hết mọi nút, KHÔNG phím nào tới được trang.
+   Với trình duyệt kiểu đó mà giấu mấy nút này đi thì kẹt hoàn toàn: vừa không
+   còn nút để bấm, vừa không có mũi tên để đi. */
+[data-che-do='tv'][data-remote] [data-nut-chuot] {
+  display: none !important;
+}
+
+/* Dòng phụ dưới poster (tên gốc, năm) tràn 2–3 dòng ở chế độ TV rồi đè lên
+   số thứ hạng của hàng Top 10 và tràn sang thẻ bên cạnh — đã thấy trên ảnh
+   chụp 1280x720. Tên gốc từ 2,5 m vốn không đọc được, cắt còn một dòng. */
+[data-che-do='tv'] .the-phim p + p {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Tên phim: 2 dòng là trần, phần thừa cắt bằng dấu ba chấm thay vì đẩy dài ra */
+[data-che-do='tv'] .the-phim p:first-of-type {
+  -webkit-line-clamp: 2;
+}
+
+/* Tên phim dài 2 dòng, tên ngắn 1 dòng -> các thẻ so le chiều cao và thẻ cao
+   nhất thò xuống hàng dưới. Ghim đúng chỗ cho 2 dòng tên + 1 dòng phụ, khớp
+   line-height 1.35 đặt ở trên. */
+[data-che-do='tv'] .the-phim p:first-of-type {
+  min-height: calc(2 * 1.35em);
+}
+
+/* Chữ trong banner: trên khung cao 540px thì tiêu đề 5xl và 3 dòng mô tả đẩy
+   banner phình lên 390px. Nén lại để còn chỗ cho hàng phim đầu tiên. */
+/* Tiêu đề banner ghim ĐÚNG MỘT DÒNG.
+   Banner đổi phim liên tục; tên dài xuống 2 dòng là banner cao thêm ~21px và
+   hàng phim đầu tiên lại bị cắt đáy. Đo được: cùng trang, banner khi 200px khi
+   221px chỉ vì tên phim khác nhau. Một dòng thì chiều cao cố định. */
+[data-che-do='tv'] .co-banner h1 {
+  font-size: 2rem;
+  line-height: 1.1;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* Ẩn hẳn tóm tắt trên banner: chữ nhỏ, đọc từ 2,5 m là không nổi, mà nó ăn
+   ~40px chiều cao — đúng phần thiếu để hàng phim đầu tiên nằm trọn trong màn.
+   Tóm tắt vẫn còn nguyên ở trang chi tiết phim. */
+[data-che-do='tv'] .co-banner p.line-clamp-3 {
+  display: none;
+}
+/* Đệm của khối chữ trong banner — ba con số này quyết định banner cao bao nhiêu,
+   mà banner cao bao nhiêu lại quyết định hàng phim đầu tiên có lọt màn không.
+   Đo trên khung 960x540: banner phải ≤202px thì hàng đầu (338px) mới nằm trọn.
+   padding-top chỉ cần đủ để chữ không chui xuống dưới đầu trang (51px). */
+[data-che-do='tv'] .co-banner > div:last-child {
+  padding-top: 3.6rem;
+  padding-bottom: 0.9rem;
+  gap: 0.35rem;
+}
+
+
+/* Khối hàng phim vốn bị kéo ngược -4rem để trườn lên vệt tối chân banner.
+   Với banner cao 72vh thì không sao, nhưng banner TV chỉ còn 42vh nên phần
+   kéo đó đè thẳng lên nút "Xem ngay" — đã thấy trên ảnh chụp 960x540.
+   Trên TV bỏ hẳn phần kéo: banner đã thấp, không còn vệt thừa để lấp. */
+[data-che-do='tv'] main .troi-len {
+  margin-top: 0 !important;
+}
+
+/* --- Đầu trang ở chế độ TV --------------------------------------------
+   Khung Box chỉ 960 CSS px. Nhồi đủ menu ngang + 4 nút + ô tìm vào đó thì
+   hoặc vỡ dòng, hoặc chữ bé không đọc nổi từ 2,5 m. Nên trên TV đầu trang
+   rút còn: nút menu, logo, ô tìm, nút PC/TV. Mọi lối đi khác chuyển vào
+   ngăn trượt hai tầng (components/MenuTv.tsx) — bấm một nút là ra hết,
+   và vùng bấm rộng hơn hẳn cho con trỏ ảo. */
+
+[data-che-do='tv'] .an-tren-tv {
+  display: none !important;
+}
+
+/* Nút mở menu: trên TV là lối đi chính nên phải to và luôn thấy */
+[data-che-do='tv'] header button[aria-label='Mở menu'] {
+  display: grid !important;
+  height: 2.6rem;
+  width: 2.6rem;
+}
+
+/* Mục trong ngăn TV: vùng bấm cao hơn cho con trỏ ảo dễ trúng */
+/* Chiều cao hàng: 2.4rem thì ~46 thể loại xếp 3 cột vẫn tràn đáy màn 540px.
+   2rem vừa đủ để không phải cuộn, mà vùng bấm vẫn rộng gấp rưỡi chữ. */
+[data-che-do='tv'] .muc-tv {
+  min-height: 2rem;
+  font-size: 0.92rem;
+}
+
+/* --- Thẻ phim trên TV: ảnh ngang 16:9 thay cho poster dọc --------------
+   Netflix/YouTube trên TV đều dùng ảnh ngang. Lý do: ở 2,5 m mắt bắt ảnh
+   ngang kèm tên nhanh hơn poster dọc, và trên màn chỉ cao 540px thì thẻ
+   thấp hơn nghĩa là thấy được nhiều hàng hơn — poster dọc cao 279px chỉ
+   vừa đúng một hàng dưới banner.
+
+   Tỉ lệ đặt ở đây chứ không đặt trong JSX để đổi chế độ không làm nhảy
+   bố cục; phần đổi nguồn ảnh nằm ở components/TheePhim.tsx. */
+[data-che-do='tv'] .the-phim .khung-anh {
+  aspect-ratio: 16 / 9;
+}
+
+/* Ảnh ngang cần bề rộng lớn hơn poster mới đọc được chữ trên ảnh */
+[data-che-do='tv'] .cuon-ngang > * {
+  width: clamp(190px, 19vw, 320px);
+}
+
+/* Lưới kết quả cũng theo: ít cột hơn vì mỗi ô rộng hơn */
+[data-che-do='tv'] .luoi-phim {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (min-width: 1400px) {
+  [data-che-do='tv'] .luoi-phim {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Thẻ ngang rộng gấp đôi thẻ dọc nên tên phim gần như luôn vừa một dòng.
+   Chỗ ghim sẵn 2 dòng (đặt ở trên cho poster dọc) hoá ra là khoảng trống
+   chết giữa tên và dòng phụ — thấy rõ trên ảnh chụp 960x540. Trả về tự nhiên. */
+[data-che-do='tv'] .the-phim p:first-of-type {
+  min-height: 0;
+}
+
+/* --- Nút lưu nhanh trên thẻ phim -------------------------------------
+   Máy tính: chỉ lộ ra khi rê chuột lên thẻ, để lưới poster không bị rối
+   bởi một nút trên mỗi ô. Bàn phím vẫn tới được nhờ :focus-within. */
+.nut-luu {
+  opacity: 0;
+  transition: opacity var(--nhip-nhanh) ease-out;
+}
+.the-phim:hover .nut-luu,
+.the-phim:focus-within .nut-luu {
+  opacity: 1;
+}
+
+/* TV không có "rê chuột" để mà lộ ra — hiện sẵn luôn. */
+[data-che-do='tv'] .nut-luu {
+  opacity: 1;
+  height: 2.2rem;
+  width: 2.2rem;
 }

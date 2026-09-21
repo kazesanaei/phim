@@ -14,6 +14,8 @@
 import type { PhimTom, Trang, ChiTiet, MayChu, MucDanhMuc } from './vsmov'
 
 const GOC = 'https://phimapi.com'
+/** CDN ảnh của nguồn này — khác host với API, và phải có dấu / ở cuối. */
+const ANH_GOC = 'https://phimimg.com/'
 export const TEN_NGUON = 'kkphim'
 
 type Bat = Record<string, unknown>
@@ -43,19 +45,26 @@ async function goi(duong: string, tim: Record<string, string | number | undefine
 
 function veTom(x: Bat): PhimTom {
   const tmdb = (x.tmdb || {}) as Bat
-  // Poster của KKPhim đôi khi là đường tương đối, phải ghép thêm gốc ảnh
+  // Poster của KKPhim đôi khi là đường tương đối, phải ghép thêm gốc ảnh.
+  //
+  // ĐO NGÀY 28/08/2026: `${GOC}/image.php?url=...` mà bản cũ dùng nay trả 404
+  // kèm JSON — nguồn đã bỏ endpoint đó. 80/228 ảnh trang chủ chết vì nó. Cũng
+  // đúng đường dẫn tương đối ấy ghép vào ANH_GOC thì 12/12 mẫu trả 200.
+  // Nếu ngày nào ảnh lại mất hàng loạt, kiểm chỗ này trước.
   const anh = (u: unknown) => {
-    const s = String(u || '')
+    if (typeof u !== 'string') return undefined // nguồn có lúc trả object
+    const s = u.trim()
     if (!s) return undefined
-    return s.startsWith('http') ? s : `${GOC}/image.php?url=${encodeURIComponent(s)}`
+    return s.startsWith('http') ? s : ANH_GOC + s.replace(/^\/+/, '')
   }
   return {
     slug: String(x.slug || ''),
     ten: String(x.name || x.slug || ''),
     tenGoc: (x.origin_name as string) || undefined,
     nam: (x.year as number) || undefined,
-    poster: anh(x.poster_url),
-    anhNgang: anh(x.thumb_url),
+    // Xem chú thích cùng chỗ ở lib/vsmov.ts: poster rỗng thì dùng ảnh ngang.
+    poster: anh(x.poster_url) ?? anh(x.thumb_url),
+    anhNgang: anh(x.thumb_url) ?? anh(x.poster_url),
     nguon: 'vsmov', // dùng chung kiểu; nguồn thật ghi ở `nguonGoc`
     tapHienTai: (x.episode_current as string) || undefined,
     chatLuong: (x.quality as string) || undefined,

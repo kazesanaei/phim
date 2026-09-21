@@ -12,7 +12,7 @@ export function TheKhung() {
 
 export function LuoiKhung({ so = 16 }: { so?: number }) {
   return (
-    <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+    <div className="luoi-phim grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
       {Array.from({ length: so }).map((_, i) => (
         <TheKhung key={i} />
       ))}

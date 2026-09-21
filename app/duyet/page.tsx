@@ -127,7 +127,7 @@ export default async function TrangDuyet({ searchParams }: PageProps<'/duyet'>) 
             : 'Không tìm thấy phim nào khớp bộ lọc này.'}
         </p>
       ) : (
-        <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+        <div className="troi-len luoi-phim grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
           {the.map((t) => (
             <TheePhim
               key={t.phim.slug}

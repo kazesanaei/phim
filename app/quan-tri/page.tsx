@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Anh from '@/components/Anh'
 import Link from 'next/link'
 
 type ThuMuc = { id: number; duong_dan: string; bat: number; la_thu_muc_tai: number }
@@ -21,6 +22,7 @@ const TAB = [
   { ma: 'thu-vien', ten: 'Thư viện' },
   { ma: 'gom-tap', ten: 'Gom tập' },
   { ma: 'kho', ten: 'Kho đệm' },
+  { ma: 'nguoi', ten: 'Diễn viên' },
 ] as const
 type MaTab = (typeof TAB)[number]['ma']
 
@@ -115,6 +117,7 @@ export default function TrangQuanTri() {
         {tab === 'thu-vien' && <TabThuVien bao={bao} nap={nap} />}
         {tab === 'gom-tap' && <TabGomTap bao={bao} nap={nap} />}
         {tab === 'kho' && <TabKho bao={bao} />}
+        {tab === 'nguoi' && <TabNguoi bao={bao} />}
       </div>
     </div>
   )
@@ -484,7 +487,7 @@ function TabThuVien({ bao, nap }: { bao: (t: string) => void; nap: () => void })
             >
               {p.poster ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.poster} alt="" className="h-16 w-11 shrink-0 rounded object-cover" />
+                <Anh src={p.poster} rong={200} anAnToan className="h-16 w-11 shrink-0 rounded object-cover" />
               ) : (
                 <div className="grid h-16 w-11 shrink-0 place-items-center rounded bg-black/40 text-white/25">?</div>
               )}
@@ -621,7 +624,7 @@ function HopSua({ phim, dong, xong }: { phim: PhimHang; dong: () => void; xong: 
                 >
                   {u.poster && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={u.poster} alt="" className="h-12 w-8 rounded object-cover" />
+                    <Anh src={u.poster} rong={200} anAnToan className="h-12 w-8 rounded object-cover" />
                   )}
                   <span className="min-w-0">
                     <span className="block truncate">{u.ten}</span>
@@ -1227,5 +1230,160 @@ function KhoiNguon({ bao }: { bao: (t: string) => void }) {
         </div>
       </div>
     </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+type TienDoNguoi = {
+  dangChay: boolean
+  daQuet: number
+  tongPhim: number
+  soNguoi: number
+  soTen: number
+  loi: string | null
+}
+
+/**
+ * Quét chỉ mục diễn viên.
+ *
+ * Vì sao phải quét thay vì hỏi nguồn: nguồn KHÔNG có endpoint tìm theo người
+ * (đã thử `/dien-vien/<slug>` → 404 và `?actor=` → 422; `?keyword=` chỉ khớp
+ * tên phim). Tên người chỉ nằm ở trang chi tiết từng phim.
+ */
+function TabNguoi({ bao }: { bao: (t: string) => void }) {
+  const [ng, datNg] = useState<TienDoNguoi | null>(null)
+
+  const nap = useCallback(async () => {
+    try {
+      const r = await fetch('/api/thu-vien')
+      const j = await r.json()
+      datNg(j.nguoi ?? null)
+    } catch {
+      // dev server dang bien dich lai thi bo qua mot nhip
+    }
+  }, [])
+
+  useEffect(() => {
+    nap()
+    const t = setInterval(nap, 1500)
+    return () => clearInterval(t)
+  }, [nap])
+
+  async function lam(viec: string, them: Record<string, unknown> = {}) {
+    const j = await goi({ viec, ...them })
+    if (j.nguoi) datNg(j.nguoi as TienDoNguoi)
+    nap()
+    return j
+  }
+
+  const dang = ng?.dangChay
+  const tong = ng?.tongPhim ?? 0
+  const xong = ng?.daQuet ?? 0
+  const phanTram = tong > 0 ? Math.min(100, Math.round((xong / tong) * 100)) : 0
+  // Tốc độ đo thật khi chạy cả kho — xem chú thích TOC_DO_DO_DUOC ở lib/quet-nguoi.ts.
+  const phutConLai = Math.max(0, Math.round((tong - xong) / 2.4 / 60))
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-sm font-semibold">Chỉ mục diễn viên</h2>
+        <p className="mt-1 text-sm leading-relaxed text-white/50">
+          Quét tên diễn viên và đạo diễn của từng phim vào máy, để ô tìm kiếm tra được{' '}
+          <strong className="font-semibold text-white/70">theo tên người</strong> chứ không chỉ theo tên phim.
+        </p>
+        <p className="mt-2 text-xs text-white/35">
+          Bắt buộc phải tự quét: nguồn không có chỗ nào tìm theo diễn viên — gõ &ldquo;Tom Cruise&rdquo; vào nguồn chỉ
+          ra phim nào có chuỗi đó trong <em>tên phim</em>. Tên người chỉ nằm ở trang chi tiết từng phim, nên phải đi
+          một lượt qua cả kho. Chạy nền, tạm dừng và chạy tiếp được, mất khoảng <strong className="text-white/70">2 giờ</strong> cho
+          toàn bộ kho. Phim điểm cao quét trước, nên dừng giữa chừng thì phần đã có vẫn là phần hay tra nhất.
+        </p>
+      </div>
+
+      {tong === 0 && (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+          Kho đệm đang trống. Sang thẻ <strong>Kho đệm</strong> quét danh mục phim trước đã — chỉ mục diễn viên đi theo
+          danh sách phim trong kho.
+        </p>
+      )}
+
+      <div className="rounded-lg border border-[var(--color-vien)] bg-[var(--color-nen-2)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{(ng?.soTen ?? 0).toLocaleString('vi-VN')}</p>
+            <p className="text-xs text-white/45">
+              tên người · {(ng?.soNguoi ?? 0).toLocaleString('vi-VN')} lượt tham gia
+            </p>
+          </div>
+          <div className="text-right text-xs text-white/50">
+            <p>
+              <span className="tabular-nums text-white/80">{xong.toLocaleString('vi-VN')}</span> /{' '}
+              {tong.toLocaleString('vi-VN')} phim đã quét
+            </p>
+            {dang && <p className="mt-0.5">còn khoảng {phutConLai} phút</p>}
+          </div>
+        </div>
+
+        {(dang || xong > 0) && (
+          <div className="mt-3 h-1.5 overflow-hidden rounded bg-white/10">
+            <div className="h-full bg-emerald-500 transition-all" style={{ width: phanTram + '%' }} />
+          </div>
+        )}
+
+        {ng?.loi && <p className="mt-3 text-xs text-red-400">Lỗi: {ng.loi}</p>}
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {dang ? (
+            <button
+              onClick={async () => {
+                await lam('dung-quet-nguoi')
+                bao('Đã dừng. Bấm Quét tiếp để chạy lại từ chỗ đang dở.')
+              }}
+              className="rounded bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
+            >
+              Tạm dừng
+            </button>
+          ) : (
+            <button
+              onClick={async () => {
+                await lam('quet-nguoi')
+                bao('Đang quét nền. Cứ dùng app bình thường, tiến độ cập nhật ở đây.')
+              }}
+              disabled={tong === 0}
+              className="rounded bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-40"
+            >
+              {xong > 0 ? 'Quét tiếp' : 'Bắt đầu quét'}
+            </button>
+          )}
+          <button
+            onClick={async () => {
+              if (!confirm('Quét lại toàn bộ? Tên đã có vẫn giữ, chỉ đi lại một lượt qua tất cả phim.')) return
+              await lam('quet-nguoi', { lamLai: true })
+              bao('Đang quét lại từ đầu.')
+            }}
+            disabled={dang || tong === 0}
+            className="rounded bg-white/10 px-4 py-2 text-sm hover:bg-white/20 disabled:opacity-40"
+          >
+            Quét lại từ đầu
+          </button>
+          <button
+            onClick={async () => {
+              if (!confirm('Xoá sạch chỉ mục diễn viên? Tìm theo tên người sẽ tắt cho tới khi quét lại.')) return
+              await lam('xoa-chi-muc-nguoi')
+              bao('Đã xoá chỉ mục diễn viên.')
+            }}
+            className="rounded bg-red-500/15 px-4 py-2 text-sm text-red-300 hover:bg-red-500/25"
+          >
+            Xoá chỉ mục
+          </button>
+        </div>
+      </div>
+
+      {(ng?.soTen ?? 0) > 0 && (
+        <p className="text-xs text-white/40">
+          Đã tra được theo tên người — gõ tên diễn viên vào ô tìm ở đầu trang, gợi ý hiện ngay dưới ô.
+        </p>
+      )}
+    </div>
   )
 }

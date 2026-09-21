@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Anh from '@/components/Anh'
 import type { PhimTom } from '@/lib/vsmov'
 
 /** Banner đầu trang chủ. Ảnh ngang nếu có, không thì lấy tạm poster. */
@@ -6,10 +7,7 @@ export default function Hero({ phim, moTa }: { phim: PhimTom; moTa?: string }) {
   const anh = phim.anhNgang || phim.poster
   return (
     <section className="relative min-h-[46vh] w-full overflow-hidden md:min-h-[62vh]">
-      {anh && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={anh} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-      )}
+      <Anh src={anh} rong={1280} uuTien anAnToan className="absolute inset-0 h-full w-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-nen)] via-[var(--color-nen)]/85 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[var(--color-nen)] to-transparent" />
 

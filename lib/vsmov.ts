@@ -67,14 +67,32 @@ function lotThe(s: unknown): string {
 
 type Bat = Record<string, unknown>
 
+/**
+ * Chỉ nhận chuỗi thật. Nguồn thỉnh thoảng trả OBJECT ở các trường ảnh; kiểu ép
+ * `as string` cho nó lọt qua, xuống tới lớp ghi kho thì `String(v)` biến thành
+ * chuỗi "[object Object]" và ảnh đó chết vĩnh viễn. Đã có 360 phim dính lỗi này
+ * trong kho đệm dựng sẵn — chặn ngay từ đây.
+ */
+function chuoi(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() ? v : undefined
+}
+
 async function goi(duong: string, tim: Record<string, string | number | undefined> = {}, giay = 600): Promise<Bat> {
   const u = new URL(GOC + duong)
   for (const [k, v] of Object.entries(tim)) {
     if (v !== undefined && v !== '' && v !== null) u.searchParams.set(k, String(v))
   }
+  /**
+   * `giay <= 0` = bỏ qua Data Cache của Next.
+   *
+   * Cần lối này cho vòng quét chỉ mục diễn viên: nó đi qua 18.719 phim, mỗi phim
+   * đúng MỘT lần, nên đệm không bao giờ được dùng lại — chỉ tổ ghi ngần ấy tệp
+   * JSON vào .next/cache. Đo rồi: KHÔNG nhanh hơn (nút thắt là nguồn), nhưng
+   * tránh được đống rác đó. Các trang bình thường vẫn giữ đệm như cũ.
+   */
   const r = await fetch(u, {
     headers: { accept: 'application/json' },
-    next: { revalidate: giay },
+    ...(giay > 0 ? { next: { revalidate: giay } } : { cache: 'no-store' as const }),
   })
   if (!r.ok) throw new Error(`vsmov ${r.status} khi gọi ${duong}`)
   return (await r.json()) as Bat
@@ -85,13 +103,15 @@ function veTom(x: Bat): PhimTom {
   return {
     slug: String(x.slug || ''),
     ten: String(x.name || x.slug || ''),
-    tenGoc: (x.origin_name as string) || undefined,
+    tenGoc: chuoi(x.origin_name),
     nam: (x.year as number) || undefined,
-    poster: (x.poster_url as string) || undefined,
-    anhNgang: (x.thumb_url as string) || undefined,
+    // Nguồn thỉnh thoảng trả poster_url = {} nhưng thumb_url vẫn tốt (đo được ~5%
+    // số phim trên các danh sách). Lấy chéo cho nhau thay vì bỏ trắng cả thẻ.
+    poster: chuoi(x.poster_url) ?? chuoi(x.thumb_url),
+    anhNgang: chuoi(x.thumb_url) ?? chuoi(x.poster_url),
     nguon: 'vsmov',
-    tapHienTai: (x.episode_current as string) || undefined,
-    chatLuong: (x.quality as string) || undefined,
+    tapHienTai: chuoi(x.episode_current),
+    chatLuong: chuoi(x.quality),
     loai: x.type === 'series' || tmdb.type === 'tv' ? 'bo' : 'le',
     diem: tmdb.vote_average && tmdb.vote_average !== '0.0' ? String(tmdb.vote_average) : undefined,
     soPhieu: Number(tmdb.vote_count) || 0,
@@ -172,10 +192,13 @@ export async function layDanhMuc(): Promise<{ theLoai: MucDanhMuc[]; quocGia: Mu
   return { theLoai, quocGia, nam }
 }
 
-export async function layChiTiet(slug: string): Promise<ChiTiet | null> {
+/**
+ * `dungDem = false` cho vòng quét hàng loạt — xem chú thích trong `goi()`.
+ */
+export async function layChiTiet(slug: string, dungDem = true): Promise<ChiTiet | null> {
   let j: Bat
   try {
-    j = await goi(`/phim/${slug}`, {}, 600)
+    j = await goi(`/phim/${slug}`, {}, dungDem ? 600 : 0)
   } catch {
     return null
   }

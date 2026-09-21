@@ -1,6 +1,13 @@
-import Link from 'next/link'
+/**
+ * Đọc tiến độ xem từ DB rồi giao phần hiển thị cho LuoiTap.
+ *
+ * Tách làm hai vì LuoiTap cần state phía client (đang mở khoảng nào), còn truy
+ * vấn tiến độ thì phải chạy ở máy chủ — gộp một chỗ là phải biến cả khối thành
+ * client component rồi gọi thêm một lượt API cho thứ vốn đọc thẳng được.
+ */
 import { tienDoCuaPhim } from '@/lib/theo-doi'
 import type { Tap } from '@/lib/vsmov'
+import LuoiTap, { type TapHien } from '@/components/LuoiTap'
 
 export default function DanhSachTap({
   slug,
@@ -15,35 +22,15 @@ export default function DanhSachTap({
 }) {
   const daXem = tienDoCuaPhim(slug)
 
-  return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-2">
-      {tap.map((t) => {
-        const g = daXem.get(`${slug}:${t.slug}`)
-        const phanTram = g && g.thoi_luong ? Math.min(100, (g.vi_tri / g.thoi_luong) * 100) : 0
-        const dang = t.slug === dangXem
-        return (
-          <Link
-            key={t.slug}
-            href={`/xem/${slug}?tap=${t.slug}&server=${server}`}
-            title={g?.xong ? 'Đã xem xong' : phanTram ? `Đang xem ${Math.round(phanTram)}%` : undefined}
-            className={`relative overflow-hidden rounded px-2 py-2 text-center text-sm transition ${
-              dang
-                ? 'bg-[var(--color-nhan)] font-semibold text-white'
-                : g?.xong
-                  ? 'bg-[var(--color-nen-2)] text-white/35 hover:text-white'
-                  : 'bg-[var(--color-nen-2)] text-white/75 hover:bg-white/15 hover:text-white'
-            }`}
-          >
-            {t.ten}
-            {!dang && phanTram > 0 && !g?.xong && (
-              <span
-                className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--color-nhan)]"
-                style={{ width: phanTram + '%' }}
-              />
-            )}
-          </Link>
-        )
-      })}
-    </div>
-  )
+  const hien: TapHien[] = tap.map((t) => {
+    const g = daXem.get(`${slug}:${t.slug}`)
+    return {
+      slug: t.slug,
+      ten: t.ten,
+      phanTram: g && g.thoi_luong ? Math.min(100, (g.vi_tri / g.thoi_luong) * 100) : 0,
+      xong: !!g?.xong,
+    }
+  })
+
+  return <LuoiTap slug={slug} server={server} tap={hien} dangXem={dangXem} />
 }

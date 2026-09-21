@@ -101,7 +101,7 @@ function Muc({ tieuDe, children }: { tieuDe: string; children: React.ReactNode }
   return (
     <section className="mt-7">
       <h2 className="mb-3 text-sm font-semibold text-white/70">{tieuDe}</h2>
-      <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">{children}</div>
+      <div className="luoi-phim grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">{children}</div>
     </section>
   )
 }

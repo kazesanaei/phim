@@ -56,6 +56,30 @@ type Props = {
 
 const TOC_DO = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 const KHOA_CAI_DAT = 'phim:cai-dat-player'
+/**
+ * Đếm ngược trước khi sang tập kế, tính bằng giây.
+ *
+ * Trước đây hết tập là nhảy thẳng — người xem không kịp biết chuyện gì vừa xảy
+ * ra, và muốn dừng thì đã sang tập mới rồi. Vài giây đếm ngược kèm nút Huỷ là
+ * cách mọi trang phim lớn giải quyết: ai muốn xem tiếp thì không phải làm gì,
+ * ai muốn dừng vẫn kịp.
+ */
+const DEM_NGUOC_GIAY = 8
+
+/**
+ * Còn bấy nhiêu giây thì nạp trước trang tập kế.
+ *
+ * Đo trên máy này: trang /xem của một phim bộ từ nguồn mất 2,4 giây khi nguội,
+ * 0,06 giây khi ấm. Nạp trước là bấm "Tập sau" xong đi luôn, thay vì ngồi nhìn
+ * màn hình đen. Hai phút đủ rộng để tải xong, mà vẫn nằm trong khoảng người xem
+ * gần như chắc chắn sẽ xem hết tập.
+ *
+ * Chỉ nạp trước TRANG, không nạp trước video: muốn đệm sẵn luồng HLS thì phải
+ * dựng thêm một thẻ <video> và một bản hls.js thứ hai chạy song song — nặng cho
+ * TV Box mà chỉ đổi lấy một hai giây.
+ */
+const TAI_TRUOC_GIAY = 120
+
 /** Số lần tự sang tập liên tiếp mà không ai chạm vào thì hỏi "còn xem không". */
 const NGUONG_HOI = 3
 const KHOA_TU_SANG = 'phim:so-lan-tu-sang'
@@ -112,6 +136,8 @@ export default function Player({
   const anRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const luuRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const thuLaiRef = useRef(0)
+  // onTimeUpdate bắn ~4 lần/giây; không có chốt này là gọi prefetch hàng trăm lần.
+  const daTaiTruocRef = useRef(false)
 
   const [dangTai, datDangTai] = useState(true)
   const [loi, datLoi] = useState<string | null>(null)
@@ -134,6 +160,8 @@ export default function Player({
   const [tiepTuc, datTiepTuc] = useState<number | null>(null)
   const [keoVao, datKeoVao] = useState(false)
   const [hienTapSau, datHienTapSau] = useState(false)
+  /** Số giây còn lại trước khi tự sang tập kế; null = không đếm. */
+  const [demNguoc, datDemNguoc] = useState<number | null>(null)
   const [src, datSrc] = useState<string | null>(null)
   const [laHls, datLaHls] = useState(false)
 
@@ -226,6 +254,12 @@ export default function Player({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nguon.kieu, (nguon as { embed?: string }).embed, (nguon as { url?: string }).url, (nguon as { duongDan?: string }).duongDan])
+
+  // Sang tập khác mà Player không bị gỡ đi thì ref vẫn giữ giá trị cũ, nên
+  // tập kế tiếp sẽ không bao giờ được nạp trước. Mở chốt lại mỗi lần đổi tập.
+  useEffect(() => {
+    daTaiTruocRef.current = false
+  }, [tapSau?.href])
 
   // ---- gắn hls.js / src thẳng -------------------------------------------
   useEffect(() => {
@@ -449,8 +483,20 @@ export default function Player({
       datHoiConXem(true)
       return
     }
-    router.push(tapSau.href)
-  }, [tapSau, router, luuTienDo, henGio])
+    // Không nhảy ngay: mở đếm ngược để còn kịp huỷ (xem DEM_NGUOC_GIAY).
+    datDemNguoc(DEM_NGUOC_GIAY)
+  }, [tapSau, luuTienDo, henGio])
+
+  // ---- đếm ngược sang tập kế ---------------------------------------------
+  useEffect(() => {
+    if (demNguoc === null) return
+    if (demNguoc <= 0) {
+      if (tapSau) router.push(tapSau.href)
+      return
+    }
+    const t = setTimeout(() => datDemNguoc((n) => (n === null ? null : n - 1)), 1000)
+    return () => clearTimeout(t)
+  }, [demNguoc, tapSau, router])
 
   // ---- hẹn giờ tắt --------------------------------------------------------
   useEffect(() => {
@@ -580,6 +626,15 @@ export default function Player({
       let chan = true
       conNguoi()
       switch (e.key.toLowerCase()) {
+        case 'enter':
+          /**
+           * Nút OK của remote TV gửi Enter. Nhưng Enter khi đang đứng trên một
+           * nút thì phải là "bấm nút đó" — nếu cướp ở đây thì mọi nút trong
+           * thanh điều khiển đều bấm ra phát/dừng, không bấm được gì khác.
+           */
+          if (t && (t.tagName === 'BUTTON' || t.tagName === 'A' || t.tagName === 'SELECT')) return
+          batTat()
+          break
         case ' ':
         case 'k':
           batTat()
@@ -686,7 +741,7 @@ export default function Player({
   return (
     <div
       ref={boxRef}
-      className="group relative aspect-video w-full select-none overflow-hidden rounded-lg bg-black"
+      className="trinh-phat group relative aspect-video w-full select-none overflow-hidden rounded-lg bg-black"
       onMouseMove={danhThuc}
       onMouseLeave={() => videoRef.current && !videoRef.current.paused && datHienDk(false)}
       onDragOver={(e) => {
@@ -730,6 +785,10 @@ export default function Player({
           if (v.buffered.length) datDem(v.buffered.end(v.buffered.length - 1))
           if (tapSau && v.duration && v.duration - v.currentTime < 30) datHienTapSau(true)
           else datHienTapSau(false)
+          if (tapSau && v.duration && v.duration - v.currentTime < TAI_TRUOC_GIAY && !daTaiTruocRef.current) {
+            daTaiTruocRef.current = true
+            router.prefetch(tapSau.href)
+          }
         }}
       >
         {blobPhuDe && (
@@ -790,13 +849,47 @@ export default function Player({
         </div>
       )}
 
-      {hienTapSau && tapSau && (
+      {hienTapSau && tapSau && demNguoc === null && (
         <button
           onClick={() => router.push(tapSau.href)}
           className="absolute bottom-24 right-4 rounded bg-white/95 px-4 py-2 text-sm font-medium text-black hover:bg-white"
         >
           {tapSau.nhan} &rarr;
         </button>
+      )}
+
+      {/* Hết tập: đếm ngược thay vì nhảy thẳng sang tập sau. Vùng bấm để to vì
+          trên TV phải trỏ trúng bằng con trỏ ảo. */}
+      {demNguoc !== null && tapSau && (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-black/75 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-sm rounded-xl bg-[#15151c] p-5 text-center ring-1 ring-white/10">
+            <p className="text-xs uppercase tracking-wide text-white/40">Tập tiếp theo</p>
+            <p className="mt-1 truncate text-lg font-semibold">{tapSau.nhan}</p>
+
+            <p className="mt-4 text-4xl font-black tabular-nums">{demNguoc}</p>
+            <div className="mx-auto mt-2 h-1 w-40 overflow-hidden rounded bg-white/15">
+              <div
+                className="h-full bg-[var(--color-nhan)] transition-[width] duration-1000 ease-linear"
+                style={{ width: (demNguoc / DEM_NGUOC_GIAY) * 100 + '%' }}
+              />
+            </div>
+
+            <div className="mt-5 flex justify-center gap-2">
+              <button
+                onClick={() => router.push(tapSau.href)}
+                className="rounded bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-white/85"
+              >
+                Xem ngay
+              </button>
+              <button
+                onClick={() => datDemNguoc(null)}
+                className="rounded bg-white/10 px-5 py-2.5 text-sm text-white/85 transition hover:bg-white/20"
+              >
+                Huỷ
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {trongIntro && (

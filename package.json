@@ -8,8 +8,9 @@
     "start": "next start -H 127.0.0.1",
     "kiem": "node scripts/kiem-nguon.mjs",
     "chay": "next build && next start -H 127.0.0.1",
-    "tv": "next build && next start -H 0.0.0.0",
-    "mat-khau": "node scripts/dat-mat-khau.mjs"
+    "tv": "next build && node server.mjs --lan",
+    "mat-khau": "node scripts/dat-mat-khau.mjs",
+    "chung-chi": "node scripts/tao-chung-chi.mjs"
   },
   "dependencies": {
     "hls.js": "^1.7.1",
