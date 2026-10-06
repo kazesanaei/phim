@@ -4,14 +4,34 @@
  * Khung hộp thoại cho chế độ xem nhanh. Đóng bằng Esc, bấm nền, hoặc nút X —
  * đều quay lại đúng chỗ cũ trong lưới nhờ router.back().
  */
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef } from 'react'
 
 export default function HopThoai({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const duong = usePathname()
   const oRef = useRef<HTMLDivElement>(null)
 
+  /**
+   * TỰ ĐÓNG KHI ĐƯỜNG DẪN KHÔNG CÒN LÀ TRANG PHIM NỮA.
+   *
+   * Next giữ nguyên nội dung cũ của khe route song song (`@modal`) khi điều
+   * hướng MỀM; `default.tsx` chỉ có tác dụng lúc tải lại cả trang. Nên bấm
+   * "Xem ngay" là URL sang `/xem/...`, trình phát nạp xong ở dưới, mà hộp thoại
+   * vẫn nằm đè lên trên — người xem bấm mãi không thấy phim chạy, tưởng treo.
+   *
+   * Đã đo: trong 4 đường ra khỏi hộp thoại chỉ 1 cái chạy đúng (nút X, vì nó
+   * gọi router.back()). "Xem ngay", "Xem đầy đủ" và cả bấm menu Trang chủ đều
+   * để hộp thoại kẹt lại.
+   *
+   * Chốt theo đường dẫn chữa mọi lối đi TỚI (kể cả link thêm sau này). Riêng
+   * hai link trỏ về đúng `/phim/<slug>` đang mở thì đường dẫn không đổi nên
+   * chốt này không bắt được — chúng dùng thẻ <a> thường để tải lại hẳn trang.
+   */
+  const hien = !!duong?.startsWith('/phim/')
+
   useEffect(() => {
+    if (!hien) return
     const f = (e: KeyboardEvent) => {
       if (e.key === 'Escape') router.back()
     }
@@ -23,7 +43,9 @@ export default function HopThoai({ children }: { children: React.ReactNode }) {
       document.removeEventListener('keydown', f)
       document.body.style.overflow = cu
     }
-  }, [router])
+  }, [router, hien])
+
+  if (!hien) return null
 
   return (
     <div

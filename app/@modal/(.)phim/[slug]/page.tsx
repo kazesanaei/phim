@@ -70,12 +70,15 @@ export default async function XemNhanh({ params }: PageProps<'/phim/[slug]'>) {
                 {nhanXem}
               </Link>
             )}
-            <Link
+            {/* Thẻ <a> thường, KHÔNG phải <Link>: đích trùng đúng đường dẫn hộp
+                thoại đang mở, nên chốt theo đường dẫn trong HopThoai không bắt
+                được. Tải lại hẳn trang thì Next mới dựng khe @modal rỗng. */}
+            <a
               href={`/phim/${slug}`}
               className="rounded bg-white/20 px-5 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/30"
             >
               Xem đầy đủ
-            </Link>
+            </a>
           </div>
         </div>
       </div>
@@ -115,9 +118,10 @@ export default async function XemNhanh({ params }: PageProps<'/phim/[slug]'>) {
         {nhieuTap && (
           <p className="mt-4 text-xs text-white/45">
             {mayChu.tap.length} tập ·{' '}
-            <Link href={`/phim/${slug}`} className="underline underline-offset-2 hover:text-white">
+            {/* <a> thường, cùng lý do với nút "Xem đầy đủ" ở trên */}
+            <a href={`/phim/${slug}`} className="underline underline-offset-2 hover:text-white">
               xem danh sách tập
-            </Link>
+            </a>
           </p>
         )}
       </div>
