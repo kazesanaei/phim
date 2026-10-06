@@ -18,6 +18,17 @@ Không có ffmpeg thì app vẫn chạy, chỉ mất mấy tính năng đó.
 
 ```bash
 git clone https://github.com/kazesanaei/phim.git
+```
+
+Rồi **bấm đúp `cai-dat.cmd`** trong thư mục vừa clone. Nó kiểm Node, cài gói, dựng sẵn
+kho đệm 18.719 phim từ `kho-dem/`, build, rồi mở trang.
+
+Bấm lại nhiều lần không sao — các bước đã làm thì bỏ qua, và nó **không bao giờ đè lên**
+`du-lieu/phim.db` (lịch sử xem nằm ở đó). Lần sau chỉ cần `chay.cmd`.
+
+Muốn làm bằng tay thì:
+
+```bash
 cd phim
 npm install
 npm run chay
