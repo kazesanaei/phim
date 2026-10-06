@@ -16,6 +16,7 @@ import * as kkphim from './nguon-kkphim'
 import { locSach } from './loc-18'
 import { layCaiDat } from './db'
 import type { PhimTom, Trang, ChiTiet, MucDanhMuc } from './vsmov'
+import { xepTap } from './xep-tap'
 
 export type TenNguon = 'vsmov' | 'kkphim'
 
@@ -125,7 +126,8 @@ export async function layChiTiet(slug: string): Promise<ChiTiet | null> {
     anhNgang: goc.anhNgang || a?.anhNgang || b?.anhNgang,
     theLoai: goc.theLoai.length ? goc.theLoai : (a?.theLoai ?? b?.theLoai ?? []),
     quocGia: goc.quocGia.length ? goc.quocGia : (a?.quocGia ?? b?.quocGia ?? []),
-    mayChu: [...(a?.mayChu ?? []), ...(b?.mayChu ?? [])],
+    // Sắp tập Ở ĐÂY, một lần cho mọi nơi dùng — xem lib/xep-tap.ts.
+    mayChu: [...(a?.mayChu ?? []), ...(b?.mayChu ?? [])].map((m) => ({ ...m, tap: xepTap(m.tap) })),
   }
 }
 

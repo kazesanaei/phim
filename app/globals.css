@@ -269,7 +269,7 @@ body {
 }
 
 /* Chừa viền an toàn cho phần nội dung, trừ các dải cuộn ngang */
-[data-che-do='tv'] main > * > *:not(.cuon-ngang):not(.co-banner) {
+[data-che-do='tv'] main > * > *:not(.cuon-ngang):not(.co-banner):not(.trinh-phat) {
   padding-inline: max(1rem, var(--vien-an-toan));
 }
 
@@ -364,34 +364,149 @@ body {
 /* --- Trình phát ở chế độ TV ------------------------------------------
    Remote chỉ có con trỏ ảo nhỏ xíu, mà thanh điều khiển vốn thiết kế cho
    chuột. Phóng to vùng bấm là việc quan trọng nhất; phần phím tắt thì
-   Player.tsx đã lo (mũi tên tua và chỉnh tiếng, Enter là phát/dừng). */
+   Player.tsx đã lo (mũi tên tua và chỉnh tiếng, Enter là phát/dừng).
 
-[data-che-do='tv'] .trinh-phat button,
-[data-che-do='tv'] .trinh-phat a {
-  /* 44px là ngưỡng bấm trúng quen dùng; trên TV cần rộng hơn nữa. */
-  min-height: 2.75rem;
-  min-width: 2.75rem;
+   Cỡ chữ phụ đề KHÔNG đặt ở đây nữa. Luật cũ `[data-che-do='tv'] #video-chinh
+   ::cue` mạnh hơn luật Player.tsx tự sinh theo thiết lập của người xem, nên
+   trên TV thanh chỉnh cỡ chữ phụ đề xưa nay không có tác dụng. Giờ Player.tsx
+   sinh luôn cả bản TV (to hơn 1,65 lần) từ chính con số người xem chọn. */
+
+[data-che-do='tv'] .trinh-phat {
+  --nut-tt: 22px;
+}
+[data-che-do='tv'] .trinh-phat .tp-nut {
+  height: 3rem;
+  width: 3rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-icon {
+  height: 1.7rem;
+  width: 1.7rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-ten {
+  font-size: 1.15rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-tap,
+[data-che-do='tv'] .trinh-phat .tp-nhan {
+  font-size: 0.85rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-gio,
+[data-che-do='tv'] .trinh-phat .tp-phan-tram {
+  font-size: 0.95rem;
 }
 
-[data-che-do='tv'] .trinh-phat svg {
-  transform: scale(1.15);
+/* Thanh tua: vùng bấm cao hẳn, nút tròn luôn hiện — con trỏ ảo không "rê" mượt
+   như chuột nên đừng bắt người xem phải rê mới thấy mình đang ở đâu. */
+[data-che-do='tv'] .trinh-phat .tp-tua {
+  height: 2rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-ray {
+  height: 0.4rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-num {
+  scale: 1.1;
+  height: 1.1rem;
+  width: 1.1rem;
 }
 
-/* Thanh tua: mỏng quá thì con trỏ ảo không tài nào trúng */
-[data-che-do='tv'] .trinh-phat input[type='range'] {
-  height: 1.5rem;
+/* Thanh âm lượng luôn mở: trên TV không có "rê chuột" để nó trượt ra */
+[data-che-do='tv'] .trinh-phat .tp-khung-am {
+  width: 8rem;
+  opacity: 1;
+}
+[data-che-do='tv'] .trinh-phat .tp-thanh-am {
+  width: 7.25rem;
 }
 
-/* Phụ đề mặc định to hơn — vẫn chỉnh tay được trong bảng cài đặt trình phát */
-[data-che-do='tv'] #video-chinh::cue {
-  font-size: 165%;
+[data-che-do='tv'] .trinh-phat .tp-giua {
+  height: 6.5rem;
+  width: 6.5rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-icon-giua {
+  height: 3.2rem;
+  width: 3.2rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-quay {
+  height: 4.5rem;
+  width: 4.5rem;
 }
 
-/* Bảng chọn trong trình phát (phụ đề, tốc độ...) cách nhau rộng ra */
-[data-che-do='tv'] .trinh-phat [role='menu'] button,
-[data-che-do='tv'] .trinh-phat .bang-chon button {
-  padding-block: 0.6rem;
+/* Bảng cài đặt: chữ to, hàng cao — mỗi hàng là một đích cho con trỏ ảo */
+[data-che-do='tv'] .trinh-phat .tp-bang {
+  width: 26rem;
+  font-size: 1rem;
+  bottom: 6.5rem;
+  right: var(--vien-an-toan);
+}
+[data-che-do='tv'] .trinh-phat .tp-bang-tap {
+  width: 30rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-hang-bang {
+  min-height: 3.1rem;
+  padding-block: 0.7rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-luoi-tap a {
+  padding-block: 0.75rem;
+  font-size: 0.95rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-nut-chu,
+[data-che-do='tv'] .trinh-phat .tp-noi {
+  padding: 0.85rem 1.7rem;
+  font-size: 1rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-nut-nho {
+  padding-block: 0.7rem;
   font-size: 0.9rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-cong-tac {
+  height: 1.9rem;
+  width: 3.4rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-osd {
+  font-size: 1.15rem;
+  padding: 0.6rem 1.5rem;
+}
+
+/* Viền an toàn: TV cắt mép ảnh (overscan). Hai thanh điều khiển và nút nổi
+   phải lùi vào, kẻo thanh tua và giờ phát nằm đúng phần bị cắt mất. */
+[data-che-do='tv'] .trinh-phat .tp-tren {
+  padding: calc(var(--vien-an-toan) * 0.6) var(--vien-an-toan) 0;
+}
+[data-che-do='tv'] .trinh-phat .tp-duoi {
+  padding: 0 var(--vien-an-toan) calc(var(--vien-an-toan) * 0.6);
+}
+[data-che-do='tv'] .trinh-phat .tp-noi {
+  right: var(--vien-an-toan);
+  bottom: 7.5rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-tiep-tuc,
+[data-che-do='tv'] .trinh-phat .tp-nhac {
+  top: 5rem;
+}
+[data-che-do='tv'] .trinh-phat .tp-tiep-tuc {
+  left: var(--vien-an-toan);
+}
+
+/* Trang xem trên TV: trình phát phủ KÍN màn, giấu đầu trang.
+   Đầu trang cao ~51px trên màn 540px — gần 1/10 màn hình bỏ phí trong lúc xem.
+   Mọi trang phim lớn trên TV đều cho video tràn màn khi phát. Lối về đã có ở
+   nút mũi tên góc trên trình phát, và nút Back của remote. */
+[data-che-do='tv'] body:has(.trang-xem) > header {
+  display: none;
+}
+[data-che-do='tv'] main:has(.trang-xem) {
+  padding-top: 0;
+}
+[data-che-do='tv'] .trang-xem {
+  max-width: none;
+  padding: 0 0 2rem;
+}
+[data-che-do='tv'] .trang-xem > .trinh-phat {
+  height: 100vh;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+[data-che-do='tv'] .trang-xem > :not(.trinh-phat) {
+  padding-inline: var(--vien-an-toan);
 }
 
 /* --- Trang chủ gọn lại trên TV ---------------------------------------
@@ -613,9 +728,165 @@ header a {
   opacity: 1;
 }
 
-/* TV không có "rê chuột" để mà lộ ra — hiện sẵn luôn. */
-[data-che-do='tv'] .nut-luu {
+/* Đã lưu thì luôn hiện dấu tích: đó là trạng thái, không phải nút chờ bấm. */
+.nut-luu[aria-pressed='true'] {
   opacity: 1;
+}
+
+/* TV: trước đây ép hiện thường trực trên MỌI thẻ — ảnh chụp 960x540 cho thấy một
+   dãy nút "+" to, đậm che góc từng poster. Trình duyệt trên Box lái bằng con trỏ
+   ảo, nên rê qua thẻ vẫn sinh :hover y như chuột; để nó lộ ra lúc đó là đủ. */
+[data-che-do='tv'] .nut-luu {
   height: 2.2rem;
   width: 2.2rem;
+}
+
+/* ⑤ "Xem tất cả" cạnh tên hàng: từ 2,5 m chữ xám nhạt là không đọc được */
+[data-che-do='tv'] .xem-tat-ca {
+  color: rgb(255 255 255 / 0.85);
+  font-size: 0.85rem;
+}
+
+/* ⑥ Thanh cuộn của cả trang: trên TV vô dụng (cuộn bằng remote) mà lại ăn một
+   dải bên phải màn hình — thấy rõ trên ảnh chụp. */
+[data-che-do='tv'] {
+  scrollbar-width: none;
+}
+[data-che-do='tv']::-webkit-scrollbar,
+[data-che-do='tv'] body::-webkit-scrollbar {
+  display: none;
+}
+
+/* ==================================================================
+   Thanh trượt tự vẽ (âm lượng, cỡ chữ phụ đề)
+   ==================================================================
+   Vẫn là <input type="range"> thật — giữ được bàn phím, trình đọc màn hình và
+   mũi tên của remote — chỉ giấu phần vẽ mặc định. Đường kẻ và phần tô màu là
+   các div nằm dưới, lùi vào nửa nút tròn ở hai đầu (--nut-tt) để tâm nút trùng
+   khít đầu vạch tô: lệch vài px là thấy ngay ở mốc 100%. */
+.thanh-truot {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+}
+.thanh-truot:focus {
+  outline: none;
+}
+.thanh-truot::-webkit-slider-runnable-track {
+  height: var(--nut-tt, 14px);
+  background: transparent;
+}
+.thanh-truot::-moz-range-track {
+  background: transparent;
+}
+.thanh-truot::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: var(--nut-tt, 14px);
+  width: var(--nut-tt, 14px);
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.45);
+  transition: transform var(--nhip-nhanh) ease-out;
+}
+.thanh-truot::-moz-range-thumb {
+  height: var(--nut-tt, 14px);
+  width: var(--nut-tt, 14px);
+  border: 0;
+  border-radius: 9999px;
+  background: #fff;
+}
+.thanh-truot:hover::-webkit-slider-thumb,
+.thanh-truot:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+.thanh-truot:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.4);
+}
+/* Vượt 100%: nút tròn đổi sang hổ phách cùng màu vùng tăng âm */
+.thanh-truot[data-tang]::-webkit-slider-thumb {
+  background: #fbbf24;
+}
+.thanh-truot[data-tang]::-moz-range-thumb {
+  background: #fbbf24;
+}
+
+/* Bảng cài đặt trồi lên từ góc nút đã mở nó */
+@keyframes buongLen {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.buong-len {
+  animation: buongLen var(--nhip) var(--duong-cong) both;
+  transform-origin: bottom right;
+}
+
+/* Phản hồi âm lượng/tốc độ: hiện nhanh, đứng một nhịp, mờ đi.
+   Chỉ dùng transform theo trục dọc: trục ngang đã do lớp -translate-x-1/2 của
+   Tailwind v4 giữ bằng thuộc tính `translate` riêng — đụng vào là lệch tâm. */
+@keyframes hienOsd {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  12% {
+    opacity: 1;
+    transform: none;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.tp-osd {
+  animation: hienOsd 1.1s ease-out both;
+}
+
+/* Bong bóng tua: nở ra rồi tan */
+@keyframes nhayBong {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+.tp-nhay {
+  animation: nhayBong 0.7s var(--duong-cong) both;
+}
+
+/* --- Trang chi tiết trên TV ---------------------------------------------
+   Đo ở khung 960x540: khối đầu (poster 2:3 to + mô tả 2 dòng + đệm) cao ~460px,
+   nên "Các phần" và danh sách tập nằm hẳn dưới mép màn đầu — người mở trang
+   phim bộ trên TV là để chọn tập, mà phải cuộn bằng remote mới thấy. Poster nhỏ
+   lại, mô tả còn 2 dòng (đọc đủ ở trang này từ PC), đệm trên dưới mỏng đi. */
+[data-che-do='tv'] .ct-dau {
+  padding-block: 1.1rem;
+  gap: 1.5rem;
+}
+[data-che-do='tv'] .ct-poster {
+  width: 9rem;
+}
+[data-che-do='tv'] .ct-mo-ta {
+  margin-top: 0.75rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

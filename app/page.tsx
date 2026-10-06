@@ -11,6 +11,7 @@ import { goiY } from '@/lib/goi-y'
 import { danhSachTapMoi, kiemTapMoi } from '@/lib/tap-moi'
 import { goiYTheoPhimDaXem } from '@/lib/quet-nguoi'
 import { phimTheoSlug, veTom } from '@/lib/kho-nguon'
+import { ghiLichTap } from '@/lib/lich-tap'
 import Link from 'next/link'
 
 // Trang này trộn dữ liệu API (cache 600s ở lớp fetch) với hàng "Tiếp tục xem"
@@ -24,6 +25,27 @@ const THE_LOAI_NOI_BAT = [
   { slug: 'hoat-hinh', ten: 'Hoạt hình' },
   { slug: 'kinh-di', ten: 'Kinh dị' },
   { slug: 'co-trang', ten: 'Cổ trang' },
+]
+
+/**
+ * Lối tắt "xem theo" ngay dưới banner. Người xem Việt hay chọn phim theo NƯỚC
+ * trước rồi mới tới thể loại — các trang phim trong nước đều đặt hàng này lên
+ * đầu. Thuyết minh / Lồng tiếng là lựa chọn thật của nhà có bố mẹ và trẻ con.
+ * Slug lấy từ danh mục thật của nguồn (đã thử từng cái đều ra phim).
+ */
+const LOI_TAT: { nhan: string; href: string }[] = [
+  { nhan: 'Hàn Quốc', href: '/duyet?quoc-gia=han-quoc' },
+  { nhan: 'Trung Quốc', href: '/duyet?quoc-gia=trung-quoc' },
+  { nhan: 'Âu Mỹ', href: '/duyet?quoc-gia=au-my' },
+  { nhan: 'Nhật Bản', href: '/duyet?quoc-gia=nhat-ban' },
+  { nhan: 'Thái Lan', href: '/duyet?quoc-gia=thai-lan' },
+  { nhan: 'Đài Loan', href: '/duyet?quoc-gia=dai-loan' },
+  { nhan: 'Việt Nam', href: '/duyet?quoc-gia=viet-nam' },
+]
+const LOI_TAT_TIENG: { nhan: string; href: string }[] = [
+  { nhan: 'Thuyết minh', href: '/duyet?danh-sach=phim-thuyet-minh' },
+  { nhan: 'Lồng tiếng', href: '/duyet?danh-sach=phim-long-tieng' },
+  { nhan: 'Hoạt hình', href: '/duyet?danh-sach=hoat-hinh' },
 ]
 
 const SO_HERO = 5
@@ -70,6 +92,10 @@ export default async function TrangChu() {
   const local = layPhimLocalMoi(20)
   const xemLai = danhSachXemLai(20)
 
+  // Ghi các lần phim bộ lên tập mới để suy lịch ra tập (xem lib/lich-tap.ts).
+  // insert-or-ignore theo (phim, tập) nên tải trang liên tục cũng không phình.
+  ghiLichTap([...moi.items, ...bo.items])
+
   // Kiểm tập mới cho phim đang theo dõi — chạy nền, tự giới hạn nhịp nên mở
   // trang liên tục cũng không làm nguồn bị dồn.
   kiemTapMoi()
@@ -112,7 +138,12 @@ export default async function TrangChu() {
    */
   if (process.env.NEXT_PHASE !== 'phase-production-build') {
     void import('@/lib/anh')
-      .then((m) => m.hamNongAnh(anhCanHam.flatMap((p) => [p.poster, 'anhNgang' in p ? p.anhNgang : null]), 400))
+      .then((m) =>
+        m.hamNongAnh(
+          anhCanHam.flatMap((p) => [p.poster, 'anhNgang' in p ? p.anhNgang : 'anh_ngang' in p ? p.anh_ngang : null]),
+          400,
+        ),
+      )
       .catch(() => {
         // Hâm ảnh là việc phụ — hỏng thì trang vẫn phải hiện bình thường.
       })
@@ -124,6 +155,30 @@ export default async function TrangChu() {
 
       {/* Các hàng đè lên đáy banner một chút, đúng kiểu trang phim */}
       <div className="troi-len relative z-10 mx-auto -mt-8 max-w-[1600px] md:-mt-16">
+        {/* Ẩn trên TV: ngăn bên trái đã có đủ Quốc gia, mà trên màn cao 540px
+            thêm một hàng ở đây là đẩy hàng phim đầu tiên lọt khỏi màn. */}
+        <nav aria-label="Xem theo" className="an-tren-tv an-cuon flex items-center gap-2 overflow-x-auto px-4 pb-2 pt-1">
+          {LOI_TAT.map((m) => (
+            <Link
+              key={m.href}
+              href={m.href}
+              className="shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-[13px] text-white/80 backdrop-blur transition hover:border-white/40 hover:bg-white/10 hover:text-white"
+            >
+              {m.nhan}
+            </Link>
+          ))}
+          <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-white/15" />
+          {LOI_TAT_TIENG.map((m) => (
+            <Link
+              key={m.href}
+              href={m.href}
+              className="shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-[13px] text-white/80 backdrop-blur transition hover:border-white/40 hover:bg-white/10 hover:text-white"
+            >
+              {m.nhan}
+            </Link>
+          ))}
+        </nav>
+
         {tiepTuc.length > 0 && (
           <HangPhim tieuDe="Tiếp tục xem" xemThem="/bo-suu-tap">
             {tiepTuc.map((x) => {
@@ -131,6 +186,7 @@ export default async function TrangChu() {
                 slug: x.slug,
                 ten: x.ten || x.slug,
                 poster: x.poster || undefined,
+                anhNgang: x.anh_ngang || undefined,
                 nguon: (x.nguon as 'vsmov' | 'local') || 'vsmov',
               }
               const pt = x.thoi_luong ? (x.vi_tri / x.thoi_luong) * 100 : 0
@@ -265,6 +321,7 @@ export default async function TrangChu() {
                     slug: x.slug,
                     ten: x.ten || x.slug,
                     poster: x.poster || undefined,
+                    anhNgang: x.anh_ngang || undefined,
                     nguon: (x.nguon as 'vsmov' | 'local') || 'vsmov',
                   }}
                   href={`/xem/${x.slug}`}

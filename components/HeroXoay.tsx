@@ -38,8 +38,11 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
   const anh = phim.anhNgang || phim.poster
 
   return (
+    /* md:min-h-[60vh] chứ không phải 72vh: đo ở khung 1440x900, banner 72vh
+       chiếm 65% màn hình đầu và hàng "Tiếp tục xem" bị cắt mất đáy. Netflix để
+       banner thấp đủ cho hàng đầu tiên LÓ lên — đó là thứ mời người xem cuộn. */
     <section
-      className="co-banner relative min-h-[52vh] w-full overflow-hidden md:min-h-[72vh]"
+      className="co-banner relative min-h-[52vh] w-full overflow-hidden md:min-h-[60vh]"
       onMouseEnter={() => datDungLai(true)}
       onMouseLeave={() => datDungLai(false)}
     >
@@ -67,7 +70,7 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
       <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-nen)] via-[var(--color-nen)]/80 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[var(--color-nen)] to-transparent" />
 
-      <div className="relative flex min-h-[52vh] max-w-2xl flex-col justify-end gap-3 px-4 pb-14 pt-24 md:min-h-[72vh] md:px-8">
+      <div className="relative flex min-h-[52vh] max-w-2xl flex-col justify-end gap-3 px-4 pb-14 pt-24 md:min-h-[60vh] md:px-8">
         <h1 className="text-3xl font-black leading-tight drop-shadow-lg md:text-5xl">{phim.ten}</h1>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/70">
           {phim.diem && <span className="font-semibold text-emerald-400">{phim.diem} điểm</span>}

@@ -7,6 +7,7 @@ export type BanGhiXem = {
   tap: string | null
   ten: string | null
   poster: string | null
+  anh_ngang: string | null
   nguon: string
   vi_tri: number
   thoi_luong: number

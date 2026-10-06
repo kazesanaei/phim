@@ -26,10 +26,16 @@ export default function HangPhim({
   return (
     <section className="hang-phim group/hang relative py-3">
       <div className="mb-2 flex items-baseline gap-3 px-4">
-        <h2 className="text-base font-semibold">{tieuDe}</h2>
+        <h2 className="text-[17px] font-semibold tracking-tight md:text-lg">{tieuDe}</h2>
         {xemThem && (
-          <Link href={xemThem} className="text-xs text-white/40 transition hover:text-white">
+          <Link
+            href={xemThem}
+            className="xem-tat-ca inline-flex items-center gap-0.5 text-[13px] font-medium text-white/60 transition hover:text-white"
+          >
             Xem tất cả
+            <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4 fill-current">
+              <path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
           </Link>
         )}
       </div>

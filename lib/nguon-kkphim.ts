@@ -62,7 +62,13 @@ function veTom(x: Bat): PhimTom {
     ten: String(x.name || x.slug || ''),
     tenGoc: (x.origin_name as string) || undefined,
     nam: (x.year as number) || undefined,
-    // Xem chú thích cùng chỗ ở lib/vsmov.ts: poster rỗng thì dùng ảnh ngang.
+    /**
+     * Ở KKPhim gán ĐÚNG theo tên: poster_url là ảnh dọc (800×1200), thumb_url là
+     * ảnh ngang (780×440) — đo bằng ffprobe 06/10/2026. vsmov thì ngược lại; xem
+     * chú thích cùng chỗ ở lib/vsmov.ts. Hai nguồn trông giống nhau nhưng KHÔNG
+     * dùng chung một quy ước, nên đừng "sửa cho thống nhất".
+     * Một trường rỗng thì lấy trường kia, đỡ bỏ trắng cả thẻ.
+     */
     poster: anh(x.poster_url) ?? anh(x.thumb_url),
     anhNgang: anh(x.thumb_url) ?? anh(x.poster_url),
     nguon: 'vsmov', // dùng chung kiểu; nguồn thật ghi ở `nguonGoc`
@@ -71,6 +77,8 @@ function veTom(x: Bat): PhimTom {
     loai: x.type === 'series' || tmdb.type === 'tv' ? 'bo' : 'le',
     diem: tmdb.vote_average && tmdb.vote_average !== '0.0' ? String(tmdb.vote_average) : undefined,
     soPhieu: Number(tmdb.vote_count) || 0,
+    capNhat: typeof (x.modified as Bat | undefined)?.time === 'string' ? ((x.modified as Bat).time as string) : undefined,
+    trangThai: (x.status as string) || undefined,
   }
 }
 

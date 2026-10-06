@@ -16,10 +16,42 @@ import path from 'node:path'
 import { srtSangVtt, doiThoiGian } from '../lib/phu-de.ts'
 import { bocVoTS, docSegment } from '../lib/hls.ts'
 import { tachPhan } from '../lib/ten-phan.ts'
+import { xepTap } from '../lib/xep-tap.ts'
+import { nhipTuMoc, truocDay } from '../lib/nhip-tap.ts'
 
 const GOC = 'https://vsmov.com/api'
 const APP = process.env.APP || 'http://127.0.0.1:3000'
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0.0.0 Safari/537.36'
+
+/**
+ * Vé phiên cho các phép gọi vào app.
+ *
+ * Bật chế độ LAN thì mọi request không có vé đều nhận 401. Trước đây bộ kiểm hiểu
+ * 401 là "app chưa chạy" và BỎ QUA — tức là đúng ba phép an toàn quan trọng nhất
+ * (chốt proxy, chống CSRF, chặn 18+) âm thầm không được kiểm, mà dòng tổng vẫn ghi
+ * "0 hỏng". Muốn kiểm phải tắt LAN tay, quên bật lại là mở toang cửa.
+ *
+ * Tự ký một vé 10 phút bằng chính khoá trong DB, y như lib/xac-thuc.ts. Ai đọc
+ * được tệp DB thì vốn đã làm được việc này, nên không mở thêm lỗ nào.
+ */
+async function veKiem() {
+  try {
+    const { DatabaseSync } = await import('node:sqlite')
+    const { createHmac } = await import('node:crypto')
+    const d = new DatabaseSync('du-lieu/phim.db')
+    d.exec('pragma busy_timeout = 5000')
+    const k = d.prepare("select gia_tri from cai_dat where khoa = 'khoa_ky'").get()?.gia_tri
+    d.close()
+    if (!k) return ''
+    const than = String(Date.now() + 10 * 60_000)
+    return 'phim_phien=' + than + '.' + createHmac('sha256', k).update(than).digest('hex')
+  } catch {
+    return ''
+  }
+}
+const VE = await veKiem()
+const goiApp = (duong, init = {}) =>
+  fetch(APP + duong, { ...init, headers: { ...(init.headers || {}), ...(VE ? { cookie: VE } : {}) } })
 
 let dat = 0
 let hong = 0
@@ -183,23 +215,105 @@ await phep('Tách phần: cắt đúng đuôi, không cắt nhầm tên chứa c
   return dung.length + ' ca cắt đúng, 4 ca giữ nguyên'
 })
 
+await phep('Sắp tập theo số: nguồn trả lộn xộn, "Full" thì giữ nguyên', async () => {
+  // Đúng kiểu lộn xộn đo được trên Đảo Hải Tặc: khối mới ở đầu, khối cũ ở sau
+  const vao = ['1156', '1157', '1178', '1127', '1', '2'].map((ten) => ({ ten }))
+  assert.deepEqual(
+    xepTap(vao).map((t) => t.ten),
+    ['1', '2', '1127', '1156', '1157', '1178'],
+  )
+  const coChu = ['Full', '1', 'Tập đặc biệt'].map((ten) => ({ ten }))
+  assert.deepEqual(xepTap(coChu), coChu, 'có tên không phải số thì phải giữ nguyên thứ tự nguồn')
+  return 'đúng thứ tự, không đụng danh sách có tập đặc biệt'
+})
+
+await phep('Lịch ra tập: chỉ khẳng định khi dữ liệu đủ chắc', async () => {
+  // Mốc giờ Việt Nam 20:00 — Date.UTC trừ 7 tiếng
+  const vn = (y, m, d) => Date.UTC(y, m - 1, d, 13)
+  // 2026-10-01 là Thứ Năm
+  const thu5 = [vn(2026, 10, 1), vn(2026, 10, 8), vn(2026, 10, 15), vn(2026, 10, 22)]
+  assert.equal(nhipTuMoc(thu5), 'Thường có tập mới vào Thứ Năm')
+  assert.equal(nhipTuMoc(thu5.slice(0, 2)), null, 'mới 2 lần mà đã nói thành quy luật')
+  // Cùng một lần cập nhật ghi hai lần (trang chi tiết + danh sách) không được thành 'mỗi ngày'
+  assert.equal(nhipTuMoc([...thu5, ...thu5]), 'Thường có tập mới vào Thứ Năm', 'mốc trùng làm sai nhịp')
+  const hangNgay = [1, 2, 3, 4, 5].map((d) => vn(2026, 10, d))
+  assert.equal(nhipTuMoc(hangNgay), 'Ra tập gần như mỗi ngày')
+  // 2026-10-05 Thứ Hai, 06 Thứ Ba
+  const haiTap = [vn(2026, 10, 5), vn(2026, 10, 6), vn(2026, 10, 12), vn(2026, 10, 13), vn(2026, 10, 19)]
+  assert.equal(nhipTuMoc(haiTap), 'Thường có tập mới vào Thứ Hai và Thứ Ba')
+  // Lộn xộn không theo thứ nào -> không được bịa
+  const lungTung = [vn(2026, 9, 1), vn(2026, 9, 5), vn(2026, 9, 13), vn(2026, 9, 24), vn(2026, 10, 2)]
+  assert.equal(nhipTuMoc(lungTung), null, 'dữ liệu không có nhịp mà vẫn đưa ra một câu')
+  const bay = Date.UTC(2026, 9, 6, 5)
+  assert.equal(truocDay(new Date(bay - 3 * 86400000).toISOString(), bay), '3 ngày trước')
+  assert.equal(truocDay('rác', bay), null)
+  return 'thứ cố định, hằng ngày, hai tập/tuần, và không bịa khi lộn xộn'
+})
+
+await phep('Quy ước ảnh của nguồn: vsmov poster_url ngang, KKPhim poster_url dọc', async () => {
+  const ff = timFfmpeg()
+  if (!ff) return 'bo-qua'
+  const probe = ff.replace(/ffmpeg(\.exe)?$/i, (m) => m.replace('ffmpeg', 'ffprobe'))
+  const tam = await mkdtemp(path.join(os.tmpdir(), 'kiem-anh-'))
+  async function kichThuoc(url, ten) {
+    const r = await fetch(url, { headers: { 'user-agent': UA } })
+    assert.equal(r.status, 200, 'tải ảnh ' + url + ' trả HTTP ' + r.status)
+    const t = path.join(tam, ten)
+    await writeFile(t, Buffer.from(await r.arrayBuffer()))
+    const o = spawnSync(probe, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', t], {
+      encoding: 'utf8',
+      windowsHide: true,
+    })
+    const [w, h] = String(o.stdout).trim().split(',').map(Number)
+    assert.ok(w && h, 'ffprobe không đọc được ' + url)
+    return { w, h }
+  }
+  try {
+    // Nếu một ngày nguồn đổi quy ước, phép này hỏng TRƯỚC khi giao diện hỏng.
+    // Hỏng ở vsmov: đổi lại hai dòng gán ảnh trong lib/vsmov.ts.
+    // Hỏng ở KKPhim: đổi hai dòng trong lib/nguon-kkphim.ts.
+    // Khoảng 5% phim có một trường ảnh là {} thay vì chuỗi — chỉ lấy phim đủ cả hai
+    const duAnh = (x) => typeof x.poster_url === 'string' && x.poster_url && typeof x.thumb_url === 'string' && x.thumb_url
+    const vs = (await json(GOC + '/danh-sach/phim-moi-cap-nhat?page=1')).items.filter(duAnh).slice(0, 3)
+    for (const [i, x] of vs.entries()) {
+      const p = await kichThuoc(x.poster_url, 'vp' + i)
+      const t = await kichThuoc(x.thumb_url, 'vt' + i)
+      assert.ok(p.w > p.h, 'vsmov poster_url không còn là ảnh ngang: ' + p.w + 'x' + p.h + ' (' + x.slug + ')')
+      assert.ok(t.h > t.w, 'vsmov thumb_url không còn là ảnh dọc: ' + t.w + 'x' + t.h + ' (' + x.slug + ')')
+    }
+    const kk = (await json('https://phimapi.com/danh-sach/phim-moi-cap-nhat?page=1')).items.filter(duAnh).slice(0, 3)
+    const goc = (u) => (u.startsWith('http') ? u : 'https://phimimg.com/' + u.replace(/^\/+/, ''))
+    for (const [i, x] of kk.entries()) {
+      const p = await kichThuoc(goc(x.poster_url), 'kp' + i)
+      const t = await kichThuoc(goc(x.thumb_url), 'kt' + i)
+      assert.ok(p.h > p.w, 'KKPhim poster_url không còn là ảnh dọc: ' + p.w + 'x' + p.h + ' (' + x.slug + ')')
+      assert.ok(t.w > t.h, 'KKPhim thumb_url không còn là ảnh ngang: ' + t.w + 'x' + t.h + ' (' + x.slug + ')')
+    }
+    return '3 phim mỗi nguồn, đúng quy ước đang dùng'
+  } finally {
+    // maxRetries: Windows hay giữ tệp .mp4 vừa ghi vài trăm ms (trình diệt virus
+    // quét), xoá ngay là EPERM — bộ kiểm báo hỏng oan dù phần kiểm đã đạt.
+    rmSync(tam, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+  }
+})
+
 // 7 — chốt chặn: cần app đang chạy
 await phep('Chốt chặn proxy: miền lạ và đường dẫn ngoài thư mục nguồn đều bị 403', async () => {
   let song = false
   try {
-    song = (await fetch(APP + '/api/tep', { signal: AbortSignal.timeout(3000) })).status === 400
+    song = (await goiApp('/api/tep', { signal: AbortSignal.timeout(3000) })).status === 400
   } catch {
     return 'bo-qua'
   }
   if (!song) return 'bo-qua'
 
-  const a = await fetch(APP + '/api/tep?u=' + encodeURIComponent('https://example.com/x.m3u8'))
+  const a = await goiApp('/api/tep?u=' + encodeURIComponent('https://example.com/x.m3u8'))
   assert.equal(a.status, 403, 'miền lạ không bị chặn, trả ' + a.status)
 
-  const b = await fetch(APP + '/api/tep?f=' + encodeURIComponent('C:\\Windows\\win.ini'))
+  const b = await goiApp('/api/tep?f=' + encodeURIComponent('C:\\Windows\\win.ini'))
   assert.equal(b.status, 403, 'đọc file ngoài thư mục nguồn không bị chặn, trả ' + b.status)
 
-  const c = await fetch(APP + '/api/tep?f=' + encodeURIComponent('..\\..\\..\\Windows\\win.ini'))
+  const c = await goiApp('/api/tep?f=' + encodeURIComponent('..\\..\\..\\Windows\\win.ini'))
   assert.equal(c.status, 403, 'đường dẫn .. không bị chặn, trả ' + c.status)
   return 'cả 3 lối vào đều 403'
 })
@@ -208,28 +322,28 @@ await phep('Chốt chặn proxy: miền lạ và đường dẫn ngoài thư m�
 await phep('Chống CSRF: cross-site bị 403, same-origin qua', async () => {
   let song = false
   try {
-    song = (await fetch(APP + '/api/tep', { signal: AbortSignal.timeout(3000) })).status === 400
+    song = (await goiApp('/api/tep', { signal: AbortSignal.timeout(3000) })).status === 400
   } catch {
     return 'bo-qua'
   }
   if (!song) return 'bo-qua'
 
   const than = JSON.stringify({ viec: 'tien-do', khoa: 'kiem-csrf:1', slug: 'kiem-csrf', viTri: 1, thoiLuong: 100 })
-  const cheo = await fetch(APP + '/api/xem', {
+  const cheo = await goiApp('/api/xem', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'sec-fetch-site': 'cross-site' },
     body: than,
   })
   assert.equal(cheo.status, 403, 'POST cross-site KHÔNG bị chặn, trả ' + cheo.status)
 
-  const cung = await fetch(APP + '/api/xem', {
+  const cung = await goiApp('/api/xem', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' },
     body: than,
   })
   assert.equal(cung.status, 200, 'POST same-origin bị chặn nhầm, trả ' + cung.status)
   // dọn bản ghi vừa ghi
-  await fetch(APP + '/api/xem', {
+  await goiApp('/api/xem', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' },
     body: JSON.stringify({ viec: 'xoa-tien-do', khoa: 'kiem-csrf:1' }),
@@ -241,7 +355,7 @@ await phep('Chống CSRF: cross-site bị 403, same-origin qua', async () => {
 await phep('Chặn 18+ và khử trùng nguồn', async () => {
   let song = false
   try {
-    song = (await fetch(APP + '/api/tep', { signal: AbortSignal.timeout(3000) })).status === 400
+    song = (await goiApp('/api/tep', { signal: AbortSignal.timeout(3000) })).status === 400
   } catch {
     return 'bo-qua'
   }
@@ -254,7 +368,7 @@ await phep('Chặn 18+ và khử trùng nguồn', async () => {
 
   // Trang chi tiết phim 18+ KHÔNG được dựng ra nội dung phim
   for (const s of den) {
-    const h = await (await fetch(APP + '/phim/' + s, { headers: { 'sec-fetch-site': 'same-origin' } })).text()
+    const h = await (await goiApp('/phim/' + s, { headers: { 'sec-fetch-site': 'same-origin' } })).text()
     assert.ok(!/<h1/.test(h), 'phim 18+ vẫn dựng ra tiêu đề: ' + s.slice(0, 16))
   }
 
@@ -263,7 +377,7 @@ await phep('Chặn 18+ và khử trùng nguồn', async () => {
   assert.equal(lot, 0, lot + ' phim 18+ lọt vào kho đệm')
 
   // Trang duyệt gộp nguồn không được lặp slug
-  const hd = await (await fetch(APP + '/duyet?danh-sach=phim-moi-cap-nhat', { headers: { 'sec-fetch-site': 'same-origin' } })).text()
+  const hd = await (await goiApp('/duyet?danh-sach=phim-moi-cap-nhat', { headers: { 'sec-fetch-site': 'same-origin' } })).text()
   const slug = [...hd.matchAll(/href="\/phim\/([^"]+)"/g)].map((m) => m[1])
   assert.equal(slug.length, new Set(slug).size, 'trang duyệt còn slug lặp')
 
@@ -330,7 +444,7 @@ await phep('ffmpeg tải 30 giây đầu ra MP4 có luồng phụ đề mov_text
     assert.equal(phuDe.tags && phuDe.tags.language, 'vie', 'thiếu mã ngôn ngữ vie')
     return luong.map((s) => s.codec_type + ':' + s.codec_name).join(', ')
   } finally {
-    rmSync(tam, { recursive: true, force: true })
+    rmSync(tam, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
   }
 })
 

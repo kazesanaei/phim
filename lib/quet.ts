@@ -203,15 +203,15 @@ async function luuPhim(o: {
     if (!daCo.sua_tay) {
       db.prepare(
         `update phim set ten = ?, ten_goc = ?, nam = ?, loai = ?, poster = coalesce(?, poster),
-          backdrop = coalesce(?, backdrop), mo_ta = coalesce(?, mo_ta), ten_khong_dau = ? where id = ?`,
+          backdrop = coalesce(?, backdrop), mo_ta = coalesce(?, mo_ta), ten_khong_dau = ?, anh_dung = 1 where id = ?`,
       ).run(ten, meta?.tenGoc || null, nam, o.loai, meta?.poster || null, meta?.backdrop || null, meta?.moTa || null, khongDau(ten), phimId)
     }
   } else {
     const slug = slugDuyNhat(slugHoa(ten + (nam ? '-' + nam : '')))
     const kq = db
       .prepare(
-        `insert into phim (nguon, slug, ten, ten_goc, nam, loai, poster, backdrop, mo_ta, thu_muc, ten_khong_dau)
-         values ('local', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `insert into phim (nguon, slug, ten, ten_goc, nam, loai, poster, backdrop, mo_ta, thu_muc, ten_khong_dau, anh_dung)
+         values ('local', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       )
       .run(slug, ten, meta?.tenGoc || null, nam, o.loai, meta?.poster || null, meta?.backdrop || null, meta?.moTa || null, o.thuMuc, khongDau(ten))
     phimId = Number(kq.lastInsertRowid)

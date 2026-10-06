@@ -12,6 +12,7 @@
  */
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { xepTap } from '@/lib/xep-tap'
 
 export type TapHien = {
   slug: string
@@ -46,11 +47,7 @@ export default function LuoiTap({
    * Chỉ sắp khi MỌI tên tập đều là số. Phim có tập đặc biệt hay "Full" thì giữ
    * nguyên thứ tự của nguồn, vì lúc đó nguồn mới là bên biết thứ tự đúng.
    */
-  const tapXep = useMemo(() => {
-    const so = tap.map((t) => Number(t.ten))
-    if (!so.every((n) => Number.isFinite(n))) return tap
-    return tap.map((t, i) => ({ t, n: so[i] })).sort((a, b) => a.n - b.n).map((x) => x.t)
-  }, [tap])
+  const tapXep = useMemo(() => xepTap(tap), [tap])
 
   const khoang = useMemo(() => {
     if (tapXep.length <= NGUONG_CHIA) return null

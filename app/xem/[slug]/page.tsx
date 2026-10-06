@@ -36,7 +36,10 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
   let dsTap: Tap[]
   let viTri: number
   let khoaTap: string
+  /** Poster DỌC — ghi vào lịch sử xem cho thẻ 2:3. */
   let poster: string | undefined
+  /** Ảnh NGANG — khung chờ của video (16:9) và thẻ TV. */
+  let anhNen: string | undefined
   let soMayChu = 0
   let tenMayChu: { ten: string }[] = []
   let ghiChu: string | null = null
@@ -58,6 +61,7 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
     tenPhim = h.ten
     tieuDe = tap.length > 1 ? `${h.ten} - Tập ${t.ten || t.so_tap}` : h.ten
     poster = h.poster || undefined
+    anhNen = h.backdrop || h.poster || undefined
     khoaTap = dsTap[viTri].slug
     nguon = { kieu: 'tep', duongDan: t.duong_dan_file, chuyenMa: !!t.can_chuyen_ma }
     tepLocal = t.duong_dan_file
@@ -94,7 +98,8 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
 
     tenPhim = ct.ten
     tieuDe = dsTap.length > 1 ? `${ct.ten} - Tập ${t.ten}` : ct.ten
-    poster = ct.anhNgang || ct.poster
+    poster = ct.poster || ct.anhNgang
+    anhNen = ct.anhNgang || ct.poster
     khoaTap = t.slug
     tenMayChu = ct.mayChu.map((m) => ({ ten: m.ten }))
 
@@ -108,12 +113,17 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
     }
   }
 
+  // dsTap đã được sắp theo số tập ở lib/nguon.ts, nên "tập sau" là tập kế thật
+  // chứ không phải phần tử kế trong thứ tự lộn xộn của nguồn.
   const ke = dsTap[viTri + 1]
   const duong = (t: string) => `/xem/${slug}?tap=${t}${laLocal ? '' : `&server=${soMayChu}`}`
   const nhieuTap = dsTap.length > 1
+  const tenMayChuDang = tenMayChu[soMayChu]?.ten
 
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-5">
+    /* trang-xem: ở chế độ TV, globals.css cho trình phát phủ kín màn và giấu
+       đầu trang — xem phim trên TV thì từng dòng của màn 540px đều quý. */
+    <div className="trang-xem mx-auto max-w-[1400px] px-4 py-5">
       <Player
         key={slug + ':' + khoaTap}
         nguon={nguon}
@@ -121,7 +131,21 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
         slug={slug}
         tap={khoaTap}
         tieuDe={tieuDe}
+        tenPhim={tenPhim}
+        nhanTap={
+          [nhieuTap ? `Tập ${dsTap[viTri].ten}` : null, tenMayChu.length > 1 ? tenMayChuDang : null]
+            .filter(Boolean)
+            .join(' · ') || undefined
+        }
         poster={poster}
+        anhNen={anhNen}
+        veTrang={`/phim/${slug}`}
+        dsTap={nhieuTap ? dsTap.map((t) => ({ nhan: t.ten, href: duong(t.slug), dang: t.slug === khoaTap })) : []}
+        mayChu={tenMayChu.map((m, i) => ({
+          nhan: m.ten,
+          href: `/xem/${slug}?tap=${khoaTap}&server=${i}`,
+          dang: i === soMayChu,
+        }))}
         phuDeThem={phuDeThem}
         nguonTen={laLocal ? 'local' : 'vsmov'}
         tapSau={ke ? { nhan: `Tập ${ke.ten}`, href: duong(ke.slug) } : null}
@@ -159,7 +183,7 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
 
       {tenMayChu.length > 1 && (
         <div className="mt-5 flex flex-wrap items-center gap-2">
-          <span className="text-sm text-white/50">Server:</span>
+          <span className="text-sm text-white/50">Máy chủ:</span>
           {tenMayChu.map((m, i) => (
             <Link
               key={i}
@@ -181,10 +205,9 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
         </div>
       )}
 
-      <p className="mt-8 text-xs leading-relaxed text-white/35">
-        Phím tắt: Space/K phát-dừng · J/L hoặc mũi tên trái-phải lùi-tiến 10 giây · mũi tên lên-xuống âm lượng · F toàn
-        màn hình · M tắt tiếng · C phụ đề · P cửa sổ nhỏ · N tập sau · 0-9 nhảy theo phần trăm · dấu ngoặc vuông đổi tốc
-        độ. Kéo thẳng file .srt vào khung hình để gắn phụ đề riêng.
+      <p className="an-tren-tv mt-8 text-xs leading-relaxed text-white/40">
+        Bấm <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-white/70">?</kbd> trong khung phim để xem
+        phím tắt. Kéo thẳng tệp .srt vào khung hình để gắn phụ đề riêng. Loa nhỏ thì bật Cài đặt → Tăng âm lượng.
       </p>
     </div>
   )

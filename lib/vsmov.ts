@@ -24,6 +24,10 @@ export type PhimTom = {
   diem?: string
   /** Số phiếu TMDB — cần để lọc phim 10 điểm từ vài phiếu ra khỏi bảng xếp hạng. */
   soPhieu?: number
+  /** Lúc nguồn cập nhật phim lần cuối (ISO) — dùng để suy lịch ra tập. */
+  capNhat?: string
+  /** 'ongoing' | 'completed' ... — chỉ có ở chi tiết và một số danh sách. */
+  trangThai?: string
 }
 
 export type Trang = {
@@ -105,16 +109,29 @@ function veTom(x: Bat): PhimTom {
     ten: String(x.name || x.slug || ''),
     tenGoc: chuoi(x.origin_name),
     nam: (x.year as number) || undefined,
-    // Nguồn thỉnh thoảng trả poster_url = {} nhưng thumb_url vẫn tốt (đo được ~5%
-    // số phim trên các danh sách). Lấy chéo cho nhau thay vì bỏ trắng cả thẻ.
-    poster: chuoi(x.poster_url) ?? chuoi(x.thumb_url),
-    anhNgang: chuoi(x.thumb_url) ?? chuoi(x.poster_url),
+    /**
+     * Ở vsmov, `poster_url` là ảnh NGANG và `thumb_url` là ảnh DỌC — ngược với
+     * cái tên. Đo 06/10/2026 bằng ffprobe trên 24 phim ngẫu nhiên: 24/24 như vậy
+     * (poster_url 500×282, thumb_url 500×750). Trước đó gán theo tên nên mọi khung
+     * ảnh nhận nhầm loại rồi bị cắt giữa: thẻ PC ra một dải hẹp, thẻ TV cụt đầu,
+     * trình phát ra ảnh dọc hai bên đen.
+     *
+     * KKPhim thì NGƯỢC LẠI (poster_url dọc 800×1200, thumb_url ngang 780×440) —
+     * đừng "sửa cho thống nhất" lib/nguon-kkphim.ts theo tệp này.
+     *
+     * Nguồn thỉnh thoảng trả một trường rỗng ({}), nên vẫn lấy chéo cho nhau thay
+     * vì bỏ trắng cả thẻ.
+     */
+    poster: chuoi(x.thumb_url) ?? chuoi(x.poster_url),
+    anhNgang: chuoi(x.poster_url) ?? chuoi(x.thumb_url),
     nguon: 'vsmov',
     tapHienTai: chuoi(x.episode_current),
     chatLuong: chuoi(x.quality),
     loai: x.type === 'series' || tmdb.type === 'tv' ? 'bo' : 'le',
     diem: tmdb.vote_average && tmdb.vote_average !== '0.0' ? String(tmdb.vote_average) : undefined,
     soPhieu: Number(tmdb.vote_count) || 0,
+    capNhat: chuoi((x.modified as Bat | undefined)?.time),
+    trangThai: chuoi(x.status),
   }
 }
 

@@ -180,7 +180,7 @@ export default function OTimKiem() {
             datMo(true)
           }}
           onFocus={() => datMo(true)}
-          placeholder={laTv ? 'Tìm phim, diễn viên...' : 'Tìm phim...   /'}
+          placeholder={laTv ? 'Tìm kiếm' : 'Tìm phim...   /'}
           aria-label="Tìm phim hoặc tên diễn viên"
           autoComplete="off"
           className="w-36 rounded border border-[var(--color-vien)] bg-[var(--color-nen-2)] px-3 py-1.5 text-sm outline-none transition-all placeholder:text-white/30 focus:w-60 focus:border-white/40 sm:w-48"

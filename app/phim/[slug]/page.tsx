@@ -13,6 +13,7 @@ import ChonPhan from '@/components/ChonPhan'
 import NutTheoDoi from '@/components/NutTheoDoi'
 import { tachPhan } from '@/lib/ten-phan'
 import GoiYPhim from '@/components/GoiYPhim'
+import { ghiLichTap, uocLichTap, truocDay } from '@/lib/lich-tap'
 
 export const revalidate = 300
 
@@ -58,6 +59,17 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
   }
 
   const anh = ct.anhNgang || ct.poster
+
+  /**
+   * Phim bộ đang chiếu: nói rõ đang ở tập mấy, nguồn cập nhật lúc nào, và — chỉ
+   * khi đủ dữ liệu — thường ra tập vào ngày nào. Không in trường `showtimes` của
+   * nguồn vì nó sai rõ ràng (xem lib/lich-tap.ts).
+   */
+  const dangChieu = !laLocal && ct.trangThai === 'ongoing'
+  if (dangChieu) ghiLichTap([ct])
+  const nhipTap = dangChieu ? uocLichTap(slug) : null
+  const capNhatLuc = dangChieu ? truocDay(ct.capNhat) : null
+
   const duongXem = tapTiep ? `/xem/${slug}?tap=${tapTiep.slug}` : `/xem/${slug}`
 
   return (
@@ -67,8 +79,8 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
         <div className="absolute inset-0 bg-[var(--color-nen)]/80 backdrop-blur-sm" />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[var(--color-nen)] to-transparent" />
 
-        <div className="relative mx-auto flex max-w-[1400px] flex-col gap-6 px-4 py-8 md:flex-row md:py-10">
-          <div className="w-40 shrink-0 self-center md:w-56 md:self-start">
+        <div className="ct-dau relative mx-auto flex max-w-[1400px] flex-col gap-6 px-4 py-8 md:flex-row md:py-10">
+          <div className="ct-poster w-40 shrink-0 self-center md:w-56 md:self-start">
             {/* aspect-[2/3] giữ khung trước khi ảnh tải xong, không thì poster
                 nhảy chiều cao và đẩy nội dung dưới (CLS), rõ nhất trên mobile. */}
             <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg shadow-2xl ring-1 ring-white/10">
@@ -100,7 +112,7 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
               {laLocal && (
                 <span className="rounded bg-[var(--color-nhan)] px-2 py-1 font-semibold">Trong máy</span>
               )}
-              {[ct.nam, ct.thoiLuong, ct.chatLuong, ct.ngonNgu, ct.tapHienTai].filter(Boolean).map((x, i) => (
+              {[ct.nam, ct.thoiLuong, ct.chatLuong, ct.ngonNgu, dangChieu ? null : ct.tapHienTai].filter(Boolean).map((x, i) => (
                 <span key={i} className="rounded bg-white/10 px-2 py-1 text-white/70">
                   {x}
                 </span>
@@ -109,6 +121,36 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
                 <span className="rounded bg-amber-500/20 px-2 py-1 font-semibold text-amber-300">TMDB {ct.diem}</span>
               )}
             </div>
+
+            {dangChieu && (
+              <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/70">
+                <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-400">
+                  <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  Đang chiếu
+                </span>
+                {ct.tapHienTai && (
+                  <>
+                    <span aria-hidden className="text-white/25">·</span>
+                    <span>
+                      {ct.tapHienTai}
+                      {ct.tongTap && /^\d+$/.test(ct.tongTap) ? ` / ${ct.tongTap} tập` : ''}
+                    </span>
+                  </>
+                )}
+                {capNhatLuc && (
+                  <>
+                    <span aria-hidden className="text-white/25">·</span>
+                    <span>Cập nhật {capNhatLuc}</span>
+                  </>
+                )}
+                {nhipTap && (
+                  <>
+                    <span aria-hidden className="text-white/25">·</span>
+                    <span className="text-white/85">{nhipTap}</span>
+                  </>
+                )}
+              </p>
+            )}
 
             <div className="mt-4 flex flex-wrap gap-2">
               {tapTiep && (
@@ -159,7 +201,7 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
               )}
             </div>
 
-            {ct.moTa && <p className="mt-5 max-w-3xl text-sm leading-relaxed text-white/75">{ct.moTa}</p>}
+            {ct.moTa && <p className="ct-mo-ta mt-5 max-w-3xl text-sm leading-relaxed text-white/75">{ct.moTa}</p>}
 
             <dl className="mt-5 grid gap-2 text-sm">
               {ct.theLoai.length > 0 && (
@@ -184,35 +226,6 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
                       className="rounded bg-white/10 px-2 py-0.5 text-xs text-white/75 hover:bg-white/20 hover:text-white"
                     >
                       {t.ten}
-                    </Link>
-                  ))}
-                </Dong>
-              )}
-              {ct.daoDien.length > 0 && (
-                <Dong nhan="Đạo diễn">
-                  {ct.daoDien.map((ten) => (
-                    <Link
-                      key={ten}
-                      href={`/dien-vien/${encodeURIComponent(ten)}`}
-                      className="rounded bg-white/5 px-2 py-0.5 text-white/70 transition hover:bg-white/15 hover:text-white"
-                    >
-                      {ten}
-                    </Link>
-                  ))}
-                </Dong>
-              )}
-              {ct.dienVien.length > 0 && (
-                <Dong nhan="Diễn viên">
-                  {/* Bấm được: 108.908 tên đã có trong chỉ mục nên mỗi tên đều
-                      mở ra được danh sách phim của người đó. Để chữ chết thì
-                      công quét đó chỉ phục vụ mỗi ô tìm kiếm. */}
-                  {ct.dienVien.slice(0, 12).map((ten) => (
-                    <Link
-                      key={ten}
-                      href={`/dien-vien/${encodeURIComponent(ten)}`}
-                      className="rounded bg-white/5 px-2 py-0.5 text-white/70 transition hover:bg-white/15 hover:text-white"
-                    >
-                      {ten}
                     </Link>
                   ))}
                 </Dong>
@@ -243,6 +256,44 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
         ))}
         {ct.mayChu.length === 0 && (
           <p className="py-10 text-center text-sm text-white/40">Phim này chưa có nguồn phát.</p>
+        )}
+
+        {/* Đạo diễn / diễn viên nằm SAU danh sách tập. Trước đây chúng ở khối đầu
+            trang, thành một bức tường thẻ tên đẩy danh sách tập xuống quá màn hình
+            đầu — ảnh chụp TV 960x540 không thấy tập nào. Người mở trang phim bộ
+            chủ yếu để chọn tập; FPT Play, VieON, Netflix đều đặt tập ngay dưới nút. */}
+        {(ct.daoDien.length > 0 || ct.dienVien.length > 0) && (
+          <dl className="mb-8 grid gap-2 border-t border-white/10 pt-6 text-sm">
+            {ct.daoDien.length > 0 && (
+              <Dong nhan="Đạo diễn">
+                {ct.daoDien.map((ten) => (
+                  <Link
+                    key={ten}
+                    href={`/dien-vien/${encodeURIComponent(ten)}`}
+                    className="rounded bg-white/5 px-2 py-0.5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                  >
+                    {ten}
+                  </Link>
+                ))}
+              </Dong>
+            )}
+            {ct.dienVien.length > 0 && (
+              <Dong nhan="Diễn viên">
+                {/* Bấm được: 108.908 tên đã có trong chỉ mục nên mỗi tên đều
+                    mở ra được danh sách phim của người đó. Để chữ chết thì
+                    công quét đó chỉ phục vụ mỗi ô tìm kiếm. */}
+                {ct.dienVien.slice(0, 12).map((ten) => (
+                  <Link
+                    key={ten}
+                    href={`/dien-vien/${encodeURIComponent(ten)}`}
+                    className="rounded bg-white/5 px-2 py-0.5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                  >
+                    {ten}
+                  </Link>
+                ))}
+              </Dong>
+            )}
+          </dl>
         )}
 
         {/* Gợi ý dựng từ kho trong máy, không gọi mạng — xem GoiYPhim.tsx */}

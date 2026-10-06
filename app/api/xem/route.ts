@@ -42,14 +42,15 @@ export async function POST(req: Request) {
       // Xem quá 90% thì coi như đã xem xong, không hiện lại ở "Tiếp tục xem".
       const xong = thoiLuong > 0 && viTri / thoiLuong > 0.9 ? 1 : 0
       db.prepare(
-        `insert into xem (khoa, slug, tap, ten, poster, nguon, vi_tri, thoi_luong, xong, cap_nhat)
-         values (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `insert into xem (khoa, slug, tap, ten, poster, anh_ngang, nguon, vi_tri, thoi_luong, xong, cap_nhat)
+         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
          on conflict(khoa) do update set
            vi_tri = excluded.vi_tri,
            thoi_luong = excluded.thoi_luong,
            xong = excluded.xong,
            ten = coalesce(excluded.ten, xem.ten),
            poster = coalesce(excluded.poster, xem.poster),
+           anh_ngang = coalesce(excluded.anh_ngang, xem.anh_ngang),
            cap_nhat = datetime('now')`,
       ).run(
         khoa,
@@ -57,6 +58,8 @@ export async function POST(req: Request) {
         (b.tap as string) || null,
         (b.ten as string) || null,
         (b.poster as string) || null,
+        // Ảnh ngang cho thẻ 16:9 ở chế độ TV; poster dọc thì cho thẻ 2:3 ở PC.
+        (b.anhNgang as string) || null,
         String(b.nguon || 'vsmov'),
         viTri,
         thoiLuong,

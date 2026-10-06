@@ -211,13 +211,30 @@ create table if not exists nguoi_da_quet (
   so_nguoi integer not null default 0,
   quet_luc text not null default (datetime('now'))
 );
+
+-- Mỗi lần thấy phim bộ lên tập mới thì ghi một dòng, để suy ra lịch ra tập.
+-- thay_luc là giờ NGUỒN cập nhật (modified.time), không phải giờ mình nhìn thấy:
+-- mở trang muộn ba ngày thì giờ nhìn thấy lệch ba ngày, giờ nguồn thì không.
+create table if not exists lich_tap (
+  slug text not null,
+  tap text not null,
+  thay_luc text not null,
+  primary key (slug, tap)
+);
 `
 
 /**
  * Cột thêm sau này. `create table if not exists` KHÔNG đụng tới bảng đã có, nên
  * DB cũ sẽ thiếu cột mới và truy vấn ném lỗi. Thêm tay, bỏ qua nếu đã có.
  */
-const COT_THEM: [string, string][] = [['tap', 'luong text']]
+const COT_THEM: [string, string][] = [
+  ['tap', 'luong text'],
+  // Dòng đã ghi theo quy ước ảnh ĐÚNG chưa — xem doiChoAnh() bên dưới.
+  ['kho_phim', 'anh_dung integer not null default 0'],
+  ['phim', 'anh_dung integer not null default 0'],
+  // Ảnh ngang cho thẻ "Tiếp tục xem" ở chế độ TV (khung 16:9).
+  ['xem', 'anh_ngang text'],
+]
 
 function nangCap(db: DatabaseSync) {
   for (const [bang, khaiBao] of COT_THEM) {
@@ -252,7 +269,63 @@ function moDb(): DatabaseSync {
   db.exec('pragma foreign_keys = on')
   db.exec(LUOC_DO)
   nangCap(db)
+  doiChoAnh(db)
   return db
+}
+
+/**
+ * vsmov gắn NGƯỢC hai trường ảnh (poster_url là ảnh ngang, thumb_url là ảnh
+ * dọc — xem lib/vsmov.ts). Mọi dòng ghi trước bản sửa nằm ngược trong kho, nên
+ * đổi chỗ đúng một lần cho mỗi dòng.
+ *
+ * ĐÁNH DẤU THEO DÒNG (cột anh_dung), không bằng một cờ chung trong cai_dat: kho
+ * dựng sẵn kho-dem/*.zip chỉ chép ba bảng phim, KHÔNG chép cai_dat. Dùng cờ chung
+ * thì máy mới giải nén một bản zip dựng lại SAU bản sửa sẽ đổi chỗ nhầm lần nữa.
+ * Dòng mới ghi bởi lib/kho-nguon.ts và lib/quet.ts đều mang anh_dung = 1.
+ *
+ * `begin immediate`: `next build` mở 15 tiến trình cùng lúc, đều chạy hàm này.
+ * Lấy khoá ghi NGAY từ đầu thì tiến trình đến sau chờ (busy_timeout) rồi thấy
+ * không còn dòng nào anh_dung = 0; không lấy trước thì WAL ném SQLITE_BUSY_SNAPSHOT
+ * mà busy_timeout không cứu.
+ */
+function doiChoAnh(db: DatabaseSync) {
+  try {
+    db.exec('begin immediate')
+    // SQLite tính mọi vế phải bằng giá trị CŨ của dòng, nên gán chéo là đổi chỗ.
+    db.exec('update kho_phim set poster = anh_ngang, anh_ngang = poster, anh_dung = 1 where anh_dung = 0')
+    // Phim trong máy: chỉ đổi khi CẢ HAI đều là ảnh lấy từ nguồn. Ảnh tự trích từ
+    // video (/poster/...jpg) là khung hình thật, không dính lỗi của nguồn.
+    db.exec(
+      `update phim set
+         poster = case when poster like 'http%' and backdrop like 'http%' then backdrop else poster end,
+         backdrop = case when poster like 'http%' and backdrop like 'http%' then poster else backdrop end,
+         anh_dung = 1
+       where anh_dung = 0`,
+    )
+    // Ảnh đã chép sang các bảng riêng của máy này (lịch sử xem, đánh dấu, theo
+    // dõi, tải về) thì lấy lại từ kho theo slug. Mấy bảng này không bao giờ đi
+    // theo zip, nên ở đây cờ chung trong cai_dat là đủ.
+    const daLam = db.prepare("select 1 from cai_dat where khoa = 'anh_luu_v1'").get()
+    if (!daLam) {
+      db.exec(`
+        update xem set
+          poster = coalesce((select k.poster from kho_phim k where k.slug = xem.slug), poster),
+          anh_ngang = coalesce((select k.anh_ngang from kho_phim k where k.slug = xem.slug), anh_ngang);
+        update danh_dau set poster = coalesce((select k.poster from kho_phim k where k.slug = danh_dau.khoa), poster);
+        update theo_doi set poster = coalesce((select k.poster from kho_phim k where k.slug = theo_doi.slug), poster);
+        update tai_ve set poster = coalesce((select k.poster from kho_phim k where k.slug = tai_ve.phim_slug), poster);
+        insert into cai_dat (khoa, gia_tri) values ('anh_luu_v1', '1');
+      `)
+    }
+    db.exec('commit')
+  } catch {
+    try {
+      db.exec('rollback')
+    } catch {
+      // chưa mở giao dịch thì thôi
+    }
+    // Không để việc sửa ảnh làm sập cả app: lần khởi động sau sẽ thử lại.
+  }
 }
 
 // Giữ một kết nối duy nhất qua các lần hot-reload của Next dev.

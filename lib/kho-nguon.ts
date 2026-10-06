@@ -95,8 +95,8 @@ const themPhim = () =>
   db.prepare(
     `insert into kho_phim
        (slug, ten, ten_goc, nam, poster, anh_ngang, loai, chat_luong, tap_hien_tai,
-        diem, so_phieu, ten_khong_dau, goc_ten, goc_khong_dau, so_phan, cap_nhat)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        diem, so_phieu, ten_khong_dau, goc_ten, goc_khong_dau, so_phan, cap_nhat, anh_dung)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1)
      on conflict(slug) do update set
        ten = excluded.ten, ten_goc = excluded.ten_goc, nam = excluded.nam,
        poster = excluded.poster, anh_ngang = excluded.anh_ngang, loai = excluded.loai,
@@ -104,7 +104,7 @@ const themPhim = () =>
        diem = excluded.diem, so_phieu = excluded.so_phieu,
        ten_khong_dau = excluded.ten_khong_dau, goc_ten = excluded.goc_ten,
        goc_khong_dau = excluded.goc_khong_dau, so_phan = excluded.so_phan,
-       cap_nhat = datetime('now')`,
+       cap_nhat = datetime('now'), anh_dung = 1`,
   )
 
 /**
