@@ -159,30 +159,34 @@ export default function TheePhim({
             className="h-full w-full object-cover transition-transform duration-500 group-hover/the:scale-[1.06]"
           />
 
-          {huyHieu ? (
-            <span className="absolute left-1.5 top-1.5 rounded bg-[var(--color-nhan)] px-1.5 py-0.5 text-[10px] font-bold uppercase">
-              {huyHieu}
-            </span>
-          ) : nhieuPhan ? (
-            <span className="absolute left-1.5 top-1.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur">
-              {soPhan} phần
-            </span>
-          ) : (
-            phim.chatLuong && (
-              <span className="absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white/85">
-                {phim.chatLuong}
+          {/* Góc trái trên: mác 18+ đứng ĐẦU (lướt nhanh cũng thấy), huy hiệu
+              khác xếp ngay cạnh thay vì bị đè. Góc phải trên là nút lưu. */}
+          <div className="absolute left-1.5 top-1.5 flex items-center gap-1">
+            {phim.la18 && (
+              <span
+                title="Phim có nội dung dành cho người lớn"
+                aria-label="18+, phim có nội dung dành cho người lớn"
+                className="nhan-18 rounded-md bg-red-600 px-1.5 py-[3px] text-xs font-black leading-none tracking-tight text-white shadow-[0_1px_6px_rgba(0,0,0,.7)] ring-1 ring-white/80"
+              >
+                18+
               </span>
-            )
-          )}
-
-          {phim.la18 && (
-            <span
-              title="Phim có nội dung dành cho người lớn"
-              className="absolute bottom-1.5 left-1.5 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white"
-            >
-              18+
-            </span>
-          )}
+            )}
+            {huyHieu ? (
+              <span className="rounded bg-[var(--color-nhan)] px-1.5 py-0.5 text-[10px] font-bold uppercase">
+                {huyHieu}
+              </span>
+            ) : nhieuPhan ? (
+              <span className="rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur">
+                {soPhan} phần
+              </span>
+            ) : (
+              phim.chatLuong && (
+                <span className="rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white/85">
+                  {phim.chatLuong}
+                </span>
+              )
+            )}
+          </div>
 
           {!nhieuPhan && phim.tapHienTai && (
             <span className="absolute bottom-1.5 right-1.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] text-white/85">

@@ -13,6 +13,7 @@ import { capNhatPhimMoi } from '@/lib/cap-nhat-moi'
 import { goiYTheoPhimDaXem } from '@/lib/quet-nguoi'
 import { phimTheoSlug, veTom } from '@/lib/kho-nguon'
 import { ghiLichTap } from '@/lib/lich-tap'
+import { coMac18 } from '@/lib/loc-18'
 import Link from 'next/link'
 
 // Trang này trộn dữ liệu API (cache 600s ở lớp fetch) với hàng "Tiếp tục xem"
@@ -192,6 +193,7 @@ export default async function TrangChu() {
                 poster: x.poster || undefined,
                 anhNgang: x.anh_ngang || undefined,
                 nguon: (x.nguon as 'vsmov' | 'local') || 'vsmov',
+                la18: coMac18(x.slug, x.ten || x.slug),
               }
               const pt = x.thoi_luong ? (x.vi_tri / x.thoi_luong) * 100 : 0
               const conLai = Math.max(0, Math.round((x.thoi_luong - x.vi_tri) / 60))
@@ -220,6 +222,7 @@ export default async function TrangChu() {
                     poster: t.poster || undefined,
                     nguon: 'vsmov',
                     tapHienTai: t.tap_da_biet || undefined,
+                    la18: coMac18(t.slug, t.ten || t.slug),
                   }}
                   huyHieu="Tập mới"
                 />
@@ -327,6 +330,7 @@ export default async function TrangChu() {
                     poster: x.poster || undefined,
                     anhNgang: x.anh_ngang || undefined,
                     nguon: (x.nguon as 'vsmov' | 'local') || 'vsmov',
+                    la18: coMac18(x.slug, x.ten || x.slug),
                   }}
                   href={`/xem/${x.slug}`}
                   huyHieu="Đã xem"

@@ -336,6 +336,12 @@ body {
 }
 
 /* Chữ phụ dưới poster: từ 2–3 m thì cỡ 11px là không đọc được */
+/* Mác 18+ trên thẻ: TV xem từ 2,5 m nên chữ to hơn PC một nấc, vẫn chỉ chiếm góc ảnh */
+[data-che-do='tv'] .the-phim .nhan-18 {
+  font-size: 15px;
+  padding: 4px 7px;
+}
+
 [data-che-do='tv'] .the-phim p {
   font-size: 0.8rem;
   line-height: 1.35;

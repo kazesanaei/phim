@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import TheePhim from '@/components/TheePhim'
 import { danhDauTheoLoai, lichSuXem } from '@/lib/theo-doi'
+import { coMac18 } from '@/lib/loc-18'
 import type { PhimTom } from '@/lib/vsmov'
 
 export const dynamic = 'force-dynamic'
@@ -42,6 +43,7 @@ export default function TrangBoSuuTap() {
                   poster: d.poster || undefined,
                   nam: d.nam || undefined,
                   nguon: d.nguon as 'vsmov' | 'local',
+                  la18: coMac18(d.khoa, d.ten || d.khoa),
                 } satisfies PhimTom
               }
             />
@@ -61,6 +63,7 @@ export default function TrangBoSuuTap() {
                   poster: d.poster || undefined,
                   nam: d.nam || undefined,
                   nguon: d.nguon as 'vsmov' | 'local',
+                  la18: coMac18(d.khoa, d.ten || d.khoa),
                 } satisfies PhimTom
               }
             />
@@ -82,6 +85,7 @@ export default function TrangBoSuuTap() {
                     ten: x.ten || x.slug,
                     poster: x.poster || undefined,
                     nguon: x.nguon as 'vsmov' | 'local',
+                    la18: coMac18(x.slug, x.ten || x.slug),
                   } satisfies PhimTom
                 }
                 tienDo={{

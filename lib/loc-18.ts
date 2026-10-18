@@ -75,6 +75,15 @@ export function mucDo18(p: Phim): Muc18 | null {
   return xetTen18(p.ten, p.tenGoc)?.muc ?? null
 }
 
+/**
+ * Cho thẻ phim dựng từ dữ liệu TRONG MÁY (tiếp tục xem, yêu thích, lịch sử...):
+ * mấy chỗ đó không đi qua locSach() nên tự hỏi mác ở đây. Trả `undefined` thay
+ * cho `false` để không thêm trường thừa vào props.
+ */
+export function coMac18(slug: string, ten: string): true | undefined {
+  return mucDo18({ slug, ten }) === 'canh-bao' || undefined
+}
+
 /** Phim có bị CHẶN HẲN không. Phim chỉ gắn mác thì không. */
 export function bacBo(p: Phim): boolean {
   return mucDo18(p) === 'chan'
