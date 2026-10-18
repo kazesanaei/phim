@@ -22,7 +22,7 @@
  * đàng hoàng (Kiều, Sa Mạc Namibia, Tra Tấn...). phanLoaiSoDen() xem các thể
  * loại còn lại của từng phim để quyết định chặn hay chỉ gắn mác.
  */
-import { db } from './db'
+import { db, layCaiDat, datCaiDat } from './db'
 import { xetTen18, mucTheoTheLoai, type Muc18 } from './ten-18'
 
 export type { Muc18 } from './ten-18'
@@ -263,5 +263,22 @@ export function donKho18(): number {
     db.exec('rollback')
     throw e
   }
+  return rut
+}
+
+/**
+ * Phiên bản lưới tên. ĐỔI lib/ten-18.ts thì TĂNG số này: lần khởi động kế tiếp
+ * tự dọn kho theo lưới mới (donKhoNeuLuoiMoi, gọi từ instrumentation.ts).
+ *
+ * Cần vì máy mới cài từ kho-dem/*.zip mang theo kho dựng bằng lưới CŨ — trong
+ * đó có 7 phim AV lưới cũ để lọt. Không dọn thì chúng nằm lại trong kho cho tới
+ * khi có người nhớ bấm "Quét lại sổ đen".
+ */
+const PHIEN_LUOI = '2'
+
+export function donKhoNeuLuoiMoi(): number | null {
+  if (layCaiDat('luoi_18_phien', '') === PHIEN_LUOI) return null
+  const rut = donKho18()
+  datCaiDat('luoi_18_phien', PHIEN_LUOI)
   return rut
 }

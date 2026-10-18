@@ -9,7 +9,7 @@ Trang xem phim chạy trên máy. Gộp hai nguồn trực tuyến với kho phi
 
 | Thứ | Cách cài | Vì sao |
 |---|---|---|
-| **Node.js 24+** | https://nodejs.org | Bắt buộc — `node:sqlite` chỉ có từ bản 22/24. Kiểm bằng `node -v` |
+| **Node.js 22+** (khuyên 24) | https://nodejs.org | Bắt buộc — `node:sqlite` chỉ có từ bản 22. Kiểm bằng `node -v`. `cai-dat.cmd` cũng chặn ở mốc 22 |
 | **ffmpeg** | `winget install Gyan.FFmpeg` | Tải phim về, phát `.mkv` lạ codec, ảnh xem trước khi tua |
 
 Không có ffmpeg thì app vẫn chạy, chỉ mất mấy tính năng đó.
@@ -18,6 +18,12 @@ Không có ffmpeg thì app vẫn chạy, chỉ mất mấy tính năng đó.
 
 ```bash
 git clone https://github.com/kazesanaei/phim.git
+```
+
+Bản mới chưa gộp vào `main` (đang nằm ở một nhánh riêng) thì clone thẳng nhánh đó:
+
+```bash
+git clone -b <tên-nhánh> https://github.com/kazesanaei/phim.git
 ```
 
 Rồi **bấm đúp `cai-dat.cmd`** trong thư mục vừa clone. Nó kiểm Node, cài gói, dựng sẵn
@@ -37,6 +43,14 @@ npm run chay
 `npm run chay` = build một lần rồi khởi động. **Lần sau chỉ cần `npm start`.**
 
 Mở `http://127.0.0.1:3000`.
+
+### Việc nên làm một lần sau khi cài
+
+1. **Quản trị → Lọc 18+ → Quét lại sổ đen 18+** (cần mạng). Sổ đen trong kho dựng sẵn
+   chặn mù cả thể loại 18+ của nguồn, lẫn cả phim kinh dị / phim đàng hoàng. Quét lại
+   thì app xem thể loại của từng phim: phim tình dục thì chặn, phim còn lại chỉ gắn mác 18+.
+2. Không cần làm gì cho kho đệm: app tự dọn phim bị chặn khỏi kho lúc khởi động lần đầu,
+   và **tự cập nhật phim mới** 30 phút một lần khi đang chạy (bật/tắt ở Quản trị → Kho đệm).
 
 > **Đừng dùng `npm run dev` để xem phim.** Đo thực tế: trang chủ production ~0,04s
 > so với dev 1–4s (chênh 50–100 lần). `dev` chỉ để sửa code.
@@ -124,7 +138,8 @@ file ngoài thư mục nguồn đã đăng ký, và các header bảo mật. Chi
 | Thứ | Hệ quả |
 |---|---|
 | Lịch sử xem, yêu thích, mốc intro | Không đồng bộ giữa các máy |
-| Kho đệm phim | Mỗi máy tự quét (~45 phút) |
+| Kho đệm phim | Dựng sẵn từ `kho-dem/*.zip`, rồi mỗi máy tự cập nhật phim mới |
+| Danh sách Lọc 18+ đặt tay | Đặt lại trên từng máy |
 | Mật khẩu LAN, khoá ký HMAC | **Không bao giờ** lên git — đúng như vậy |
 | Đường dẫn thư mục phim | Riêng từng máy vì ổ đĩa khác nhau |
 
@@ -134,7 +149,7 @@ file ngoài thư mục nguồn đã đăng ký, và các header bảo mật. Chi
 npm run kiem
 ```
 
-11 phép kiểm tự động, chạy được cả khi app tắt. Chạy khi phim không phát được — nó
+Bộ phép kiểm tự động, chạy được cả khi app tắt. Chạy khi phim không phát được — nó
 chỉ thẳng nguồn đã đổi chỗ nào thay vì bắt bạn mò trong giao diện.
 
 Các tài liệu khác:
