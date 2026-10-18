@@ -369,3 +369,27 @@ sắp "mới nhất" trong kho đúng là phim mới lên tập.
 23. **Bộ hẹn giờ trong `instrumentation.ts` phải bỏ qua lúc `next build`** (`NEXT_PHASE`) và
     phải `unref()`. Không bỏ qua thì 15 tiến trình build cùng hẹn giờ ghi SQLite; không
     `unref()` thì tiến trình nào nạp phải module (bộ kiểm, script) sẽ treo không thoát.
+
+## Tăng âm và "Rõ lời thoại" (18/10)
+
+**Triệu chứng:** bật tăng âm, kéo quá 100% mà nghe không khác mấy.
+
+**Không phải lỗi nối đồ thị** — đo bằng máy đo gắn vào trang `/xem` thật trong Chromium, tiếng
+có đi qua GainNode. Lý do nằm ở bản chất tín hiệu: phim có đỉnh sát 0 dBFS, mà số không vượt
+được 0 dBFS. Nhân lên thì phần to bị bộ giới hạn đè lại, chỉ phần nhỏ to thêm; tai người phải
++10 dB mới nghe "to gấp đôi".
+
+**Cách sửa:** thêm công tắc **Rõ lời thoại** trong bảng Cài đặt của trình phát — cắt siêu trầm
+(90 Hz) → nhấn dải lời nói (2,5 kHz, +4 dB) → nén dải động → rồi mới nhân và chặn đỉnh. Dùng
+được cả khi không bật tăng âm.
+
+Đo trên phim thử (thoại -26 dBFS xen tiếng nổ -1 dBFS), mức lời thoại so với 100% gốc:
+
+| Mức | Tăng âm thường | + Rõ lời thoại | Đỉnh ra loa (có Rõ lời thoại) |
+|---|---|---|---|
+| 100% | 0 dB | **+10,2 dB** | -3,9 dBFS |
+| 200% | +5,9 dB | **+16,2 dB** | -0,7 dBFS |
+| 300% | +9,5 dB | **+19,7 dB** | -0,1 dBFS |
+
+Đổi thêm: hạ `1/BU_CHAN` **sau** bộ giới hạn thay vì chia trước — cùng tỉ lệ (180% ra 1,76 lần)
+nhưng đỉnh ra loa thấp hơn ~1 dB.

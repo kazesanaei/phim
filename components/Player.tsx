@@ -91,8 +91,9 @@ const TRAN_TANG_AM = 3
 /**
  * Phần bộ giới hạn tự bù thêm khi tiếng đi qua nó (makeup gain, không tắt được).
  * Đo bằng tín hiệu thật trên Chromium/Edge với đúng thông số bên dưới: mức đặt
- * 1,8 ra 2,07 lần, mức 3 ra 3,41 lần — cùng ≈ 1,15. Chia GainNode cho số này để
- * "180%" ra đúng gần 1,8 lần, và kéo qua mốc 100% không bị vọt lên 20%.
+ * 1,8 ra 2,07 lần, mức 3 ra 3,41 lần — cùng ≈ 1,15. Hạ đúng chừng ấy NGAY SAU
+ * bộ giới hạn để "180%" ra 1,76 lần (đo lại 18/10), và kéo qua mốc 100% không
+ * bị vọt lên 20%. Hạ sau thay vì chia trước: đỉnh ra loa thấp hơn ~1 dB, an toàn hơn.
  */
 const BU_CHAN = 1.15
 /** Kéo thanh âm lượng tới gần 100% thì bám vào đúng 100% cho khỏi lố tay. */
@@ -140,8 +141,8 @@ function mmss(giay: number): string {
   return h > 0 ? `${h}:${hai(p)}:${hai(s)}` : `${p}:${hai(s)}`
 }
 
-type CaiDat = { amLuong: number; tocDo: number; coChu: number; nenPhuDe: boolean; tangAm: boolean }
-const MAC_DINH: CaiDat = { amLuong: 1, tocDo: 1, coChu: 100, nenPhuDe: true, tangAm: false }
+type CaiDat = { amLuong: number; tocDo: number; coChu: number; nenPhuDe: boolean; tangAm: boolean; roLoi: boolean }
+const MAC_DINH: CaiDat = { amLuong: 1, tocDo: 1, coChu: 100, nenPhuDe: true, tangAm: false, roLoi: false }
 
 function docCaiDat(): CaiDat {
   if (typeof window === 'undefined') return MAC_DINH
@@ -157,6 +158,7 @@ function docCaiDat(): CaiDat {
       coChu: Math.min(300, Math.max(50, Number(l.coChu) || MAC_DINH.coChu)),
       nenPhuDe: typeof l.nenPhuDe === 'boolean' ? l.nenPhuDe : MAC_DINH.nenPhuDe,
       tangAm,
+      roLoi: l.roLoi === true,
     }
   } catch {
     return MAC_DINH
@@ -175,21 +177,53 @@ type Bang =
   | 'phim-tat'
   | 'tap'
 
-type DoThiAm = { ctx: AudioContext; gain: GainNode; chan: DynamicsCompressorNode; quaChan: boolean }
+type DoThiAm = {
+  ctx: AudioContext
+  vao: MediaElementAudioSourceNode
+  /** Ba nút của chế độ "Rõ lời thoại": cắt siêu trầm → nhấn dải lời nói → nén dải động. */
+  loc: BiquadFilterNode
+  ro: BiquadFilterNode
+  nen: DynamicsCompressorNode
+  gain: GainNode
+  chan: DynamicsCompressorNode
+  /** Hạ 1/BU_CHAN sau bộ giới hạn. */
+  ha: GainNode
+  /** Đường đang nối, để khỏi tháo lắp lại khi không đổi gì. */
+  duong: string
+}
 
 /**
- * Chỉ cho tiếng đi qua bộ giới hạn khi ĐANG vượt 100%.
+ * Nối lại đường tiếng theo chế độ.
  *
- * DynamicsCompressor của trình duyệt tự bù thêm âm lượng (makeup gain) và không
- * tắt được. Đo bằng tín hiệu thật: để nó luôn nằm trên đường thì ngay ở mức 100%
- * tiếng đã to hơn gốc ~20%, và mức 180% ra 2,07 lần. Dưới 100% đi vòng qua thì
- * 100% đúng bằng âm lượng gốc; vượt 100% mới cần nó để chặn vỡ tiếng.
+ *   thường, ≤100%:      video → gain → loa
+ *   vượt 100%:          video → gain → bộ giới hạn → hạ → loa
+ *   rõ lời thoại:       video → cắt trầm → nhấn lời → nén → gain → bộ giới hạn → hạ → loa
+ *
+ * Chỉ đi qua bộ giới hạn khi CẦN. DynamicsCompressor của trình duyệt tự bù thêm
+ * âm lượng (makeup gain) và không tắt được: để nó luôn nằm trên đường thì ngay ở
+ * mức 100% tiếng đã to hơn gốc ~20%. Dưới 100% đi vòng qua thì 100% đúng bằng
+ * âm lượng gốc.
  */
-function noiDuong(dt: DoThiAm, quaChan: boolean) {
-  if (dt.quaChan === quaChan) return
-  dt.gain.disconnect()
-  dt.gain.connect(quaChan ? dt.chan : dt.ctx.destination)
-  dt.quaChan = quaChan
+function noiDuong(dt: DoThiAm, quaChan: boolean, roLoi: boolean) {
+  const duong = (roLoi ? 'ro' : 'thuong') + (quaChan || roLoi ? '-chan' : '')
+  if (dt.duong === duong) return
+  for (const n of [dt.vao, dt.loc, dt.ro, dt.nen, dt.gain, dt.chan, dt.ha]) n.disconnect()
+  if (roLoi) {
+    dt.vao.connect(dt.loc)
+    dt.loc.connect(dt.ro)
+    dt.ro.connect(dt.nen)
+    dt.nen.connect(dt.gain)
+  } else {
+    dt.vao.connect(dt.gain)
+  }
+  if (quaChan || roLoi) {
+    dt.gain.connect(dt.chan)
+    dt.chan.connect(dt.ha)
+    dt.ha.connect(dt.ctx.destination)
+  } else {
+    dt.gain.connect(dt.ctx.destination)
+  }
+  dt.duong = duong
 }
 
 export default function Player({
@@ -236,6 +270,7 @@ export default function Player({
   const [dem, datDem] = useState(0)
   const [amLuong, datAmLuong] = useState(MAC_DINH.amLuong)
   const [tangAm, datTangAm] = useState(MAC_DINH.tangAm)
+  const [roLoi, datRoLoi] = useState(MAC_DINH.roLoi)
   const [coWebAudio, datCoWebAudio] = useState(false)
   const [coPip, datCoPip] = useState(false)
   const [tat, datTat] = useState(false)
@@ -294,6 +329,7 @@ export default function Player({
     datCoChu(c.coChu)
     datNenPhuDe(c.nenPhuDe)
     datTangAm(c.tangAm)
+    datRoLoi(c.roLoi)
     const w = window as unknown as { AudioContext?: unknown; webkitAudioContext?: unknown }
     datCoWebAudio(!!(w.AudioContext || w.webkitAudioContext))
     datCoPip(!!document.pictureInPictureEnabled)
@@ -493,6 +529,38 @@ export default function Player({
     try {
       const ctx = new AC()
       const vao = ctx.createMediaElementSource(v)
+
+      /**
+       * "Rõ lời thoại" — vì sao chỉ nhân biên độ là KHÔNG ĐỦ:
+       *
+       * Phim vốn đã có đỉnh sát 0 dBFS (cảnh nổ, nhạc), mà tín hiệu số không vượt
+       * được 0 dBFS. Nhân lên thì phần to bị bộ giới hạn đè lại, chỉ phần nhỏ được
+       * to thêm. Đo trên tín hiệu giống phim (thoại -26 dBFS + tiếng nổ -1 dBFS):
+       * 150% chỉ thêm +3,4 dB cho lời thoại, 300% thêm +9,4 dB — mà tai người phải
+       * +10 dB mới nghe "to gấp đôi". Đó là lý do bật lên mà thấy chẳng khác mấy.
+       *
+       * Cách các TV/soundbar làm ("night mode", "dialog enhance"): NÉN DẢI ĐỘNG
+       * trước — kéo phần nhỏ lên sát phần to — rồi mới nhân. Cùng tín hiệu đó, có
+       * chế độ này: 100% đã +9,9 dB cho lời thoại, 200% +15,9 dB, 300% +19,4 dB,
+       * đỉnh vẫn dưới 0 dBFS (-0,3). Cắt siêu trầm vì loa laptop không phát nổi mà
+       * nó lại ăn hết khoảng đỉnh; nhấn 2,5 kHz vì đó là dải làm lời nói rõ chữ.
+       */
+      const loc = ctx.createBiquadFilter()
+      loc.type = 'highpass'
+      loc.frequency.value = 90
+      loc.Q.value = 0.7
+      const ro = ctx.createBiquadFilter()
+      ro.type = 'peaking'
+      ro.frequency.value = 2500
+      ro.Q.value = 0.9
+      ro.gain.value = 4
+      const nen = ctx.createDynamicsCompressor()
+      nen.threshold.value = -36
+      nen.knee.value = 18
+      nen.ratio.value = 4
+      nen.attack.value = 0.006
+      nen.release.value = 0.3
+
       const gain = ctx.createGain()
       // Bộ giới hạn đỉnh: giữ đỉnh dưới 0 dBFS khi đã nhân biên độ lên 2–3 lần,
       // nên lời thoại nhỏ được kéo lên mà tiếng nổ không bị vỡ.
@@ -502,12 +570,14 @@ export default function Player({
       chan.ratio.value = 20
       chan.attack.value = 0.003
       chan.release.value = 0.25
-      vao.connect(gain)
-      chan.connect(ctx.destination)
-      // Mặc định đi thẳng ra loa; noiDuong() chuyển qua bộ giới hạn khi vượt 100%
-      gain.connect(ctx.destination)
-      doThiRef.current = { ctx, gain, chan, quaChan: false }
-      return doThiRef.current
+      const ha = ctx.createGain()
+      ha.gain.value = 1 / BU_CHAN
+
+      const dt: DoThiAm = { ctx, vao, loc, ro, nen, gain, chan, ha, duong: '' }
+      // Mặc định đi thẳng ra loa; hiệu ứng bên dưới đổi đường theo chế độ
+      noiDuong(dt, false, false)
+      doThiRef.current = dt
+      return dt
     } catch {
       return null
     }
@@ -519,11 +589,13 @@ export default function Player({
     if (!v) return
     v.muted = tat
     const dt = doThiRef.current
+    const ro = roLoi && coWebAudio
     if (amLuong <= 1) {
       v.volume = amLuong
       if (dt) {
         dt.gain.gain.value = 1
-        noiDuong(dt, false)
+        noiDuong(dt, false, ro)
+        if (ro && dt.ctx.state === 'suspended') dt.ctx.resume().catch(() => {})
       }
       return
     }
@@ -532,11 +604,11 @@ export default function Player({
     // đầu tiên sẽ dựng đồ thị và đẩy lên đúng mức đã nhớ.
     v.volume = 1
     if (dt) {
-      dt.gain.gain.value = amLuong / BU_CHAN
-      noiDuong(dt, true)
+      dt.gain.gain.value = amLuong
+      noiDuong(dt, true, ro)
       if (dt.ctx.state === 'suspended') dt.ctx.resume().catch(() => {})
     }
-  }, [amLuong, tat])
+  }, [amLuong, tat, roLoi, coWebAudio])
 
   useEffect(
     () => () => {
@@ -578,10 +650,22 @@ export default function Player({
       } else {
         // Dựng đồ thị ngay trong cú bấm này — đang có thao tác của người xem.
         damBaoDoThi()?.ctx.resume().catch(() => {})
-        baoOsd('Kéo thanh âm lượng qua 100% để to hơn')
+        baoOsd(roLoi ? 'Kéo thanh âm lượng qua 100% để to hơn' : 'Kéo qua 100%. Nghe vẫn nhỏ thì bật thêm Rõ lời thoại')
       }
     },
-    [amLuong, ghiCaiDat, baoOsd, damBaoDoThi],
+    [amLuong, roLoi, ghiCaiDat, baoOsd, damBaoDoThi],
+  )
+
+  const doiRoLoi = useCallback(
+    (bat: boolean) => {
+      // Dựng đồ thị ngay trong cú bấm — có thao tác của người xem nên không bị câm.
+      // Hiệu ứng đồng bộ âm lượng sẽ nối lại đường khi roLoi đổi.
+      if (bat) damBaoDoThi()?.ctx.resume().catch(() => {})
+      datRoLoi(bat)
+      ghiCaiDat({ roLoi: bat })
+      baoOsd(bat ? 'Đã bật rõ lời thoại' : 'Đã tắt rõ lời thoại')
+    },
+    [ghiCaiDat, baoOsd, damBaoDoThi],
   )
 
   useEffect(() => {
@@ -1117,11 +1201,12 @@ export default function Player({
           datDaPhatLanNao(true)
           danhThuc()
           // Cú bấm phát là thao tác của người xem: lúc dựng đồ thị tăng âm an toàn
-          if (amLuong > 1 && tangAm) {
+          const vuot = amLuong > 1 && tangAm
+          if (vuot || (roLoi && coWebAudio)) {
             const dt = damBaoDoThi()
             if (dt) {
-              dt.gain.gain.value = amLuong / BU_CHAN
-              noiDuong(dt, true)
+              dt.gain.gain.value = vuot ? amLuong : 1
+              noiDuong(dt, vuot, roLoi && coWebAudio)
               if (dt.ctx.state === 'suspended') dt.ctx.resume().catch(() => {})
             }
           }
@@ -1631,6 +1716,22 @@ export default function Player({
                   <CongTac bat={tangAm} khoa={!coWebAudio} onDoi={doiTangAm} nhan="Tăng âm lượng" />
                 </div>
 
+                <div className="tp-hang-bang flex items-start gap-3 px-4 py-2.5">
+                  <Bieu
+                    ten="loi-thoai"
+                    className={`mt-0.5 h-5 w-5 shrink-0 ${roLoi ? 'text-amber-400' : 'text-white/70'}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white/95">Rõ lời thoại</p>
+                    <p className="mt-0.5 text-xs leading-snug text-white/50">
+                      {coWebAudio
+                        ? 'Kéo lời thoại nhỏ lên to hơn hẳn, ép tiếng nổ và nhạc to xuống. Hợp khi xem đêm hoặc trên loa laptop.'
+                        : 'Trình duyệt này không hỗ trợ.'}
+                    </p>
+                  </div>
+                  <CongTac bat={roLoi} khoa={!coWebAudio} onDoi={doiRoLoi} nhan="Rõ lời thoại" />
+                </div>
+
                 <HangBang bieu="hen-gio" nhan="Hẹn giờ tắt" giaTri={nhanHenGio} onClick={() => datBang('hen-gio')} />
                 <HangBang
                   bieu="tua-nhanh"
@@ -1932,6 +2033,8 @@ const DUONG: Record<string, string> = {
   dung: 'M7 4.5h3.2a.8.8 0 0 1 .8.8v13.4a.8.8 0 0 1-.8.8H7a.8.8 0 0 1-.8-.8V5.3a.8.8 0 0 1 .8-.8zm6.8 0H17a.8.8 0 0 1 .8.8v13.4a.8.8 0 0 1-.8.8h-3.2a.8.8 0 0 1-.8-.8V5.3a.8.8 0 0 1 .8-.8z',
   'am-cao':
     'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z',
+  'loi-thoai':
+    'M9 13c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm7.76-9.64-1.68 1.69c.84 1.18.84 2.71 0 3.89l1.68 1.69c2.02-2.02 2.02-5.07 0-7.27zM20.07 2l-1.63 1.63c2.77 3.02 2.77 7.56 0 10.74L20.07 16c3.9-3.89 3.91-9.95 0-14z',
   'am-thap': 'M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z',
   'tat-tieng':
     'M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z',
