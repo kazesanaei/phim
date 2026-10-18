@@ -82,7 +82,8 @@ Hai việc gia cố chung, không phụ thuộc nguồn:
 
 ### Nhóm 1 — Nên làm trước
 
-**C1. 🟡 Tự đổi máy chủ khi phát lỗi.** Hiện lỗi thì hiện nút "Đổi sang …" để bấm tay. Thêm
+**C1. ✅ ĐÃ LÀM 18/10 — Tự đổi máy chủ khi phát lỗi** (xem README).
+~~🟡 Tự đổi máy chủ khi phát lỗi.~~ Hiện lỗi thì hiện nút "Đổi sang …" để bấm tay. Thêm
 nguồn càng nhiều càng nên tự thử lần lượt các máy chủ còn lại (đếm ngược 3 giây, có nút Huỷ),
 nhớ máy chủ nào hay chết để xếp xuống cuối.
 

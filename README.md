@@ -393,3 +393,38 @@ có đi qua GainNode. Lý do nằm ở bản chất tín hiệu: phim có đỉn
 
 Đổi thêm: hạ `1/BU_CHAN` **sau** bộ giới hạn thay vì chia trước — cùng tỉ lệ (180% ra 1,76 lần)
 nhưng đỉnh ra loa thấp hơn ~1 dB.
+
+## Tự đổi máy chủ + lọc 18+ hai mức (18/10)
+
+### Tự đổi máy chủ khi lỗi
+
+Máy chủ đang phát lỗi thì đếm ngược 4 giây rồi sang máy chủ kế tiếp **chưa thử**, có nút
+Đổi ngay / Huỷ, và phát tiếp đúng giây đang xem (`?tu=`). Máy chủ đã lỗi nhớ theo **phim + số
+tập** trong `sessionStorage`: thử mỗi máy chủ đúng một lần rồi dừng, báo "Đã thử cả N máy chủ".
+
+Ba lỗi tìm ra khi thử bằng nguồn giả (mọi máy chủ trả 404):
+- **Có từ trước:** playlist 404 thì hls.js gọi `startLoad()` — lệnh này không tải lại playlist,
+  nên trình phát **xoay vòng tải mãi**, không bao giờ hiện lỗi hay nút đổi máy chủ. Giờ 4xx là
+  báo lỗi ngay (máy chủ không có tập này, thử lại vô ích); lỗi playlist khác thì `loadSource()` lại.
+- **Có từ trước:** đổi máy chủ mà slug tập khác nhau (vsmov `tap-1`, KKPhim `tap-01`) là bị đá
+  về **tập 1**. Trang xem giờ tìm đúng tập ở từng máy chủ theo slug → tên → số tập, máy chủ
+  không có tập đó thì không đưa vào danh sách đổi.
+- Khoá nhớ máy chủ lỗi lúc đầu dùng slug tập → mỗi máy chủ một khoá → **vòng A → B → A**.
+  Giờ dùng số tập chung (`maTapChung`).
+
+### Lọc 18+ hai mức
+
+| Mức | Dành cho | Hiển thị |
+|---|---|---|
+| **Chặn** | phim toàn bộ thiên về tình dục | ẩn khỏi mọi nơi, trang chi tiết không tìm thấy |
+| **Gắn mác 18+** | phim có cảnh nóng / kinh dị / bạo lực, phim tài liệu về ngành phim người lớn | mác đỏ trên thẻ và trang chi tiết; trang xem hiện **bảng cảnh báo**, đồng ý mới dựng trình phát (nhớ theo phim) |
+
+- Lưới tên tách hai mức ở `lib/ten-18.ts`. Đo trên kho 18.719 phim: **0 phim kinh dị** bị
+  bắt; lưới cũ chặn oan phim tài liệu/nghệ thuật (giờ chỉ gắn mác) và **để lọt 7 phim AV**
+  có mã kiểu `SONE-852` ở đầu tên gốc (giờ chặn). Kết quả: 9 chặn, 18 gắn mác.
+- Thể loại `phim-18` của KKPhim lẫn phim đàng hoàng (Kiều, Sa Mạc Namibia, Tra Tấn...). Bấm
+  **Quét lại sổ đen 18+** thì app xem các thể loại còn lại của từng phim: còn là kinh dị /
+  hình sự / hành động / tài liệu... thì chỉ gắn mác. Dòng sổ đen cũ giữ mức chặn cho tới khi quét lại.
+- **Quản trị → Lọc 18+**: danh sách từng phim kèm lý do và thể loại; đổi Chặn / Gắn mác /
+  Bỏ chặn, trả về tự động, hoặc tự chặn một phim theo slug. Mức đặt tay luôn thắng và
+  không bị lần quét sau ghi đè.

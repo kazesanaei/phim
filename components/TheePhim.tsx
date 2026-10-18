@@ -175,6 +175,15 @@ export default function TheePhim({
             )
           )}
 
+          {phim.la18 && (
+            <span
+              title="Phim có nội dung dành cho người lớn"
+              className="absolute bottom-1.5 left-1.5 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white"
+            >
+              18+
+            </span>
+          )}
+
           {!nhieuPhan && phim.tapHienTai && (
             <span className="absolute bottom-1.5 right-1.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] text-white/85">
               {phim.tapHienTai}
@@ -255,6 +264,7 @@ export default function TheePhim({
 
               <p className="mt-2.5 line-clamp-1 text-sm font-semibold">{ten}</p>
               <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-white/60">
+                {phim.la18 && <span className="rounded-sm bg-red-600 px-1 font-black text-white">18+</span>}
                 {phim.diem && <span className="font-semibold text-emerald-400">{phim.diem} điểm</span>}
                 {phim.nam && <span>{phim.nam}</span>}
                 {phim.chatLuong && <span className="rounded-sm border border-white/25 px-1">{phim.chatLuong}</span>}

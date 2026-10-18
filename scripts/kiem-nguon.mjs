@@ -19,6 +19,7 @@ import { tachPhan } from '../lib/ten-phan.ts'
 import { xepTap } from '../lib/xep-tap.ts'
 import { nhipTuMoc, truocDay } from '../lib/nhip-tap.ts'
 import { bienTheTuKhoa, khopTuKhoa, slugHoa } from '../lib/tu-khoa.ts'
+import { xetTen18, mucTheoTheLoai } from '../lib/ten-18.ts'
 
 const GOC = 'https://vsmov.com/api'
 const APP = process.env.APP || 'http://127.0.0.1:3000'
@@ -243,6 +244,24 @@ await phep('Tìm dự phòng: tên tiếng Anh dài vẫn ra phim, không kéo t
   return 'slug đoán đúng, 3 biến thể, lọc đúng'
 })
 
+await phep('Lọc 18+ hai mức: chặn phim tình dục, chỉ gắn mác phim đàng hoàng', async () => {
+  // Phim AV thật từng lọt lưới cũ (có trong kho đệm dựng sẵn)
+  assert.equal(xetTen18('Tôi Bị Anh Trai Trẻ...', 'SONE-381妹の若い彼氏に恥ずかしいほど')?.muc, 'chan')
+  assert.equal(xetTen18('FSDSS-982', 'FSDSS-982')?.muc, 'chan', 'tên gốc chỉ là mã AV')
+  assert.equal(xetTen18('Phim Sex Nhật', '')?.muc, 'chan')
+  // Phim đàng hoàng có từ nhạy cảm: chỉ gắn mác, không chặn
+  assert.equal(xetTen18('Sau Khi Porn Kết Thúc', 'After Porn Ends')?.muc, 'canh-bao', 'phim tài liệu')
+  assert.equal(xetTen18('Những Khoảnh Khắc Tình Yêu', 'Scenes of a Sexual Nature')?.muc, 'canh-bao')
+  // Không được bắt oan
+  assert.equal(xetTen18('THX 1138', 'THX-1138'), null, 'phim George Lucas bị bắt oan')
+  assert.equal(xetTen18('Ma Cây: Lửa Địa Ngục', 'Evil Dead Burn'), null, 'phim kinh dị bị bắt')
+  assert.equal(xetTen18('Mộng Du Tình Dục', 'Sexsomnia'), null)
+  // Thể loại 18+ của nguồn: còn là kinh dị thì chỉ gắn mác, chỉ tình cảm thì chặn
+  assert.equal(mucTheoTheLoai(['phim-18', 'kinh-di']).muc, 'canh-bao')
+  assert.equal(mucTheoTheLoai(['phim-18', 'tinh-cam', 'co-trang']).muc, 'chan')
+  return '3 ca chặn, 2 ca gắn mác, 3 ca không bắt oan, 2 ca theo thể loại'
+})
+
 await phep('Lịch ra tập: chỉ khẳng định khi dữ liệu đủ chắc', async () => {
   // Mốc giờ Việt Nam 20:00 — Date.UTC trừ 7 tiếng
   const vn = (y, m, d) => Date.UTC(y, m - 1, d, 13)
@@ -379,7 +398,11 @@ await phep('Chặn 18+ và khử trùng nguồn', async () => {
 
   const { DatabaseSync } = await import('node:sqlite')
   const d = new DatabaseSync('du-lieu/phim.db')
-  const den = d.prepare('select slug from chan_18 limit 5').all().map((x) => x.slug)
+  // Chỉ phim bị CHẶN mới phải 404 — phim gắn mác 18+ vẫn mở được (có bảng cảnh báo)
+  const den = d
+    .prepare("select slug from chan_18 where coalesce(muc_tay, muc_tu_dong) = 'chan' limit 5")
+    .all()
+    .map((x) => x.slug)
   if (!den.length) return 'bo-qua'
 
   // Trang chi tiết phim 18+ KHÔNG được dựng ra nội dung phim
@@ -389,7 +412,11 @@ await phep('Chặn 18+ và khử trùng nguồn', async () => {
   }
 
   // Kho đệm không được chứa phim nằm trong sổ đen
-  const lot = d.prepare('select count(*) as n from kho_phim k join chan_18 c on c.slug = k.slug').get().n
+  const lot = d
+    .prepare(
+      "select count(*) as n from kho_phim k join chan_18 c on c.slug = k.slug where coalesce(c.muc_tay, c.muc_tu_dong) = 'chan'",
+    )
+    .get().n
   assert.equal(lot, 0, lot + ' phim 18+ lọt vào kho đệm')
 
   // Trang duyệt gộp nguồn không được lặp slug

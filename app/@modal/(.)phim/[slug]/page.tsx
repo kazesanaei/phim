@@ -85,6 +85,7 @@ export default async function XemNhanh({ params }: PageProps<'/phim/[slug]'>) {
 
       <div className="p-5">
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/60">
+          {ct.la18 && <span className="rounded bg-red-600 px-1.5 py-0.5 font-black text-white">18+</span>}
           {ct.diem && <span className="font-semibold text-emerald-400">{ct.diem} điểm</span>}
           {[ct.nam, ct.thoiLuong, ct.chatLuong, ct.ngonNgu, ct.tapHienTai].filter(Boolean).map((x, i) => (
             <span key={i}>{x}</span>

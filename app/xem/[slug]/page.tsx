@@ -10,6 +10,7 @@ import { nhanNgonNgu } from '@/lib/phu-de'
 import Player, { type NguonPhat, type PhuDeMuc, type TrackAm } from '@/components/Player'
 import DanhSachTap from '@/components/DanhSachTap'
 import TimPhuDe from '@/components/TimPhuDe'
+import CanhBao18 from '@/components/CanhBao18'
 
 function tepUrl(d: string, chuyenMa = false) {
   return '/api/tep?' + (chuyenMa ? 'ma=' : 'f=') + encodeURIComponent(d)
@@ -23,11 +24,36 @@ function fileDaTai(slug: string, tapSlug: string): string | null {
   return h?.duong_dan_ra && existsSync(h.duong_dan_ra) ? h.duong_dan_ra : null
 }
 
+/** Số tập trong tên ("Tập 01", "1", "tap-1") — để khớp cùng một tập giữa các máy chủ. */
+function soTap(s: string): number | null {
+  const m = s.match(/\d+/)
+  return m ? Number(m[0]) : null
+}
+
+/**
+ * Tìm ĐÚNG tập đang xem ở một máy chủ khác. Mỗi nguồn đặt slug tập một kiểu
+ * (vsmov "tap-1", KKPhim "tap-01"...), mà không tìm thấy thì trang xem lùi về
+ * tập đầu — đổi máy chủ là bị đá về tập 1. Thử slug, rồi tên, rồi số tập.
+ */
+function timTap(ds: Tap[], tap: Tap): Tap | undefined {
+  const so = soTap(tap.ten)
+  return (
+    ds.find((t) => t.slug === tap.slug) ??
+    ds.find((t) => t.ten === tap.ten) ??
+    (so !== null ? ds.find((t) => soTap(t.ten) === so) : undefined)
+  )
+}
+
 export default async function TrangXem({ params, searchParams }: PageProps<'/xem/[slug]'>) {
   const { slug } = await params
   const sp = await searchParams
   const laLocal = slug.startsWith('local-')
   const tapMongMuon = typeof sp.tap === 'string' ? sp.tap : ''
+  // Tự đổi máy chủ giữa chừng thì phát tiếp đúng giây đang xem (xem Player)
+  const tuGiay = Math.max(0, Math.floor(Number(typeof sp.tu === 'string' ? sp.tu : '') || 0)) || undefined
+  let la18 = false
+  /** Mã tập chung cho mọi máy chủ — xem maTapChung ở Player. */
+  let maTap: string | undefined
 
   let tieuDe: string
   let tenPhim: string
@@ -41,7 +67,8 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
   /** Ảnh NGANG — khung chờ của video (16:9) và thẻ TV. */
   let anhNen: string | undefined
   let soMayChu = 0
-  let tenMayChu: { ten: string }[] = []
+  /** `tap` = slug của đúng tập này ở máy chủ đó; không có tập này thì undefined. */
+  let tenMayChu: { ten: string; tap?: string }[] = []
   let ghiChu: string | null = null
   let trackAm: TrackAm[] = []
   let tepLocal: string | undefined
@@ -101,7 +128,10 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
     poster = ct.poster || ct.anhNgang
     anhNen = ct.anhNgang || ct.poster
     khoaTap = t.slug
-    tenMayChu = ct.mayChu.map((m) => ({ ten: m.ten }))
+    tenMayChu = ct.mayChu.map((m) => ({ ten: m.ten, tap: timTap(m.tap, t)?.slug }))
+    const so = soTap(t.ten)
+    maTap = so !== null ? String(so) : t.ten.trim().toLowerCase()
+    la18 = !!ct.la18
 
     const daTai = fileDaTai(slug, t.slug)
     if (daTai) {
@@ -120,40 +150,51 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
   const nhieuTap = dsTap.length > 1
   const tenMayChuDang = tenMayChu[soMayChu]?.ten
 
+  const trinhPhat = (
+    <Player
+      key={slug + ':' + khoaTap}
+      nguon={nguon}
+      khoa={`${slug}:${khoaTap}`}
+      slug={slug}
+      tap={khoaTap}
+      tieuDe={tieuDe}
+      tenPhim={tenPhim}
+      nhanTap={
+        [nhieuTap ? `Tập ${dsTap[viTri].ten}` : null, tenMayChu.length > 1 ? tenMayChuDang : null]
+          .filter(Boolean)
+          .join(' · ') || undefined
+      }
+      poster={poster}
+      anhNen={anhNen}
+      veTrang={`/phim/${slug}`}
+      dsTap={nhieuTap ? dsTap.map((t) => ({ nhan: t.ten, href: duong(t.slug), dang: t.slug === khoaTap })) : []}
+      // Máy chủ không có tập này thì đừng đưa vào danh sách đổi
+      mayChu={tenMayChu.flatMap((m, i) =>
+        m.tap ? [{ nhan: m.ten, href: `/xem/${slug}?tap=${m.tap}&server=${i}`, dang: i === soMayChu }] : [],
+      )}
+      phuDeThem={phuDeThem}
+      nguonTen={laLocal ? 'local' : 'vsmov'}
+      tapSau={ke ? { nhan: `Tập ${ke.ten}`, href: duong(ke.slug) } : null}
+      mocIntro={layMocIntro(slug)}
+      trackAm={trackAm}
+      tepLocal={tepLocal}
+      tapId={tapId}
+      tuGiay={tuGiay}
+      maTapChung={maTap}
+    />
+  )
+
   return (
     /* trang-xem: ở chế độ TV, globals.css cho trình phát phủ kín màn và giấu
        đầu trang — xem phim trên TV thì từng dòng của màn 540px đều quý. */
     <div className="trang-xem mx-auto max-w-[1400px] px-4 py-5">
-      <Player
-        key={slug + ':' + khoaTap}
-        nguon={nguon}
-        khoa={`${slug}:${khoaTap}`}
-        slug={slug}
-        tap={khoaTap}
-        tieuDe={tieuDe}
-        tenPhim={tenPhim}
-        nhanTap={
-          [nhieuTap ? `Tập ${dsTap[viTri].ten}` : null, tenMayChu.length > 1 ? tenMayChuDang : null]
-            .filter(Boolean)
-            .join(' · ') || undefined
-        }
-        poster={poster}
-        anhNen={anhNen}
-        veTrang={`/phim/${slug}`}
-        dsTap={nhieuTap ? dsTap.map((t) => ({ nhan: t.ten, href: duong(t.slug), dang: t.slug === khoaTap })) : []}
-        mayChu={tenMayChu.map((m, i) => ({
-          nhan: m.ten,
-          href: `/xem/${slug}?tap=${khoaTap}&server=${i}`,
-          dang: i === soMayChu,
-        }))}
-        phuDeThem={phuDeThem}
-        nguonTen={laLocal ? 'local' : 'vsmov'}
-        tapSau={ke ? { nhan: `Tập ${ke.ten}`, href: duong(ke.slug) } : null}
-        mocIntro={layMocIntro(slug)}
-        trackAm={trackAm}
-        tepLocal={tepLocal}
-        tapId={tapId}
-      />
+      {la18 ? (
+        <CanhBao18 slug={slug} tenPhim={tenPhim} veTrang={`/phim/${slug}`}>
+          {trinhPhat}
+        </CanhBao18>
+      ) : (
+        trinhPhat
+      )}
 
       {ghiChu && <p className="mt-3 rounded bg-white/5 px-3 py-2 text-xs text-white/50">{ghiChu}</p>}
 

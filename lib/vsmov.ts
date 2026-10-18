@@ -28,6 +28,8 @@ export type PhimTom = {
   capNhat?: string
   /** 'ongoing' | 'completed' ... — chỉ có ở chi tiết và một số danh sách. */
   trangThai?: string
+  /** Gắn mác 18+: vẫn xem được nhưng hỏi lại trước — xem lib/loc-18.ts. */
+  la18?: boolean
 }
 
 export type Trang = {

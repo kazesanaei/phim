@@ -112,6 +112,14 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
               {laLocal && (
                 <span className="rounded bg-[var(--color-nhan)] px-2 py-1 font-semibold">Trong máy</span>
               )}
+              {ct.la18 && (
+                <span
+                  title="Có cảnh nóng, bạo lực hoặc yếu tố gây sợ hãi — sẽ hỏi lại trước khi phát"
+                  className="rounded bg-red-600 px-2 py-1 font-black"
+                >
+                  18+
+                </span>
+              )}
               {[ct.nam, ct.thoiLuong, ct.chatLuong, ct.ngonNgu, dangChieu ? null : ct.tapHienTai].filter(Boolean).map((x, i) => (
                 <span key={i} className="rounded bg-white/10 px-2 py-1 text-white/70">
                   {x}

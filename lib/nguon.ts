@@ -140,6 +140,7 @@ function rutGon(ct: ChiTiet): PhimTom {
     soPhieu: ct.soPhieu,
     capNhat: ct.capNhat,
     trangThai: ct.trangThai,
+    la18: ct.la18,
   }
 }
 
@@ -184,10 +185,12 @@ export async function layChiTiet(slug: string): Promise<ChiTiet | null> {
   const goc = a ?? b
   if (!goc) return null
   // Chặn 18+ cả ở trang chi tiết, không chỉ ở danh sách
-  if (!locSach([goc]).length) return null
+  const sach = locSach([goc])
+  if (!sach.length) return null
 
   return {
     ...goc,
+    la18: sach[0].la18,
     // Điền vào chỗ trống bằng nguồn kia — nguồn nào thiếu mô tả/ảnh thì bù
     moTa: goc.moTa || (a?.moTa ?? '') || (b?.moTa ?? ''),
     poster: goc.poster || a?.poster || b?.poster,

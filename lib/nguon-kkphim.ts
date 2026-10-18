@@ -162,14 +162,14 @@ export async function layChiTiet(slug: string): Promise<ChiTiet | null> {
   }
 }
 
-/** Quét trọn thể loại 18+ để dựng sổ đen. Chỉ chạy một lần, ~4 trang. */
-export async function quetSlug18(): Promise<string[]> {
-  const ra: string[] = []
+/** Quét trọn thể loại 18+ để dựng sổ đen. Chỉ chạy một lần, ~4 trang. Trả kèm tên để Quản trị hiện được. */
+export async function quetSlug18(): Promise<{ slug: string; ten: string; tenGoc?: string }[]> {
+  const ra: { slug: string; ten: string; tenGoc?: string }[] = []
   let trang = 1
   let tongTrang = 1
   do {
     const kq = await theoTheLoai('phim-18', trang)
-    for (const p of kq.items) ra.push(p.slug)
+    for (const p of kq.items) ra.push({ slug: p.slug, ten: p.ten, tenGoc: p.tenGoc })
     tongTrang = kq.tongTrang
     trang++
     await new Promise((r) => setTimeout(r, 150))

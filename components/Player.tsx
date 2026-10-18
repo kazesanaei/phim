@@ -74,6 +74,14 @@ type Props = {
   mayChu?: LoiDi[]
   /** Nút quay lại về đâu khi không có lịch sử để lùi (mở thẳng link). */
   veTrang?: string
+  /** Phát từ giây này thay cho tiến độ đã lưu — dùng khi tự đổi máy chủ giữa chừng. */
+  tuGiay?: number
+  /**
+   * Mã tập GIỐNG NHAU trên mọi máy chủ ("1" cho cả "tap-1" lẫn "tap-01"). Khoá
+   * nhớ máy chủ đã lỗi phải dùng mã này: dùng slug tập thì mỗi máy chủ một khoá,
+   * máy chủ 2 không biết máy chủ 1 đã lỗi và đổi ngược về — vòng A → B → A.
+   */
+  maTapChung?: string
 }
 
 const TOC_DO = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
@@ -122,6 +130,32 @@ const DEM_NGUOC_GIAY = 8
  * TV Box mà chỉ đổi lấy một hai giây.
  */
 const TAI_TRUOC_GIAY = 120
+
+/**
+ * Tự đổi máy chủ khi phát lỗi: đếm ngược chừng này giây rồi chuyển, còn kịp bấm
+ * Huỷ. Danh sách máy chủ đã lỗi nhớ theo PHIM + TẬP trong sessionStorage, nên
+ * thử mỗi máy chủ đúng một lần rồi dừng — không bao giờ chạy vòng A → B → A.
+ * Phát được (sự kiện playing) thì xoá danh sách, lần sau lỗi lại được thử lại từ đầu.
+ */
+const DOI_MAY_CHU_GIAY = 4
+const KHOA_MAY_CHU_LOI = 'phim:may-chu-loi:'
+
+function docMayChuLoi(khoa: string): string[] {
+  try {
+    return JSON.parse(sessionStorage.getItem(khoa) || '[]') as string[]
+  } catch {
+    return []
+  }
+}
+
+function ghiMayChuLoi(khoa: string, ten: string) {
+  try {
+    const ds = docMayChuLoi(khoa)
+    if (!ds.includes(ten)) sessionStorage.setItem(khoa, JSON.stringify([...ds, ten]))
+  } catch {
+    // sessionStorage bị chặn: mỗi lần lỗi chỉ biết máy chủ đang phát, vẫn không vòng lại nó
+  }
+}
 
 /** Số lần tự sang tập liên tiếp mà không ai chạm vào thì hỏi "còn xem không". */
 const NGUONG_HOI = 3
@@ -246,6 +280,8 @@ export default function Player({
   dsTap = [],
   mayChu = [],
   veTrang,
+  tuGiay,
+  maTapChung,
 }: Props) {
   const router = useRouter()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -263,6 +299,9 @@ export default function Player({
 
   const [dangTai, datDangTai] = useState(true)
   const [loi, datLoi] = useState<string | null>(null)
+  /** Số giây còn lại trước khi tự đổi máy chủ; null = không đếm. */
+  const [demDoi, datDemDoi] = useState<number | null>(null)
+  const [huyDoi, datHuyDoi] = useState(false)
   const [dangPhat, datDangPhat] = useState(false)
   const [daPhatLanNao, datDaPhatLanNao] = useState(false)
   const [thoiGian, datThoiGian] = useState(0)
@@ -443,13 +482,27 @@ export default function Player({
       hls.attachMedia(videoRef.current)
       hls.on(HlsCtor.Events.ERROR, (_e, d) => {
         if (!d.fatal) return
-        if (thuLaiRef.current >= 3) {
+        /**
+         * Máy chủ trả 4xx (404, 403...) nghĩa là nó KHÔNG CÓ tập này — thử lại
+         * vô ích, báo lỗi ngay để tự đổi máy chủ chạy luôn.
+         *
+         * Lỗi ở PLAYLIST thì phải loadSource() lại: startLoad() chỉ nạp tiếp các
+         * mảnh, không tải lại playlist. Trước đây playlist 404 là trình phát đứng
+         * ở vòng xoay tải mãi mãi, không bao giờ hiện lỗi hay nút đổi máy chủ.
+         */
+        const ma = (d as { response?: { code?: number } }).response?.code ?? 0
+        if (thuLaiRef.current >= 3 || (ma >= 400 && ma < 500)) {
           datLoi('Máy chủ này không phát được tập này.')
           datDangTai(false)
           return
         }
         thuLaiRef.current += 1
-        if (d.type === HlsCtor.ErrorTypes.NETWORK_ERROR) hls.startLoad()
+        const loiPlaylist =
+          d.details === HlsCtor.ErrorDetails.MANIFEST_LOAD_ERROR ||
+          d.details === HlsCtor.ErrorDetails.MANIFEST_LOAD_TIMEOUT ||
+          d.details === HlsCtor.ErrorDetails.MANIFEST_PARSING_ERROR
+        if (loiPlaylist) hls.loadSource(src)
+        else if (d.type === HlsCtor.ErrorTypes.NETWORK_ERROR) hls.startLoad()
         else if (d.type === HlsCtor.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError()
         else {
           datLoi('Máy chủ này không phát được tập này.')
@@ -751,10 +804,12 @@ export default function Player({
     datThoiLuong(v.duration || 0)
     datDangTai(false)
     try {
-      const r = await fetch('/api/xem?khoa=' + encodeURIComponent(khoa))
-      const j = await r.json()
-      const vt = Number(j?.xem?.vi_tri) || 0
-      if (vt > 30 && (!v.duration || vt < v.duration - 20)) {
+      // Vừa tự đổi máy chủ: phát tiếp đúng giây đang xem dở ở máy chủ cũ
+      const vt =
+        tuGiay && tuGiay > 0
+          ? tuGiay
+          : Number((await (await fetch('/api/xem?khoa=' + encodeURIComponent(khoa))).json())?.xem?.vi_tri) || 0
+      if (vt > (tuGiay ? 0 : 30) && (!v.duration || vt < v.duration - 20)) {
         v.currentTime = vt
         datTiepTuc(vt)
         setTimeout(() => datTiepTuc(null), 7000)
@@ -762,7 +817,7 @@ export default function Player({
     } catch {
       // không có tiến độ cũ thì xem từ đầu
     }
-  }, [khoa])
+  }, [khoa, tuGiay])
 
   const khiHet = useCallback(() => {
     datDangPhat(false)
@@ -1157,6 +1212,48 @@ export default function Player({
   const mayChuDang = mayChu.find((m) => m.dang)
   const mayChuKhac = mayChu.find((m) => !m.dang)
 
+  // ---- tự đổi máy chủ khi lỗi ---------------------------------------------
+  const khoaMayChuLoi = KHOA_MAY_CHU_LOI + slug + ':' + (maTapChung ?? tap ?? '')
+  /** Máy chủ kế tiếp CHƯA thử, theo thứ tự trong danh sách, bắt đầu sau máy chủ đang phát. */
+  const mayChuKe = useMemo(() => {
+    if (!loi || mayChu.length < 2) return null
+    const daLoi = new Set([...docMayChuLoi(khoaMayChuLoi), mayChuDang?.nhan])
+    const viTri = mayChu.findIndex((m) => m.dang)
+    const xoay = [...mayChu.slice(viTri + 1), ...mayChu.slice(0, Math.max(0, viTri))]
+    return xoay.find((m) => !daLoi.has(m.nhan)) ?? null
+  }, [loi, mayChu, mayChuDang, khoaMayChuLoi])
+
+  useEffect(() => {
+    if (!loi) {
+      datDemDoi(null)
+      return
+    }
+    if (mayChuDang) ghiMayChuLoi(khoaMayChuLoi, mayChuDang.nhan)
+    if (mayChuKe && !huyDoi) datDemDoi(DOI_MAY_CHU_GIAY)
+    // Chỉ chạy khi có lỗi mới, không chạy lại khi các giá trị kia đổi theo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loi])
+
+  const doiMayChuNgay = useCallback(() => {
+    if (!mayChuKe) return
+    // Tắt đếm TRƯỚC khi chuyển: cùng tập thì trình phát không bị gỡ đi (key giữ
+    // nguyên), demDoi = 0 còn sót lại sẽ chuyển thêm lần nữa.
+    datDemDoi(null)
+    luuTienDo()
+    const giay = Math.floor(videoRef.current?.currentTime || 0)
+    router.replace(mayChuKe.href + (giay > 5 ? '&tu=' + giay : ''))
+  }, [mayChuKe, luuTienDo, router])
+
+  useEffect(() => {
+    if (demDoi === null) return
+    if (demDoi <= 0) {
+      doiMayChuNgay()
+      return
+    }
+    const t = setTimeout(() => datDemDoi((d) => (d === null ? null : d - 1)), 1000)
+    return () => clearTimeout(t)
+  }, [demDoi, doiMayChuNgay])
+
   const nhanPhuDe = chiSoPhuDe >= 0 ? dsPhuDe[chiSoPhuDe]?.nhan || 'Bật' : 'Tắt'
   const nhanHenGio =
     henGio === null ? 'Tắt' : henGio === 'het-tap' ? 'Hết tập này' : `Còn ${mmss(conLai)}`
@@ -1217,7 +1314,15 @@ export default function Player({
           luuTienDo()
         }}
         onWaiting={() => datDangTai(true)}
-        onPlaying={() => datDangTai(false)}
+        onPlaying={() => {
+          datDangTai(false)
+          // Phát được rồi: quên danh sách máy chủ lỗi của tập này
+          try {
+            sessionStorage.removeItem(khoaMayChuLoi)
+          } catch {
+            // bị chặn thì thôi
+          }
+        }}
         onEnded={khiHet}
         onTimeUpdate={(e) => {
           const v = e.currentTarget
@@ -1336,28 +1441,59 @@ export default function Player({
           <div className="tp-the max-w-sm">
             <Bieu ten="loi" className="mx-auto h-10 w-10 text-white/60" />
             <p className="mt-3 text-base font-semibold">{loi}</p>
-            <p className="mt-1 text-sm text-white/60">
-              {mayChuKhac ? 'Thử lại, hoặc đổi sang máy chủ khác.' : 'Thử tải lại nguồn phát.'}
+            <p className="mt-1 text-sm text-white/60" role="status">
+              {demDoi !== null && mayChuKe
+                ? `Tự đổi sang ${mayChuKe.nhan} sau ${demDoi} giây...`
+                : mayChu.length > 1 && !mayChuKe
+                  ? `Đã thử cả ${mayChu.length} máy chủ, chưa máy chủ nào phát được tập này.`
+                  : mayChuKhac
+                    ? 'Thử lại, hoặc đổi sang máy chủ khác.'
+                    : 'Thử tải lại nguồn phát.'}
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  datLoi(null)
-                  datDangTai(true)
-                  if (src) datSrc(src + '&t=' + Date.now())
-                }}
-                className="tp-nut-chu rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-white/85"
-              >
-                Thử lại
-              </button>
-              {mayChuKhac && (
-                <Link
-                  href={mayChuKhac.href}
-                  className="tp-nut-chu rounded-md bg-white/12 px-5 py-2.5 text-sm font-semibold transition hover:bg-white/20"
-                >
-                  Đổi sang {mayChuKhac.nhan}
-                </Link>
+              {demDoi !== null && mayChuKe ? (
+                <>
+                  <button
+                    type="button"
+                    autoFocus
+                    onClick={doiMayChuNgay}
+                    className="tp-nut-chu rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-white/85"
+                  >
+                    Đổi ngay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      datHuyDoi(true)
+                      datDemDoi(null)
+                    }}
+                    className="tp-nut-chu rounded-md bg-white/12 px-5 py-2.5 text-sm font-semibold transition hover:bg-white/20"
+                  >
+                    Huỷ
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      datLoi(null)
+                      datDangTai(true)
+                      if (src) datSrc(src + '&t=' + Date.now())
+                    }}
+                    className="tp-nut-chu rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-white/85"
+                  >
+                    Thử lại
+                  </button>
+                  {(mayChuKe ?? mayChuKhac) && (
+                    <Link
+                      href={(mayChuKe ?? mayChuKhac)!.href}
+                      className="tp-nut-chu rounded-md bg-white/12 px-5 py-2.5 text-sm font-semibold transition hover:bg-white/20"
+                    >
+                      Đổi sang {(mayChuKe ?? mayChuKhac)!.nhan}
+                    </Link>
+                  )}
+                </>
               )}
             </div>
           </div>

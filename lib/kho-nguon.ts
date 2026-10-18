@@ -14,7 +14,7 @@ import { khongDau } from './khong-dau'
 import { tachTu } from './tu-khoa'
 import { layDanhMuc, duyet, type PhimTom } from './vsmov'
 import { tachPhan } from './ten-phan'
-import { bacBo } from './loc-18'
+import { bacBo, mucDo18, ghiNhanTheoTen } from './loc-18'
 
 const KHOA_TIEN_DO = 'kho_tien_do'
 const KHOA_TRANG_THAI = 'kho_trang_thai'
@@ -135,9 +135,13 @@ export function luuPhimVaoKho(ds: PhimTom[], slugTheLoai?: string) {
   for (const p of ds) {
     if (!p.slug) continue
     const ten = chuoiHoacNull(p.ten) ?? p.slug
-    // Chặn 18+ ngay từ lúc GHI: không để nội dung người lớn nằm trong kho,
-    // như vậy mọi truy vấn sau này đều sạch mà không phải nhớ lọc lại.
-    if (bacBo({ slug: p.slug, ten, tenGoc: p.tenGoc })) continue
+    // Chặn 18+ ngay từ lúc GHI: không để phim bị chặn nằm trong kho, như vậy
+    // mọi truy vấn sau này đều sạch mà không phải nhớ lọc lại. Phim chỉ gắn mác
+    // thì vẫn ghi — mác tính lúc đọc ra (veTom). Phim lưới tên bắt được thì ghi
+    // nhận lại để hiện trong Quản trị, bắt nhầm thì chủ máy bỏ chặn được.
+    const muc = mucDo18({ slug: p.slug, ten, tenGoc: p.tenGoc })
+    if (muc) ghiNhanTheoTen({ slug: p.slug, ten, tenGoc: p.tenGoc })
+    if (muc === 'chan') continue
     const t = tachPhan(ten)
     try {
       cauPhim.run(
@@ -429,6 +433,7 @@ export function veTom(h: HangKho): PhimTom {
     loai: h.loai === 'bo' ? 'bo' : 'le',
     diem: h.diem != null ? String(h.diem) : undefined,
     soPhieu: h.so_phieu,
+    la18: mucDo18({ slug: h.slug, ten: h.ten, tenGoc: h.ten_goc ?? undefined }) === 'canh-bao' || undefined,
   }
 }
 
@@ -464,7 +469,7 @@ export function phimCungTheLoai(slug: string, gioiHan = 12): HangKho[] {
           where t.slug_the_loai in (select slug_the_loai from tl)
             and k.slug <> ?
             and (k.goc_khong_dau is null or k.goc_khong_dau <> (select goc_khong_dau from goc))
-            and k.slug not in (select slug from chan_18)
+            and k.slug not in (select slug from chan_18 where coalesce(muc_tay, muc_tu_dong) = 'chan')
           group by k.slug
           order by trung desc, ${bieuThucHang(diemTrungBinh())}
           limit ?`,

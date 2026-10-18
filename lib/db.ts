@@ -176,6 +176,7 @@ create index if not exists idx_kho_tl on kho_the_loai(slug_the_loai);
 
 -- Sổ đen 18+: quét một lần thể loại người lớn của nguồn rồi chặn theo slug.
 -- Cần sổ đen vì endpoint danh sách KHÔNG trả thể loại, không lọc tại chỗ được.
+-- Cột thêm sau (COT_THEM): mức tự động / mức đặt tay — xem lib/loc-18.ts.
 create table if not exists chan_18 (
   slug text primary key,
   ly_do text,
@@ -234,6 +235,14 @@ const COT_THEM: [string, string][] = [
   ['phim', 'anh_dung integer not null default 0'],
   // Ảnh ngang cho thẻ "Tiếp tục xem" ở chế độ TV (khung 16:9).
   ['xem', 'anh_ngang text'],
+  // Lọc 18+ hai mức (lib/loc-18.ts). Dòng cũ mặc định 'chan' — giữ đúng hành vi
+  // trước đây cho tới khi quét lại sổ đen để phân loại theo thể loại.
+  ['chan_18', 'ten text'],
+  ['chan_18', 'ten_goc text'],
+  ['chan_18', 'the_loai text'],
+  ['chan_18', "muc_tu_dong text not null default 'chan'"],
+  ['chan_18', 'muc_tay text'],
+  ['chan_18', 'cap_nhat text'],
 ]
 
 function nangCap(db: DatabaseSync) {

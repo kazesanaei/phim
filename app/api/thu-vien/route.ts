@@ -12,8 +12,8 @@ import { phimLocal, tapCuaPhim, layHangPhim } from '@/lib/thu-vien'
 import { batDauQuet, dungQuet, xoaKho, tienDoQuet } from '@/lib/kho-nguon'
 import { capNhatPhimMoi, trangThaiCapNhat, datTuCapNhat } from '@/lib/cap-nhat-moi'
 import { batDauQuetNguoi, dungQuetNguoi, xoaChiMucNguoi, tienDoQuetNguoi } from '@/lib/quet-nguoi'
-import { quetSlug18 } from '@/lib/nguon-kkphim'
-import { themVaoSoDen, demSoDen, donKho18 } from '@/lib/loc-18'
+import { quetSlug18, layChiTiet as chiTietKkphim } from '@/lib/nguon-kkphim'
+import { themVaoSoDen, demSoDen, donKho18, danhSach18, datMuc18, phanLoaiSoDen, type MucLuu } from '@/lib/loc-18'
 import { nguonDangBat, NGUON } from '@/lib/nguon'
 import { datMatKhau, xoaMatKhau, laCheDoLan, daDatMatKhau } from '@/lib/xac-thuc'
 import { networkInterfaces } from 'node:os'
@@ -29,6 +29,7 @@ export async function GET(req: Request) {
       const kq = phimLocal({ tim: sp.get('tim') || undefined, trang: Number(sp.get('trang') || 1), moiTrang: 50 })
       return Response.json(kq)
     }
+    if (sp.get('loc18')) return Response.json({ ds: danhSach18() })
     if (sp.get('tap')) {
       // Trả kèm phimId: giao diện quản trị cần id thật, và phim mới quét có thể
       // chưa có tập nào để mà suy ngược ra.
@@ -154,10 +155,56 @@ export async function POST(req: Request) {
     if (viec === 'quet-18') {
       const ds = await quetSlug18()
       themVaoSoDen(ds)
+
+      /**
+       * Phân loại từng phim theo các thể loại CÒN LẠI của nó: thể loại 18+ của
+       * KKPhim lẫn cả phim đàng hoàng (Kiều, Sa Mạc Namibia, Tra Tấn...). Phim
+       * còn là kinh dị / hình sự / hành động... thì chỉ gắn mác, không chặn.
+       * Gọi chi tiết theo nhóm 4 cho nhanh mà nguồn không bị dồn.
+       */
+      let chan = 0
+      let ganMac = 0
+      let khongXet = 0
+      for (let i = 0; i < ds.length; i += 4) {
+        const nhom = ds.slice(i, i + 4)
+        const ct = await Promise.all(nhom.map((p) => chiTietKkphim(p.slug).catch(() => null)))
+        nhom.forEach((p, j) => {
+          const c = ct[j]
+          if (!c) {
+            khongXet++ // không lấy được chi tiết thì giữ mức cũ (mặc định chặn)
+            return
+          }
+          if (phanLoaiSoDen(p.slug, c.theLoai) === 'chan') chan++
+          else ganMac++
+        })
+        await new Promise((r) => setTimeout(r, 150))
+      }
+
       // Quét sổ đen xong thì dọn luôn kho: phim lọt lưới CŨ vẫn còn nằm đó,
       // không dọn thì siết lưới mấy cũng vô ích với dữ liệu đã ghi.
       const don = donKho18()
-      return Response.json({ ok: true, them: ds.length, don, tong: demSoDen() })
+      return Response.json({ ok: true, them: ds.length, chan, ganMac, khongXet, don, tong: demSoDen() })
+    }
+
+    if (viec === 'dat-muc-18') {
+      const slug = String(b.slug || '').trim()
+      if (!/^[a-z0-9-]{1,200}$/.test(slug)) return Response.json({ loi: 'Slug không hợp lệ' }, { status: 400 })
+      const muc = b.muc === 'tu-dong' ? null : (String(b.muc) as MucLuu)
+      if (muc !== null && !['chan', 'canh-bao', 'cho-phep'].includes(muc)) {
+        return Response.json({ loi: 'Mức không hợp lệ' }, { status: 400 })
+      }
+      // Thêm phim mới theo slug thì lấy tên từ nguồn để danh sách đọc được
+      let thongTin: { ten?: string; tenGoc?: string } = {}
+      if (b.layTen) {
+        const c = await layChiTiet(slug).catch(() => null)
+        if (c) thongTin = { ten: c.ten, tenGoc: c.tenGoc }
+        else {
+          const k = await chiTietKkphim(slug).catch(() => null)
+          if (k) thongTin = { ten: k.ten, tenGoc: k.tenGoc }
+        }
+      }
+      datMuc18(slug, muc, thongTin)
+      return Response.json({ ok: true, ds: danhSach18(), tong: demSoDen() })
     }
 
     if (viec === 'nguon-bat') {
