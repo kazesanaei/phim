@@ -11,9 +11,11 @@
  * trang mà phim nào cũng đã có và không lên tập mới là biết phần còn lại đã cũ
  * — dừng. Bình thường chỉ tốn 1–2 lượt gọi mỗi nguồn.
  *
- * Kích hoạt kiểu "lười" như lib/tap-moi.ts: trang chủ và trang tìm gọi hàm này
- * mỗi lần mở, hàm tự bỏ qua nếu lần chạy trước còn mới. Không cần bộ hẹn giờ
- * nào chạy riêng.
+ * Hai đường kích hoạt, cùng đi qua một cửa nên không bao giờ chạy chồng:
+ *  - Bộ hẹn giờ trong máy chủ (henGioCapNhat, gọi từ instrumentation.ts): cứ
+ *    30 phút một lần, kể cả khi không ai mở app.
+ *  - Kiểu "lười" như lib/tap-moi.ts: trang chủ và trang tìm gọi mỗi lần mở.
+ * Hàm tự bỏ qua nếu lần chạy trước còn mới hoặc công tắc trong Quản trị đang tắt.
  */
 import { db, layCaiDat, datCaiDat } from './db'
 import * as vsmov from './vsmov'
@@ -29,8 +31,14 @@ const KHOA_BAT = 'cap_nhat_moi_bat'
 
 /** Khoảng cách tối thiểu giữa hai lần tự chạy. */
 const CACH_PHUT = 30
-/** Lần đầu chưa có mốc nào thì đi sâu hơn để vét phim của vài tuần gần đây. */
+/**
+ * Lần đầu chưa có mốc nào — hoặc máy tắt lâu quá NGAY_DI_SAU ngày — thì đi sâu
+ * hơn để vét phim của vài tuần gần đây, khỏi hụt phim ra trong lúc máy tắt.
+ */
 const TRANG_LAN_DAU = 30
+const NGAY_DI_SAU = 3
+/** Chờ chừng này sau khi máy chủ lên rồi mới chạy lần đầu, cho khởi động nhẹ nhàng. */
+const CHO_KHOI_DONG_MS = 60_000
 /** Các lần sau: trần an toàn, phòng khi nguồn đổi thứ tự làm điều kiện dừng không khớp. */
 const TRANG_TOI_DA = 10
 /** Vòng lặp im lâu hơn thế này coi như đã chết (hot-reload bỏ rơi nó). */
@@ -49,7 +57,10 @@ export type TrangThaiCapNhat = {
   loi: string | null
 }
 
-const kho = globalThis as unknown as { __capNhatMoi?: { nhip: number } }
+const kho = globalThis as unknown as {
+  __capNhatMoi?: { nhip: number }
+  __henGioCapNhat?: ReturnType<typeof setInterval>
+}
 
 function doc(): Omit<TrangThaiCapNhat, 'bat' | 'dangChay'> {
   try {
@@ -130,7 +141,7 @@ export function capNhatPhimMoi(ep = false): void {
     if (Date.now() - truoc < CACH_PHUT * 60_000) return
   }
 
-  const lanDau = !cu.xongLuc
+  const lanDau = !cu.xongLuc || Date.now() - Date.parse(cu.xongLuc) > NGAY_DI_SAU * 86_400_000
   const nhip = { nhip: Date.now() }
   kho.__capNhatMoi = nhip
   const batDauLuc = new Date().toISOString()
@@ -187,4 +198,26 @@ export function capNhatPhimMoi(ep = false): void {
       if (kho.__capNhatMoi === nhip) kho.__capNhatMoi = undefined
     }
   })()
+}
+
+/**
+ * Bộ hẹn giờ chạy trong tiến trình máy chủ. Gọi MỘT lần lúc khởi động
+ * (instrumentation.ts); gọi lại — ví dụ khi dev server hot-reload — thì bỏ qua.
+ *
+ * `unref()`: bộ hẹn giờ không được giữ tiến trình sống. Thiếu nó thì các tiến
+ * trình phụ (bộ kiểm, script) nạp phải module này sẽ treo không chịu thoát.
+ */
+export function henGioCapNhat(): void {
+  if (kho.__henGioCapNhat) return
+  const chay = () => {
+    try {
+      capNhatPhimMoi()
+    } catch (e) {
+      // DB đang bị khoá hay gì đó — nhịp sau thử lại, đừng làm sập máy chủ
+      console.warn('[cap-nhat-moi]', e instanceof Error ? e.message : e)
+    }
+  }
+  setTimeout(chay, CHO_KHOI_DONG_MS).unref()
+  kho.__henGioCapNhat = setInterval(chay, CACH_PHUT * 60_000)
+  kho.__henGioCapNhat.unref()
 }

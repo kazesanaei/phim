@@ -353,16 +353,19 @@ sách (`gopVaKhuTrung`), và ở trang chi tiết (`layChiTiet` trả `null`). P
 | Từ khoá gốc rỗng thì đoán thẳng slug (`a-love-other-than-yours`) và hỏi lại bằng biến thể lỏng hơn (bỏ dấu, bỏ mạo từ, cắt ngắn), chỉ giữ phim chứa đủ các từ có nghĩa | `lib/tu-khoa.ts`, `timKiem()` trong `lib/nguon.ts` |
 | Kho tìm theo **từng từ** trên tên Việt + tên gốc + slug; phim khớp nguyên cụm vẫn đứng đầu | `locKho()` trong `lib/kho-nguon.ts` |
 | Trang tìm luôn hiện thêm khối **Trong kho đệm** (phim nguồn không trả về) | `app/tim-kiem/page.tsx` |
-| **Tự cập nhật phim mới**: đọc `phim-moi-cap-nhat` của mọi nguồn đang bật, ghi vào kho, gặp trang toàn phim đã biết thì dừng. Chạy nền khi mở trang chủ / trang tìm, tối đa 30 phút một lần. Bật/tắt và bấm chạy tay ở **Quản trị → Kho đệm** | `lib/cap-nhat-moi.ts` |
+| **Tự cập nhật phim mới**: đọc `phim-moi-cap-nhat` của mọi nguồn đang bật, ghi vào kho, gặp trang toàn phim đã biết thì dừng. Bộ hẹn giờ trong máy chủ chạy 1 phút sau khi khởi động rồi 30 phút một lần, **kể cả khi không ai mở app**; mở trang chủ / trang tìm cũng kích hoạt. Máy tắt quá 3 ngày thì lần sau tự đi sâu hơn để khỏi hụt phim. Bật/tắt và bấm chạy tay ở **Quản trị → Kho đệm** | `lib/cap-nhat-moi.ts`, `instrumentation.ts` |
 | Phim tìm được qua nguồn được ghi luôn vào kho, lần sau ô gợi ý cũng ra | `ghiVaoKho()` trong `lib/nguon.ts` |
 
 Cột `cap_nhat` của kho giờ là **giờ nguồn cập nhật** (`modified.time`), không phải giờ ghi —
 sắp "mới nhất" trong kho đúng là phim mới lên tập.
 
-### Hai cái bẫy mới
+### Ba cái bẫy mới
 
 21. **Đừng ghi kho đệm trong `danhSach()`/`duyet()`.** Trang chủ gọi chúng lúc prerender, mà
     `next build` chạy song song nhiều tiến trình → "database is locked". Chỉ trang tìm (luôn
     động) và vòng cập nhật nền mới ghi.
 22. **Phim 18+ phải bị loại TRƯỚC khi đếm "phim mới".** `luuPhimVaoKho()` không bao giờ ghi
     chúng, nên để lại thì lần nào chúng cũng là "mới" và vòng cập nhật không bao giờ dừng sớm.
+23. **Bộ hẹn giờ trong `instrumentation.ts` phải bỏ qua lúc `next build`** (`NEXT_PHASE`) và
+    phải `unref()`. Không bỏ qua thì 15 tiến trình build cùng hẹn giờ ghi SQLite; không
+    `unref()` thì tiến trình nào nạp phải module (bộ kiểm, script) sẽ treo không thoát.

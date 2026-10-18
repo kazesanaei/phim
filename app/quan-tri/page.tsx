@@ -980,9 +980,9 @@ function TabKho({ bao }: { bao: (t: string) => void }) {
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold">Tự cập nhật phim mới</h3>
             <p className="mt-1 text-xs leading-relaxed text-white/45">
-              Mỗi lần mở trang chủ hoặc trang tìm (tối đa 30 phút một lần), app đọc danh sách phim mới cập nhật của các
-              nguồn đang bật và bổ sung vào kho. Nhờ vậy phim vừa ra cũng hiện trong ô gợi ý và kết quả tìm kiếm, khỏi
-              phải quét lại cả danh mục.
+              Khi app đang chạy, cứ 30 phút một lần (kể cả khi không ai mở trang), app đọc danh sách phim mới cập nhật
+              của các nguồn đang bật và bổ sung vào kho. Nhờ vậy phim vừa ra cũng hiện trong ô gợi ý và kết quả tìm
+              kiếm, khỏi phải quét lại cả danh mục.
             </p>
             <p className="mt-2 text-xs text-white/55">
               {moi?.dangChay
