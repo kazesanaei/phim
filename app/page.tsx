@@ -9,6 +9,7 @@ import { danhSachTiepTuc, danhSachXemLai } from '@/lib/theo-doi'
 import { gomPhan, tachPhan } from '@/lib/phan-phim'
 import { goiY } from '@/lib/goi-y'
 import { danhSachTapMoi, kiemTapMoi } from '@/lib/tap-moi'
+import { capNhatPhimMoi } from '@/lib/cap-nhat-moi'
 import { goiYTheoPhimDaXem } from '@/lib/quet-nguoi'
 import { phimTheoSlug, veTom } from '@/lib/kho-nguon'
 import { ghiLichTap } from '@/lib/lich-tap'
@@ -99,6 +100,9 @@ export default async function TrangChu() {
   // Kiểm tập mới cho phim đang theo dõi — chạy nền, tự giới hạn nhịp nên mở
   // trang liên tục cũng không làm nguồn bị dồn.
   kiemTapMoi()
+  // Kéo phim mới lên nguồn vào kho đệm để ô gợi ý / bộ lọc tìm thấy — cùng
+  // kiểu chạy nền, tự giãn 30 phút một lần (xem lib/cap-nhat-moi.ts).
+  capNhatPhimMoi()
   const tapMoi = danhSachTapMoi()
   const cacGoiY = await goiY()
 

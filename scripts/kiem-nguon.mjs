@@ -18,6 +18,7 @@ import { bocVoTS, docSegment } from '../lib/hls.ts'
 import { tachPhan } from '../lib/ten-phan.ts'
 import { xepTap } from '../lib/xep-tap.ts'
 import { nhipTuMoc, truocDay } from '../lib/nhip-tap.ts'
+import { bienTheTuKhoa, khopTuKhoa, slugHoa } from '../lib/tu-khoa.ts'
 
 const GOC = 'https://vsmov.com/api'
 const APP = process.env.APP || 'http://127.0.0.1:3000'
@@ -225,6 +226,21 @@ await phep('Sắp tập theo số: nguồn trả lộn xộn, "Full" thì giữ 
   const coChu = ['Full', '1', 'Tập đặc biệt'].map((ten) => ({ ten }))
   assert.deepEqual(xepTap(coChu), coChu, 'có tên không phải số thì phải giữ nguyên thứ tự nguồn')
   return 'đúng thứ tự, không đụng danh sách có tập đặc biệt'
+})
+
+await phep('Tìm dự phòng: tên tiếng Anh dài vẫn ra phim, không kéo theo phim lạ', async () => {
+  // Ca thật: "A love other than yours" gõ vào ô tìm mà ra rỗng
+  const q = 'A love other than yours'
+  assert.equal(slugHoa(q), 'a-love-other-than-yours')
+  assert.deepEqual(bienTheTuKhoa(q), ['love other than yours', 'love other than', 'love other'])
+  assert.deepEqual(bienTheTuKhoa('Người nhện'), ['nguoi nhen'], 'phải có biến thể bỏ dấu')
+  assert.deepEqual(bienTheTuKhoa('bo gia'), [], 'từ khoá ngắn không dấu thì không có gì để thử thêm')
+  const phim = { ten: 'Tình Yêu Ngoài Anh', tenGoc: 'A Love Other Than Yours', slug: 'tinh-yeu-ngoai-anh' }
+  assert.ok(khopTuKhoa(q, phim), 'phải khớp theo tên gốc')
+  assert.ok(khopTuKhoa('tinh yeu ngoai anh', phim), 'phải khớp tên Việt gõ không dấu')
+  // Biến thể "love other" lỏng nên nguồn trả cả phim khác — lọc phải loại ra
+  assert.ok(!khopTuKhoa(q, { ten: 'Love Other Side', tenGoc: 'Love Other Side' }), 'kéo nhầm phim thiếu từ')
+  return 'slug đoán đúng, 3 biến thể, lọc đúng'
 })
 
 await phep('Lịch ra tập: chỉ khẳng định khi dữ liệu đủ chắc', async () => {

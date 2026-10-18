@@ -10,6 +10,7 @@ import { coFfmpeg, trichKhungHinh } from '@/lib/ffmpeg'
 import { timKiem, layChiTiet } from '@/lib/vsmov'
 import { phimLocal, tapCuaPhim, layHangPhim } from '@/lib/thu-vien'
 import { batDauQuet, dungQuet, xoaKho, tienDoQuet } from '@/lib/kho-nguon'
+import { capNhatPhimMoi, trangThaiCapNhat, datTuCapNhat } from '@/lib/cap-nhat-moi'
 import { batDauQuetNguoi, dungQuetNguoi, xoaChiMucNguoi, tienDoQuetNguoi } from '@/lib/quet-nguoi'
 import { quetSlug18 } from '@/lib/nguon-kkphim'
 import { themVaoSoDen, demSoDen, donKho18 } from '@/lib/loc-18'
@@ -47,6 +48,7 @@ export async function GET(req: Request) {
         if (k.treo) void batDauQuet()
         return k
       })(),
+      capNhatMoi: trangThaiCapNhat(),
       nguoi: (() => {
         const n = tienDoQuetNguoi()
         // Cùng cơ chế tự hồi phục như kho đệm: nhịp tim tắt thì chạy lại.
@@ -125,6 +127,15 @@ export async function POST(req: Request) {
     if (viec === 'xoa-kho') {
       xoaKho()
       return Response.json({ ok: true, kho: tienDoQuet() })
+    }
+
+    if (viec === 'cap-nhat-moi') {
+      capNhatPhimMoi(true)
+      return Response.json({ ok: true, capNhatMoi: trangThaiCapNhat() })
+    }
+    if (viec === 'tu-cap-nhat') {
+      datTuCapNhat(b.bat === true)
+      return Response.json({ ok: true, capNhatMoi: trangThaiCapNhat() })
     }
 
     if (viec === 'quet-nguoi') {

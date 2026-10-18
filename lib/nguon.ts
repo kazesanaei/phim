@@ -10,6 +10,10 @@
  *
  * MỌI đường ra đều đi qua locSach() để chặn 18+ — đừng thêm đường tắt nào bỏ
  * qua bước này.
+ *
+ * KHÔNG ghi kho đệm trong danhSach()/duyet(): trang chủ gọi chúng lúc prerender,
+ * mà `next build` chạy song song nhiều tiến trình — ghi SQLite ở đó là dễ dính
+ * "database is locked". Chỉ timKiem() (trang tìm luôn động) mới ghi.
  */
 import * as vsmov from './vsmov'
 import * as kkphim from './nguon-kkphim'
@@ -17,6 +21,8 @@ import { locSach } from './loc-18'
 import { layCaiDat } from './db'
 import type { PhimTom, Trang, ChiTiet, MucDanhMuc } from './vsmov'
 import { xepTap } from './xep-tap'
+import { luuPhimVaoKho } from './kho-nguon'
+import { bienTheTuKhoa, khopTuKhoa, slugHoa } from './tu-khoa'
 
 export type TenNguon = 'vsmov' | 'kkphim'
 
@@ -75,7 +81,7 @@ export async function danhSach(slug: string, trang = 1): Promise<Trang> {
   }
 }
 
-export async function timKiem(tuKhoa: string, trang = 1): Promise<Trang> {
+async function timThang(tuKhoa: string, trang: number): Promise<Trang> {
   const bat = nguonDangBat()
   const [a, b] = await Promise.all([
     bat.includes('vsmov') ? anToan(vsmov.timKiem(tuKhoa, trang), TRANG_RONG) : TRANG_RONG,
@@ -83,6 +89,68 @@ export async function timKiem(tuKhoa: string, trang = 1): Promise<Trang> {
   ])
   const items = gopVaKhuTrung([a.items, b.items])
   return { items, tongSo: a.tongSo + b.tongSo, tongTrang: Math.max(a.tongTrang, b.tongTrang), trang }
+}
+
+/**
+ * Tìm phim. Từ khoá gốc ra rỗng thì thử thêm hai đường (xem lib/tu-khoa.ts):
+ *  1. Đoán thẳng slug từ tên — phim nước ngoài hay mang slug theo tên gốc,
+ *     "A Love Other Than Yours" -> /phim/a-love-other-than-yours.
+ *  2. Hỏi lại bằng biến thể lỏng hơn (bỏ dấu, bỏ mạo từ, cắt ngắn), rồi chỉ giữ
+ *     phim chứa ĐỦ các từ có nghĩa để không trả về phim chẳng liên quan.
+ * Chỉ chạy ở trang 1 và chỉ khi rỗng, nên tìm bình thường không tốn thêm lượt gọi.
+ *
+ * Phim tìm được ghi luôn vào kho đệm: lần sau ô gợi ý (chỉ đọc kho) cũng ra.
+ */
+export async function timKiem(tuKhoa: string, trang = 1): Promise<Trang> {
+  const kq = await timThang(tuKhoa, trang)
+  if (kq.items.length || trang > 1) {
+    ghiVaoKho(kq.items)
+    return kq
+  }
+
+  const slugDoan = [...new Set([slugHoa(tuKhoa), slugHoa(tuKhoa.replace(/^\s*(a|an|the)\s+/i, ''))])].filter(Boolean)
+  const theoSlug = Promise.all(slugDoan.map((s) => anToan(layChiTiet(s), null)))
+
+  let theoBienThe: PhimTom[] = []
+  for (const bt of bienTheTuKhoa(tuKhoa)) {
+    const r = await timThang(bt, 1)
+    theoBienThe = r.items.filter((p) => khopTuKhoa(tuKhoa, p))
+    if (theoBienThe.length) break
+  }
+
+  const items = gopVaKhuTrung([(await theoSlug).filter((ct): ct is ChiTiet => !!ct).map(rutGon), theoBienThe])
+  ghiVaoKho(items)
+  return { items, tongSo: items.length, tongTrang: 1, trang: 1 }
+}
+
+/** Bỏ phần nặng của chi tiết (danh sách tập, diễn viên...) — thẻ phim chỉ cần phần tóm tắt. */
+function rutGon(ct: ChiTiet): PhimTom {
+  return {
+    slug: ct.slug,
+    ten: ct.ten,
+    tenGoc: ct.tenGoc,
+    nam: ct.nam,
+    poster: ct.poster,
+    anhNgang: ct.anhNgang,
+    nguon: ct.nguon,
+    tapHienTai: ct.tapHienTai,
+    chatLuong: ct.chatLuong,
+    loai: ct.loai,
+    diem: ct.diem,
+    soPhieu: ct.soPhieu,
+    capNhat: ct.capNhat,
+    trangThai: ct.trangThai,
+  }
+}
+
+/** Kho đệm hỏng hay đang bị khoá thì thôi — tìm kiếm không được gãy vì nó. */
+function ghiVaoKho(items: PhimTom[]) {
+  if (!items.length) return
+  try {
+    luuPhimVaoKho(items)
+  } catch {
+    // bỏ qua, lần sau ghi lại
+  }
 }
 
 export async function duyet(t: vsmov.ThamSoDuyet): Promise<Trang> {

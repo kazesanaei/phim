@@ -11,6 +11,7 @@
  */
 import { db, layCaiDat, datCaiDat } from './db'
 import { khongDau } from './khong-dau'
+import { tachTu } from './tu-khoa'
 import { layDanhMuc, duyet, type PhimTom } from './vsmov'
 import { tachPhan } from './ten-phan'
 import { bacBo } from './loc-18'
@@ -96,7 +97,7 @@ const themPhim = () =>
     `insert into kho_phim
        (slug, ten, ten_goc, nam, poster, anh_ngang, loai, chat_luong, tap_hien_tai,
         diem, so_phieu, ten_khong_dau, goc_ten, goc_khong_dau, so_phan, cap_nhat, anh_dung)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, coalesce(datetime(?), datetime('now')), 1)
      on conflict(slug) do update set
        ten = excluded.ten, ten_goc = excluded.ten_goc, nam = excluded.nam,
        poster = excluded.poster, anh_ngang = excluded.anh_ngang, loai = excluded.loai,
@@ -104,7 +105,7 @@ const themPhim = () =>
        diem = excluded.diem, so_phieu = excluded.so_phieu,
        ten_khong_dau = excluded.ten_khong_dau, goc_ten = excluded.goc_ten,
        goc_khong_dau = excluded.goc_khong_dau, so_phan = excluded.so_phan,
-       cap_nhat = datetime('now'), anh_dung = 1`,
+       cap_nhat = excluded.cap_nhat, anh_dung = 1`,
   )
 
 /**
@@ -155,6 +156,10 @@ export function luuPhimVaoKho(ds: PhimTom[], slugTheLoai?: string) {
         t.goc,
         khongDau(t.goc),
         soHoacNull(t.phan),
+        // Giờ NGUỒN cập nhật phim (modified.time), không phải giờ mình ghi: nhờ vậy
+        // sắp "mới nhất" trong kho đúng là phim mới lên tập, không phải phim vừa
+        // tình cờ đi qua ô tìm kiếm. Nguồn không cho thì mới lấy giờ hiện tại.
+        chuoiHoacNull(p.capNhat),
       )
     } catch (e) {
       // Một phim lỗi không đáng để hỏng cả vòng quét — bỏ qua và đi tiếp.
@@ -317,10 +322,20 @@ export function locKho(loc: LocKho): { items: HangKho[]; tongSo: number; tongTra
   const dk: string[] = []
   const ts: (string | number)[] = []
 
-  if (loc.tim?.trim()) {
-    dk.push("(ten_khong_dau like ? or lower(coalesce(ten_goc, '')) like ?)")
-    const k = '%' + khongDau(loc.tim) + '%'
-    ts.push(k, k)
+  /**
+   * Tìm theo TỪNG TỪ chứ không theo nguyên cụm: mỗi từ phải có mặt trong tên
+   * Việt, tên gốc hoặc slug, thứ tự không quan trọng. Khớp nguyên cụm thì gõ
+   * "love other yours" hay thiếu chữ "A" đầu tên là trượt "A Love Other Than Yours".
+   * Phim khớp NGUYÊN CỤM vẫn được xếp lên đầu — xem `uuTien` bên dưới.
+   */
+  const cum = loc.tim?.trim() ? '%' + khongDau(loc.tim) + '%' : null
+  if (cum) {
+    const tu = tachTu(loc.tim!)
+    for (const t of tu.length ? tu : [khongDau(loc.tim!)]) {
+      dk.push("(ten_khong_dau like ? or lower(coalesce(ten_goc, '')) like ? or slug like ?)")
+      const k = '%' + t + '%'
+      ts.push(k, k, k)
+    }
   }
   if (loc.nam) {
     dk.push('nam = ?')
@@ -338,7 +353,12 @@ export function locKho(loc: LocKho): { items: HangKho[]; tongSo: number; tongTra
   }
 
   const dau = dk.length ? ' where ' + dk.join(' and ') : ''
-  const sap = cauSapXep(loc.sapXep)
+  // Đang tìm mà không chọn kiểu sắp thì phim khớp nguyên cụm đứng trước.
+  const uuTien = cum && !loc.sapXep
+  const sap =
+    (uuTien ? "case when ten_khong_dau like ? or lower(coalesce(ten_goc, '')) like ? then 0 else 1 end, " : '') +
+    cauSapXep(loc.sapXep)
+  const tsSap = uuTien ? [cum, cum] : []
   const moiTrang = loc.moiTrang || 24
   const trang = Math.max(1, loc.trang || 1)
 
@@ -361,14 +381,14 @@ export function locKho(loc: LocKho): { items: HangKho[]; tongSo: number; tongTra
          group by coalesce(goc_khong_dau, slug)
          order by ${sap} limit ? offset ?`,
       )
-      .all(...ts, moiTrang, (trang - 1) * moiTrang) as HangKho[]
+      .all(...ts, ...tsSap, moiTrang, (trang - 1) * moiTrang) as HangKho[]
     const sach = items.filter((h) => !bacBo({ slug: h.slug, ten: h.ten, tenGoc: h.ten_goc ?? undefined }))
     return { items: sach, tongSo, tongTrang: Math.max(1, Math.ceil(tongSo / moiTrang)), trang }
   }
 
   const tongSo = (db.prepare(`select count(*) as n from kho_phim${dau}`).get(...ts) as { n: number }).n
   const items = (
-    db.prepare(`select * from kho_phim${dau} order by ${sap} limit ? offset ?`).all(...ts, moiTrang, (trang - 1) * moiTrang) as HangKho[]
+    db.prepare(`select * from kho_phim${dau} order by ${sap} limit ? offset ?`).all(...ts, ...tsSap, moiTrang, (trang - 1) * moiTrang) as HangKho[]
   ).filter((h) => !bacBo({ slug: h.slug, ten: h.ten, tenGoc: h.ten_goc ?? undefined }))
   return { items, tongSo, tongTrang: Math.max(1, Math.ceil(tongSo / moiTrang)), trang }
 }

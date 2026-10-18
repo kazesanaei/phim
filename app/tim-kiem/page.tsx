@@ -8,6 +8,7 @@ import { phimTheoSlug, veTom, locKho, namTrongKho } from '@/lib/kho-nguon'
 import { phimTheoNguoi, timTenNguoi } from '@/lib/quet-nguoi'
 import { lichSuXem } from '@/lib/theo-doi'
 import LocKetQua from '@/components/LocKetQua'
+import { capNhatPhimMoi, trangThaiCapNhat } from '@/lib/cap-nhat-moi'
 
 export const revalidate = 60
 
@@ -45,6 +46,21 @@ export default async function TrangTimKiem({ searchParams }: PageProps<'/tim-kie
     Promise.resolve(phimLocal({ tim: q, moiTrang: 24 })),
   ])
 
+  /**
+   * Kho đệm cũng là một nguồn kết quả, không chỉ để lọc. Nguồn tìm theo nguyên
+   * cụm nên hay trượt tên tiếng Anh; kho thì tìm theo từng từ trên cả tên Việt,
+   * tên gốc lẫn slug, và được lib/cap-nhat-moi.ts bổ sung phim mới liên tục.
+   * Chỉ hiện phim mà nguồn KHÔNG trả về, để khỏi lặp thẻ.
+   */
+  capNhatPhimMoi()
+  const daCoTuNguon = new Set([...tuNguon.items, ...tuMay.items].map((p) => p.slug))
+  const tuKhoDem =
+    !coLoc && trang === 1
+      ? locKho({ tim: q, moiTrang: 24, gomPhan: true })
+          .items.map(veTom)
+          .filter((p) => !daCoTuNguon.has(p.slug))
+      : []
+
   const daXem = coLoc && fChuaXem ? new Set(lichSuXem(500).map((x) => x.slug)) : null
   const tuKho = coLoc
     ? (() => {
@@ -68,7 +84,12 @@ export default async function TrangTimKiem({ searchParams }: PageProps<'/tim-kie
 
   // Có lọc thì khối "Đã lọc" tự lo phần báo rỗng, đừng báo trùng hai lần.
   const khong =
-    !coLoc && tuNguon.items.length === 0 && tuMay.items.length === 0 && phimCuaNguoi.length === 0
+    !coLoc &&
+    tuNguon.items.length === 0 &&
+    tuMay.items.length === 0 &&
+    tuKhoDem.length === 0 &&
+    phimCuaNguoi.length === 0
+  const dangCapNhat = khong && trangThaiCapNhat().dangChay
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6">
@@ -114,6 +135,11 @@ export default async function TrangTimKiem({ searchParams }: PageProps<'/tim-kie
             Thử duyệt theo thể loại
           </Link>
           .
+          {dangCapNhat && (
+            <span className="mt-2 block text-xs text-white/35">
+              Đang cập nhật phim mới từ nguồn vào kho, thử tìm lại sau ít phút.
+            </span>
+          )}
         </p>
       )}
 
@@ -147,7 +173,7 @@ export default async function TrangTimKiem({ searchParams }: PageProps<'/tim-kie
 
       {tuNguon.items.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-3 text-sm font-semibold text-white/70">Từ vsmov ({tuNguon.tongSo})</h2>
+          <h2 className="mb-3 text-sm font-semibold text-white/70">Từ nguồn phim ({tuNguon.tongSo})</h2>
           <div className="luoi-phim grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
             {gomPhan(tuNguon.items).map((n) => (
               <TheePhim key={n.daiDien.slug} phim={n.daiDien} tenHienThi={n.ten} soPhan={n.soPhan} />
@@ -158,6 +184,17 @@ export default async function TrangTimKiem({ searchParams }: PageProps<'/tim-kie
             tongTrang={tuNguon.tongTrang}
             duong={(t) => `/tim-kiem?q=${encodeURIComponent(q)}${t > 1 ? '&trang=' + t : ''}`}
           />
+        </section>
+      )}
+
+      {tuKhoDem.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-sm font-semibold text-white/70">Trong kho đệm ({tuKhoDem.length})</h2>
+          <div className="luoi-phim grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+            {tuKhoDem.map((p) => (
+              <TheePhim key={p.slug} phim={p} />
+            ))}
+          </div>
         </section>
       )}
     </div>

@@ -846,14 +846,25 @@ type TienDoKho = {
   loi: string | null
 }
 
+type CapNhatMoi = {
+  bat: boolean
+  dangChay: boolean
+  xongLuc: string | null
+  soMoi: number
+  soLenTap: number
+  loi: string | null
+}
+
 function TabKho({ bao }: { bao: (t: string) => void }) {
   const [kho, datKho] = useState<TienDoKho | null>(null)
+  const [moi, datMoi] = useState<CapNhatMoi | null>(null)
 
   const nap = useCallback(async () => {
     try {
       const r = await fetch('/api/thu-vien')
       const j = await r.json()
       datKho(j.kho ?? null)
+      datMoi(j.capNhatMoi ?? null)
     } catch {
       // dev server dang bien dich lai thi bo qua mot nhip
     }
@@ -868,6 +879,7 @@ function TabKho({ bao }: { bao: (t: string) => void }) {
   async function lam(viec: string, them: Record<string, unknown> = {}) {
     const j = await goi({ viec, ...them })
     if (j.kho) datKho(j.kho)
+    if (j.capNhatMoi) datMoi(j.capNhatMoi)
     nap()
     return j
   }
@@ -961,6 +973,48 @@ function TabKho({ bao }: { bao: (t: string) => void }) {
             Xoá kho
           </button>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-[var(--color-vien)] bg-[var(--color-nen-2)] p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-semibold">Tự cập nhật phim mới</h3>
+            <p className="mt-1 text-xs leading-relaxed text-white/45">
+              Mỗi lần mở trang chủ hoặc trang tìm (tối đa 30 phút một lần), app đọc danh sách phim mới cập nhật của các
+              nguồn đang bật và bổ sung vào kho. Nhờ vậy phim vừa ra cũng hiện trong ô gợi ý và kết quả tìm kiếm, khỏi
+              phải quét lại cả danh mục.
+            </p>
+            <p className="mt-2 text-xs text-white/55">
+              {moi?.dangChay
+                ? 'Đang cập nhật...'
+                : moi?.xongLuc
+                  ? `Lần gần nhất: ${new Date(moi.xongLuc).toLocaleString('vi-VN')} — thêm ${moi.soMoi} phim mới, ${moi.soLenTap} phim lên tập`
+                  : 'Chưa cập nhật lần nào.'}
+            </p>
+            {moi?.loi && <p className="mt-1 text-xs text-red-400">Lỗi: {moi.loi}</p>}
+          </div>
+          <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={moi?.bat ?? true}
+              onChange={async (e) => {
+                await lam('tu-cap-nhat', { bat: e.target.checked })
+                bao(e.target.checked ? 'Đã bật tự cập nhật phim mới.' : 'Đã tắt tự cập nhật phim mới.')
+              }}
+            />
+            Tự động
+          </label>
+        </div>
+        <button
+          onClick={async () => {
+            await lam('cap-nhat-moi')
+            bao('Đang cập nhật phim mới ở chế độ nền.')
+          }}
+          disabled={moi?.dangChay}
+          className="mt-3 rounded bg-white/10 px-4 py-2 text-sm hover:bg-white/20 disabled:opacity-40"
+        >
+          {moi?.dangChay ? 'Đang cập nhật...' : 'Cập nhật ngay'}
+        </button>
       </div>
 
       {(kho?.soPhim ?? 0) > 0 && (
