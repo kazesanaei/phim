@@ -55,6 +55,40 @@ Mở `http://127.0.0.1:3000`.
 > **Đừng dùng `npm run dev` để xem phim.** Đo thực tế: trang chủ production ~0,04s
 > so với dev 1–4s (chênh 50–100 lần). `dev` chỉ để sửa code.
 
+### Máy đã cài rồi: lên bản mới mà giữ nguyên dữ liệu
+
+Kho đệm, lịch sử xem, yêu thích, mốc intro, mật khẩu LAN đều nằm trong
+`du-lieu/phim.db` — thư mục này nằm trong `.gitignore`, git **không bao giờ** đụng tới.
+Nên **đừng clone sang thư mục mới**: bản clone mới không có `du-lieu/`, `cai-dat.cmd` sẽ
+dựng lại kho từ bản zip cũ, còn kho bạn đã cập nhật nằm lại ở thư mục cũ.
+
+Cập nhật ngay trong thư mục đang dùng:
+
+```bash
+# 1. Tắt app (đóng cửa sổ chay.cmd) — build lúc app đang chạy sẽ lỗi trên Windows
+cd đường\dẫn\tới\phim
+
+# 2. Sao lưu cho chắc (chỉ chép, không xoá gì)
+copy du-lieu\phim.db du-lieu\phim-sao-luu.db
+
+# 3. Lấy bản mới
+git status                 # có tệp sửa dở (thường là AGENTS.md do next dev ghi) thì báo trước khi làm tiếp
+git fetch origin
+git checkout <tên-nhánh>   # hoặc: git pull   nếu bản mới đã gộp vào main
+
+# 4. Cài gói mới (nếu có) và build lại
+npm install
+npm run build
+```
+
+Rồi mở bằng `chay.cmd` như mọi khi. Lần khởi động đầu, app tự thêm các cột mới vào DB
+và **rút khỏi kho đệm những phim bị chặn theo lưới 18+ mới** (chỉ bảng kho phim; lịch sử
+xem và yêu thích giữ nguyên). Kho bạn đã cập nhật vẫn còn đủ phần còn lại.
+
+Lỡ clone sang thư mục mới rồi thì: tắt app ở thư mục cũ, chép cả thư mục `du-lieu/` cũ
+(gồm `phim.db` và nếu có thì `phim.db-wal`, `phim.db-shm`) sang thư mục mới, **rồi** mới
+chạy `cai-dat.cmd` — nó thấy đã có `phim.db` thì bỏ qua bước giải nén, không đè lên.
+
 ## 3. Thêm kho phim trên ổ cứng
 
 Vào **Quản trị → Thư mục nguồn**:
