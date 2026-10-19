@@ -32,6 +32,8 @@ export type MucLuu = Muc18 | 'cho-phep'
 const MUC_HOP_LE = new Set<MucLuu>(['chan', 'canh-bao', 'cho-phep'])
 
 type Phim = { slug: string; ten: string; tenGoc?: string }
+/** Thông tin phụ để màn duyệt có ảnh và năm. */
+type PhimDayDu = Phim & { poster?: string; nam?: number }
 
 /** Thể loại bị coi là người lớn, dùng khi có dữ liệu thể loại. */
 export const THE_LOAI_CAM = new Set(['phim-18', 'phim-18-', '18', 'adult', 'erotic'])
@@ -110,45 +112,68 @@ export function xoaBoNhoDem() {
  * máy bỏ chặn được nếu bắt nhầm. `insert or ignore`: dòng đã có (nhất là dòng
  * đặt tay) thì không đụng tới.
  */
-export function ghiNhanTheoTen(p: Phim): void {
+export function ghiNhanTheoTen(p: PhimDayDu): void {
   const k = xetTen18(p.ten, p.tenGoc)
   if (!k) return
   try {
     db.prepare(
-      `insert or ignore into chan_18 (slug, ly_do, ten, ten_goc, muc_tu_dong, cap_nhat)
-       values (?, ?, ?, ?, ?, datetime('now'))`,
-    ).run(p.slug, k.lyDo, p.ten, p.tenGoc ?? null, k.muc)
+      `insert or ignore into chan_18 (slug, ly_do, ten, ten_goc, muc_tu_dong, anh, nam, cap_nhat)
+       values (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    ).run(p.slug, k.lyDo, p.ten, p.tenGoc ?? null, k.muc, p.poster ?? null, p.nam ?? null)
   } catch {
     // ghi nhận chỉ để xem lại — lỗi thì thôi, không được làm gãy việc đang làm
   }
 }
 
 /**
- * Thêm phim từ thể loại 18+ của nguồn vào sổ đen.
+ * Thêm phim từ thể loại 18+ của nguồn vào sổ đen. Trả số phim LẦN ĐẦU gặp.
  * Chưa có thể loại (chưa phân loại) thì mặc định CHẶN như trước — an toàn hơn.
  */
-export function themVaoSoDen(ds: (string | { slug: string; ten?: string; tenGoc?: string })[]) {
+export function themVaoSoDen(ds: (string | PhimDayDu)[]): number {
+  const daCo = db.prepare('select 1 from chan_18 where slug = ?')
   const cau = db.prepare(
-    `insert into chan_18 (slug, ly_do, ten, ten_goc, muc_tu_dong, cap_nhat)
-     values (?, 'Thể loại 18+ của nguồn', ?, ?, 'chan', datetime('now'))
+    `insert into chan_18 (slug, ly_do, ten, ten_goc, anh, nam, muc_tu_dong, cap_nhat)
+     values (?, 'Thể loại 18+ của nguồn', ?, ?, ?, ?, 'chan', datetime('now'))
      on conflict(slug) do update set
-       ten = coalesce(excluded.ten, ten), ten_goc = coalesce(excluded.ten_goc, ten_goc)`,
+       ten = coalesce(excluded.ten, ten), ten_goc = coalesce(excluded.ten_goc, ten_goc),
+       anh = coalesce(excluded.anh, anh), nam = coalesce(excluded.nam, nam)`,
   )
+  let moi = 0
   for (const x of ds) {
-    const p = typeof x === 'string' ? { slug: x } : x
-    if (p.slug) cau.run(p.slug, ('ten' in p && p.ten) || null, ('tenGoc' in p && p.tenGoc) || null)
+    const p: Partial<PhimDayDu> & { slug: string } = typeof x === 'string' ? { slug: x } : x
+    if (!p.slug) continue
+    if (!daCo.get(p.slug)) moi++
+    cau.run(p.slug, p.ten || null, p.tenGoc || null, p.poster || null, p.nam || null)
   }
+  return moi
 }
 
 /**
  * Phân loại một phim trong sổ đen theo các thể loại còn lại của nó (lấy từ
- * trang chi tiết). Chỉ đổi mức TỰ ĐỘNG; mức đặt tay giữ nguyên.
+ * trang chi tiết). Chỉ đổi mức TỰ ĐỘNG; mức chủ máy đã duyệt giữ nguyên.
  */
-export function phanLoaiSoDen(slug: string, theLoai: { ten: string; slug: string }[]): Muc18 {
-  const k = mucTheoTheLoai(theLoai.map((t) => t.slug))
+export function phanLoaiSoDen(
+  slug: string,
+  theLoai: { ten: string; slug: string }[],
+  them: { quocGia?: { ten: string }[]; soPhieu?: number; ten?: string; tenGoc?: string; poster?: string; nam?: number } = {},
+): Muc18 {
+  const k = mucTheoTheLoai(
+    theLoai.map((t) => t.slug),
+    { soPhieu: them.soPhieu, ten: them.ten, tenGoc: them.tenGoc },
+  )
   db.prepare(
-    `update chan_18 set muc_tu_dong = ?, ly_do = ?, the_loai = ?, cap_nhat = datetime('now') where slug = ?`,
-  ).run(k.muc, k.lyDo, theLoai.map((t) => t.ten).join(', '), slug)
+    `update chan_18 set muc_tu_dong = ?, ly_do = ?, the_loai = ?, quoc_gia = ?,
+       anh = coalesce(?, anh), nam = coalesce(?, nam), cap_nhat = datetime('now')
+     where slug = ?`,
+  ).run(
+    k.muc,
+    k.lyDo,
+    theLoai.map((t) => t.ten).join(', '),
+    (them.quocGia ?? []).map((q) => q.ten).join(', ') || null,
+    them.poster ?? null,
+    them.nam ?? null,
+    slug,
+  )
   return k.muc
 }
 
@@ -173,18 +198,26 @@ export type Dong18 = {
   muc_tu_dong: MucLuu
   muc_tay: MucLuu | null
   muc: MucLuu
+  anh: string | null
+  nam: number | null
+  quoc_gia: string | null
   tao_luc: string
 }
 
-/** Toàn bộ danh sách cho Quản trị, phim bị chặn trước. */
+/**
+ * Toàn bộ danh sách cho Quản trị: phim chờ duyệt trước (mới gặp lên đầu), rồi
+ * phim bị ẩn, phim gắn mác, phim cho hiện.
+ */
 export function danhSach18(): Dong18[] {
   try {
     return db
       .prepare(
         `select slug, ten, ten_goc, ly_do, the_loai, muc_tu_dong, muc_tay,
-                coalesce(muc_tay, muc_tu_dong) as muc, tao_luc
+                coalesce(muc_tay, muc_tu_dong) as muc, anh, nam, quoc_gia, tao_luc
            from chan_18
-          order by case coalesce(muc_tay, muc_tu_dong) when 'chan' then 0 when 'canh-bao' then 1 else 2 end,
+          order by case when muc_tay is null and muc_tu_dong <> 'cho-phep' then 0 else 1 end,
+                   case coalesce(muc_tay, muc_tu_dong) when 'chan' then 0 when 'canh-bao' then 1 else 2 end,
+                   tao_luc desc,
                    coalesce(ten, slug) collate nocase`,
       )
       .all() as Dong18[]
@@ -209,6 +242,49 @@ export function datMuc18(slug: string, muc: MucLuu | null, thongTin: { ten?: str
 }
 
 /**
+ * Duyệt nhiều phim một lượt.
+ *  - 'de-xuat'   — đồng ý với mức tự động đề xuất (chốt nó thành mức đã duyệt,
+ *                  lần quét sau không đổi nữa).
+ *  - 'cho-duyet' — bỏ quyết định đã duyệt, đưa phim về hàng chờ duyệt.
+ *  - mức cụ thể  — ẩn ('chan'), hiện kèm mác ('canh-bao'), hiện bình thường ('cho-phep').
+ * Trả số phim đã đổi.
+ */
+export function duyet18(slugs: string[], hanhDong: MucLuu | 'de-xuat' | 'cho-duyet'): number {
+  const cau =
+    hanhDong === 'de-xuat'
+      ? db.prepare(`update chan_18 set muc_tay = muc_tu_dong, cap_nhat = datetime('now') where slug = ?`)
+      : hanhDong === 'cho-duyet'
+        ? db.prepare(`update chan_18 set muc_tay = null, cap_nhat = datetime('now') where slug = ?`)
+        : MUC_HOP_LE.has(hanhDong)
+          ? db.prepare(`update chan_18 set muc_tay = '${hanhDong}', cap_nhat = datetime('now') where slug = ?`)
+          : null
+  if (!cau) throw new Error('Hành động không hợp lệ')
+  let doi = 0
+  db.exec('begin')
+  try {
+    for (const s of slugs) doi += Number(cau.run(s).changes)
+    db.exec('commit')
+  } catch (e) {
+    db.exec('rollback')
+    throw e
+  }
+  return doi
+}
+
+/** Số phim tự phát hiện mà chủ máy chưa duyệt (bỏ qua dòng tự động "cho phép"). */
+export function demChoDuyet(): number {
+  try {
+    return (
+      db
+        .prepare("select count(*) as n from chan_18 where muc_tay is null and muc_tu_dong <> 'cho-phep'")
+        .get() as { n: number }
+    ).n
+  } catch {
+    return 0
+  }
+}
+
+/**
  * Dọn kho đệm theo lưới tên hiện tại.
  *
  * VÌ SAO CẦN CHẠY LẠI ĐƯỢC: kho 18.719 phim được ghi bằng lưới lọc CŨ. Mỗi lần
@@ -221,10 +297,12 @@ export function datMuc18(slug: string, muc: MucLuu | null, thongTin: { ten?: str
  * Trả về số phim vừa rút khỏi kho.
  */
 export function donKho18(): number {
-  const rows = db.prepare('select slug, ten, ten_goc from kho_phim').all() as {
+  const rows = db.prepare('select slug, ten, ten_goc, poster, nam from kho_phim').all() as {
     slug: string
     ten: string
     ten_goc: string | null
+    poster: string | null
+    nam: number | null
   }[]
 
   const xetLai = db
@@ -232,8 +310,8 @@ export function donKho18(): number {
     .all() as { slug: string; ten: string | null; ten_goc: string | null }[]
   const capNhatDong = db.prepare(`update chan_18 set muc_tu_dong = ?, ly_do = ?, cap_nhat = datetime('now') where slug = ?`)
   const ghi = db.prepare(
-    `insert or ignore into chan_18 (slug, ly_do, ten, ten_goc, muc_tu_dong, cap_nhat)
-     values (?, ?, ?, ?, ?, datetime('now'))`,
+    `insert or ignore into chan_18 (slug, ly_do, ten, ten_goc, muc_tu_dong, anh, nam, cap_nhat)
+     values (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
   )
   const xoaKho = db.prepare('delete from kho_phim where slug = ?')
   const xoaTl = db.prepare('delete from kho_the_loai where slug_phim = ?')
@@ -241,6 +319,11 @@ export function donKho18(): number {
   let rut = 0
   db.exec('begin')
   try {
+    // Dòng ghi từ trước khi có cột ảnh: mượn poster trong kho (phải làm TRƯỚC khi rút khỏi kho)
+    db.exec(`update chan_18 set
+               anh = (select poster from kho_phim k where k.slug = chan_18.slug),
+               nam = coalesce(nam, (select nam from kho_phim k where k.slug = chan_18.slug))
+             where anh is null and slug in (select slug from kho_phim)`)
     for (const r of xetLai) {
       // Dòng cũ chưa lưu tên thì không xét lại được, giữ nguyên
       if (!r.ten) continue
@@ -250,7 +333,7 @@ export function donKho18(): number {
     const bang = napBang()
     for (const r of rows) {
       const k = xetTen18(r.ten, r.ten_goc ?? undefined)
-      if (k) ghi.run(r.slug, k.lyDo, r.ten, r.ten_goc, k.muc)
+      if (k) ghi.run(r.slug, k.lyDo, r.ten, r.ten_goc, k.muc, r.poster, r.nam)
       // Theo mức HIỆU LỰC: đặt tay "cho phép" / "gắn mác" thì không rút dù tên dính lưới
       if (mucVoiBang(bang, { slug: r.slug, ten: r.ten, tenGoc: r.ten_goc ?? undefined }) === 'chan') {
         xoaKho.run(r.slug)

@@ -46,9 +46,10 @@ Mở `http://127.0.0.1:3000`.
 
 ### Việc nên làm một lần sau khi cài
 
-1. **Quản trị → Lọc 18+ → Quét lại sổ đen 18+** (cần mạng). Sổ đen trong kho dựng sẵn
-   chặn mù cả thể loại 18+ của nguồn, lẫn cả phim kinh dị / phim đàng hoàng. Quét lại
-   thì app xem thể loại của từng phim: phim tình dục thì chặn, phim còn lại chỉ gắn mác 18+.
+1. **Quản trị → Duyệt 18+ → Quét ngay** (cần mạng, chạy nền vài phút). App lấy thể loại 18+
+   của nguồn và đề xuất cho từng phim: phim mà nội dung chính xoay quanh tình dục thì ẩn,
+   phim còn lại hiện kèm mác 18+. Sau đó duyệt ở mục **Chờ duyệt** (chọn nhiều phim để
+   duyệt một lượt). Không bấm thì app cũng tự quét 5 phút sau khi chạy, rồi mỗi ngày một lần.
 2. Không cần làm gì cho kho đệm: app tự dọn phim bị chặn khỏi kho lúc khởi động lần đầu,
    và **tự cập nhật phim mới** 30 phút một lần khi đang chạy (bật/tắt ở Quản trị → Kho đệm).
 
@@ -173,7 +174,7 @@ file ngoài thư mục nguồn đã đăng ký, và các header bảo mật. Chi
 |---|---|
 | Lịch sử xem, yêu thích, mốc intro | Không đồng bộ giữa các máy |
 | Kho đệm phim | Dựng sẵn từ `kho-dem/*.zip`, rồi mỗi máy tự cập nhật phim mới |
-| Danh sách Lọc 18+ đặt tay | Đặt lại trên từng máy |
+| Quyết định duyệt 18+ | Duyệt lại trên từng máy |
 | Mật khẩu LAN, khoá ký HMAC | **Không bao giờ** lên git — đúng như vậy |
 | Đường dẫn thư mục phim | Riêng từng máy vì ổ đĩa khác nhau |
 

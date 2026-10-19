@@ -262,7 +262,11 @@ await phep('Lọc 18+ hai mức: chặn phim tình dục, chỉ gắn mác phim 
   // Thể loại 18+ của nguồn: còn là kinh dị thì chỉ gắn mác, chỉ tình cảm thì chặn
   assert.equal(mucTheoTheLoai(['phim-18', 'kinh-di']).muc, 'canh-bao')
   assert.equal(mucTheoTheLoai(['phim-18', 'tinh-cam', 'co-trang']).muc, 'chan')
-  return '3 ca chặn, 2 ca gắn mác, 3 ca không bắt oan, 2 ca theo thể loại'
+  // Phim chiếu rạp phổ biến (nhiều phiếu TMDB) chỉ gắn mác; tên là mã AV thì chặn dù gắn thể loại gì
+  assert.equal(mucTheoTheLoai(['phim-18', 'tam-ly', 'tinh-cam'], { soPhieu: 1500 }).muc, 'canh-bao')
+  assert.equal(mucTheoTheLoai(['phim-18', 'tam-ly'], { soPhieu: 12 }).muc, 'chan')
+  assert.equal(mucTheoTheLoai(['phim-18', 'hanh-dong'], { ten: 'SONE-381', tenGoc: 'SONE-381' }).muc, 'chan')
+  return '3 ca chặn, 2 ca gắn mác, 3 ca không bắt oan, 5 ca theo thể loại'
 })
 
 await phep('After credit: nút hiện đúng lúc, xem xong cảnh 1 mới mời sang cảnh 2', async () => {

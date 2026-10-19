@@ -32,7 +32,7 @@ const TAB = [
   { ma: 'gom-tap', ten: 'Gom tập' },
   { ma: 'kho', ten: 'Kho đệm' },
   { ma: 'nguoi', ten: 'Diễn viên' },
-  { ma: 'loc-18', ten: 'Lọc 18+' },
+  { ma: 'loc-18', ten: 'Duyệt 18+' },
   { ma: 'man-hinh', ten: 'Màn hình' },
 ] as const
 type MaTab = (typeof TAB)[number]['ma']
@@ -55,6 +55,7 @@ export default function TrangQuanTri() {
   const [soViecTai, datSoViecTai] = useState('1')
   const [lan, datLan] = useState<{ bat: boolean; coMatKhau: boolean; diaChi: string[] } | null>(null)
   const [tin, datTin] = useState<string | null>(null)
+  const [choDuyet18, datChoDuyet18] = useState(0)
 
   const nap = useCallback(async () => {
     const r = await fetch('/api/thu-vien')
@@ -65,6 +66,7 @@ export default function TrangQuanTri() {
     datCoFfmpeg(j.coFfmpeg !== false)
     datSoViecTai(String(j.soViecTai || '1'))
     datLan(j.lan ?? null)
+    datChoDuyet18(Number(j.choDuyet18) || 0)
   }, [])
 
   useEffect(() => {
@@ -103,6 +105,14 @@ export default function TrangQuanTri() {
             }`}
           >
             {t.ten}
+            {t.ma === 'loc-18' && choDuyet18 > 0 && (
+              <span
+                title={`${choDuyet18} phim chờ duyệt`}
+                className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-px text-[11px] font-bold text-black"
+              >
+                {choDuyet18}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -129,7 +139,7 @@ export default function TrangQuanTri() {
         {tab === 'gom-tap' && <TabGomTap bao={bao} nap={nap} />}
         {tab === 'kho' && <TabKho bao={bao} />}
         {tab === 'nguoi' && <TabNguoi bao={bao} />}
-        {tab === 'loc-18' && <TabLoc18 bao={bao} />}
+        {tab === 'loc-18' && <TabLoc18 bao={bao} datChoDuyet={datChoDuyet18} />}
         {tab === 'man-hinh' && <TabManHinh />}
       </div>
     </div>
@@ -1276,29 +1286,28 @@ function KhoiNguon({ bao }: { bao: (t: string) => void }) {
         <p className="mt-2 text-xs text-white/35">Tắt hết thì app tự giữ lại vsmov — không thể tắt sạch mọi nguồn.</p>
 
         <div className="mt-4 border-t border-white/10 pt-4">
-          <p className="text-sm font-medium">Chặn nội dung 18+</p>
+          <p className="text-sm font-medium">Lọc nội dung 18+</p>
           <p className="mt-1 text-sm leading-relaxed text-white/55">
-            Đang chặn <strong className="text-white/80">{n.soChan18}</strong> phim. Hai lớp: sổ đen theo slug (quét từ
-            thể loại người lớn của nguồn) và lưới lọc theo tên. vsmov không có thể loại 18+ nào; KKPhim có. Xem từng
-            phim và bỏ chặn phim bị chặn nhầm ở tab <strong className="text-white/80">Lọc 18+</strong>.
+            Đang ẩn <strong className="text-white/80">{n.soChan18}</strong> phim. Hai lớp: danh sách quét từ thể loại
+            18+ của nguồn (tự quét mỗi ngày) và lưới lọc theo tên. vsmov không có thể loại 18+ nào; KKPhim có. Duyệt
+            phim nào được hiện, phim nào ẩn ở tab <strong className="text-white/80">Duyệt 18+</strong>.
           </p>
           <button
             onClick={async () => {
               datDangQuet(true)
               const j = await goi({ viec: 'quet-18' })
               datDangQuet(false)
-              nap()
               bao(
                 j.loi ||
-                  `Đã quét ${j.them} phim: ${j.chan} chặn, ${j.ganMac} chỉ gắn mác 18+` +
-                    (j.khongXet ? `, ${j.khongXet} chưa xét được` : '') +
-                    `. Tổng đang chặn: ${j.tong}.`,
+                  (j.batDau
+                    ? 'Đã bắt đầu quét danh sách 18+ (chạy nền vài phút). Xem tiến độ và duyệt ở tab Duyệt 18+.'
+                    : 'Đang có một lượt quét chạy rồi. Xem tiến độ ở tab Duyệt 18+.'),
               )
             }}
             disabled={dangQuet}
             className="mt-3 rounded bg-white/10 px-4 py-2 text-sm hover:bg-white/20 disabled:opacity-40"
           >
-            {dangQuet ? 'Đang quét...' : 'Quét lại sổ đen 18+'}
+            Quét danh sách 18+
           </button>
         </div>
       </div>
@@ -1473,165 +1482,470 @@ type Dong18 = {
   muc_tu_dong: Muc18
   muc_tay: Muc18 | null
   muc: Muc18
+  anh: string | null
+  nam: number | null
+  quoc_gia: string | null
+  tao_luc: string
 }
+type TienDo18 = {
+  dangChay: boolean
+  giaiDoan: 'danh-sach' | 'phan-loai' | 'don-kho' | null
+  daXet: number
+  canXet: number
+  toanBo: boolean
+  tuDong: boolean
+  batDauLuc: string | null
+  xongLuc: string | null
+  ketQua: { them: number; moi: number; chan: number; ganMac: number; khongXet: number; don: number } | null
+  loi: string | null
+}
+type Loc18 = 'cho-duyet' | Muc18 | 'tat-ca'
+type HanhDong18 = Muc18 | 'de-xuat' | 'cho-duyet'
 
-const NHAN_MUC: Record<Muc18, string> = { chan: 'Chặn', 'canh-bao': 'Gắn mác 18+', 'cho-phep': 'Cho phép' }
+/** Gọi theo việc chủ máy cần làm: duyệt HIỆN hay ẨN, thay cho tên kỹ thuật "chặn / cảnh báo". */
+const NHAN_MUC: Record<Muc18, string> = { chan: 'Ẩn', 'canh-bao': 'Hiện kèm mác 18+', 'cho-phep': 'Hiện bình thường' }
+const NUT_MUC: Record<Muc18, string> = { chan: 'Ẩn', 'canh-bao': 'Hiện + mác 18+', 'cho-phep': 'Hiện, bỏ mác' }
 const MAU_MUC: Record<Muc18, string> = {
   chan: 'bg-red-600/20 text-red-300',
   'canh-bao': 'bg-amber-500/20 text-amber-300',
   'cho-phep': 'bg-emerald-500/15 text-emerald-300',
 }
+/** Số dòng vẽ mỗi lần — danh sách có thể lên cả nghìn phim, vẽ hết một lúc thì trang ì. */
+const MOI_LAN_HIEN = 60
+
+const laChoDuyet = (d: Dong18) => d.muc_tay === null && d.muc_tu_dong !== 'cho-phep'
 
 /** Lý do lưu trong DB → câu đọc được. Dòng cũ chỉ ghi 'the-loai' / 'ten'. */
 function lyDoDoc(d: Dong18): string {
-  if (d.ly_do === 'the-loai') return 'Thể loại 18+ của nguồn (chưa phân loại — bấm Quét lại sổ đen)'
+  if (d.ly_do === 'the-loai') return 'Thể loại 18+ của nguồn (chưa phân loại, bấm Quét ngay)'
   if (d.ly_do === 'ten') return 'Lưới lọc theo tên (bản cũ)'
   return d.ly_do || ''
 }
 
+function gio(iso: string | null): string {
+  return iso ? new Date(iso).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : ''
+}
+
+function dongTienDo(q: TienDo18): string {
+  if (q.giaiDoan === 'danh-sach') return `Đang lấy danh sách thể loại 18+ của nguồn: trang ${q.daXet}/${q.canXet || '?'}`
+  if (q.giaiDoan === 'phan-loai') return `Đang phân loại theo thể loại: ${q.daXet}/${q.canXet} phim`
+  return 'Đang dọn kho đệm theo kết quả mới...'
+}
+
 /**
- * Danh sách phim bị chặn / gắn mác 18+, để bắt lỗi chặn nhầm.
+ * Duyệt phim 18+: chủ máy quyết phim nào được HIỆN, phim nào ẨN.
  *
- * Mức đặt tay luôn thắng mức tự động và không bị lần quét sau ghi đè. Bỏ chặn
- * một phim đã bị rút khỏi kho đệm thì trang chi tiết mở được ngay, còn trong kho
- * thì phim quay lại ở lần tự cập nhật hoặc quét kho kế tiếp.
+ * Máy tự đề xuất (chỉ ẩn phim mà nội dung chính xoay quanh tình dục, phim khác
+ * hiện kèm mác 18+ ở góc ảnh), nhưng đề xuất chỉ là đề xuất: phim mới gặp vào
+ * hàng "Chờ duyệt", chủ máy đồng ý hoặc đổi. Quyết định đã duyệt luôn thắng và
+ * không bị lần quét sau ghi đè.
+ *
+ * Ảnh phim đang bị ẩn được làm mờ, bấm vào mới xem rõ: màn này hay được mở
+ * trên laptop ở chỗ đông người.
  */
-function TabLoc18({ bao }: { bao: (t: string) => void }) {
+function TabLoc18({ bao, datChoDuyet }: { bao: (t: string) => void; datChoDuyet: (n: number) => void }) {
   const [ds, datDs] = useState<Dong18[]>([])
-  const [loc, datLoc] = useState<Muc18 | 'tat-ca'>('chan')
+  const [quet, datQuet] = useState<TienDo18 | null>(null)
+  const [loc, datLoc] = useState<Loc18>('cho-duyet')
   const [tim, datTim] = useState('')
+  const [chon, datChon] = useState<Set<string>>(new Set())
+  const [moAnh, datMoAnh] = useState<Set<string>>(new Set())
+  const [soHien, datSoHien] = useState(MOI_LAN_HIEN)
   const [slugMoi, datSlugMoi] = useState('')
-  const [dangQuet, datDangQuet] = useState(false)
+  const [dangGui, datDangGui] = useState(false)
+
+  const nhan = useCallback(
+    (j: { ds?: Dong18[]; quet?: TienDo18; choDuyet?: number }) => {
+      if (j.ds) datDs(j.ds)
+      if (j.quet) datQuet(j.quet)
+      if (typeof j.choDuyet === 'number') datChoDuyet(j.choDuyet)
+    },
+    [datChoDuyet],
+  )
 
   const nap = useCallback(async () => {
     try {
-      const j = await (await fetch('/api/thu-vien?loc18=1')).json()
-      datDs(j.ds ?? [])
+      nhan(await (await fetch('/api/thu-vien?loc18=1')).json())
     } catch {
       // dev server đang biên dịch lại thì bỏ qua một nhịp
     }
-  }, [])
+  }, [nhan])
 
   useEffect(() => {
     nap()
   }, [nap])
 
-  async function datMuc(slug: string, muc: Muc18 | 'tu-dong', layTen = false) {
-    const j = await goi({ viec: 'dat-muc-18', slug, muc, layTen })
-    if (j.ds) datDs(j.ds)
-    return j
+  // Đang quét thì hỏi tiến độ mỗi 2 giây; quét xong thì nạp lại cả danh sách
+  useEffect(() => {
+    if (!quet?.dangChay) return
+    const h = setInterval(async () => {
+      try {
+        const j = await (await fetch('/api/thu-vien?loc18=1&chiTienDo=1')).json()
+        nhan(j)
+        const q = j.quet as TienDo18 | undefined
+        if (q && !q.dangChay) {
+          nap()
+          if (q.loi) bao('Quét 18+ không xong: ' + q.loi)
+          else if (q.ketQua) bao(`Quét xong: ${q.ketQua.them} phim, ${q.ketQua.moi} phim mới chờ duyệt.`)
+        }
+      } catch {
+        // bỏ qua một nhịp
+      }
+    }, 2000)
+    return () => clearInterval(h)
+  }, [quet?.dangChay, nap, nhan, bao])
+
+  // Đổi bộ lọc thì bỏ chọn và vẽ lại từ đầu, tránh lỡ tay duyệt phim không còn thấy
+  function doiLoc(m: Loc18) {
+    datLoc(m)
+    datChon(new Set())
+    datSoHien(MOI_LAN_HIEN)
   }
 
-  const dem = { chan: 0, 'canh-bao': 0, 'cho-phep': 0 } as Record<Muc18, number>
-  for (const d of ds) dem[d.muc]++
+  async function duyet(slugs: string[], hanhDong: HanhDong18) {
+    if (!slugs.length) return
+    datDangGui(true)
+    try {
+      const j = await goi({ viec: 'duyet-18', slugs, hanhDong })
+      if (j.loi) return bao(j.loi)
+      nhan(j)
+      datChon((c) => {
+        const m = new Set(c)
+        for (const s of slugs) m.delete(s)
+        return m
+      })
+      return j
+    } finally {
+      datDangGui(false)
+    }
+  }
+
+  async function batQuet(toanBo: boolean) {
+    const j = await goi({ viec: 'quet-18', toanBo })
+    if (j.loi) return bao(j.loi)
+    nhan(j)
+    if (!j.batDau) bao('Đang có một lượt quét chạy rồi.')
+  }
+
+  const dem = { 'cho-duyet': 0, chan: 0, 'canh-bao': 0, 'cho-phep': 0, 'tat-ca': ds.length } as Record<Loc18, number>
+  for (const d of ds) {
+    dem[d.muc]++
+    if (laChoDuyet(d)) dem['cho-duyet']++
+  }
 
   const t = tim.trim().toLowerCase()
   const hien = ds.filter(
     (d) =>
-      (loc === 'tat-ca' || d.muc === loc) &&
+      (loc === 'tat-ca' || (loc === 'cho-duyet' ? laChoDuyet(d) : d.muc === loc)) &&
       (!t || [d.ten, d.ten_goc, d.slug].some((x) => (x || '').toLowerCase().includes(t))),
   )
+  const daChonHet = hien.length > 0 && hien.every((d) => chon.has(d.slug))
+  const dsChon = [...chon]
 
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-sm font-semibold">Lọc nội dung 18+</h2>
+        <h2 className="text-sm font-semibold">Duyệt phim 18+</h2>
         <p className="mt-1 text-sm leading-relaxed text-white/50">
-          <strong className="font-semibold text-white/70">Chặn</strong> dành cho phim toàn bộ thiên về tình dục: ẩn
-          khỏi mọi nơi, không mở được. <strong className="font-semibold text-white/70">Gắn mác 18+</strong> dành cho
-          phim có cảnh nóng, kinh dị, bạo lực: vẫn xem được, có mác đỏ và hỏi lại trước khi phát. Phim trong thể loại
-          18+ của nguồn mà còn là kinh dị, hình sự, hành động... thì tự động chỉ gắn mác.
+          <strong className="font-semibold text-white/70">Ẩn</strong>: phim mà nội dung chính xoay quanh tình dục,
+          không hiện ở đâu và không mở được. <strong className="font-semibold text-white/70">Hiện kèm mác 18+</strong>:
+          phim có cảnh nóng, kinh dị, bạo lực, vẫn xem được, có mác 18+ đỏ ở góc ảnh và hỏi lại trước khi phát. Máy tự
+          đề xuất theo thể loại và tên phim; phim mới gặp nằm ở mục{' '}
+          <strong className="font-semibold text-white/70">Chờ duyệt</strong> để bạn chốt.
         </p>
       </div>
 
+      {/* Quét danh sách */}
+      <div className="rounded-lg border border-[var(--color-vien)] bg-[var(--color-nen-2)] p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="mr-auto text-sm font-medium">Quét danh sách 18+ từ nguồn</p>
+          {quet?.dangChay ? (
+            <button
+              onClick={async () => nhan(await goi({ viec: 'dung-quet-18' }))}
+              className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
+            >
+              Dừng
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => batQuet(false)}
+                title="Lấy phim mới trong thể loại 18+ của nguồn, chỉ phân loại phim chưa xét"
+                className="rounded bg-white px-3 py-1.5 text-sm font-medium text-black hover:bg-white/85"
+              >
+                Quét ngay
+              </button>
+              <button
+                onClick={() => batQuet(true)}
+                title="Phân loại lại mọi phim theo luật hiện tại. Phim bạn đã duyệt giữ nguyên quyết định."
+                className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
+              >
+                Quét lại toàn bộ
+              </button>
+            </>
+          )}
+          <label className="flex cursor-pointer items-center gap-2 pl-2 text-sm text-white/70">
+            <input
+              type="checkbox"
+              checked={quet?.tuDong ?? true}
+              onChange={async (e) => nhan(await goi({ viec: 'tu-quet-18', bat: e.target.checked }))}
+              className="accent-[var(--color-nhan)]"
+            />
+            Tự quét mỗi ngày
+          </label>
+        </div>
+
+        {quet?.dangChay ? (
+          <div className="mt-3">
+            <p className="text-xs text-white/60">{dongTienDo(quet)}</p>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full bg-[var(--color-nhan)] transition-all"
+                style={{ width: `${quet.canXet ? Math.round((quet.daXet / quet.canXet) * 100) : 5}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs leading-relaxed text-white/45">
+            {quet?.loi ? (
+              <span className="text-red-300">
+                Lần quét {gio(quet.batDauLuc)} không xong: {quet.loi}
+                {quet.tuDong && '. Máy sẽ tự thử lại sau 3 giờ.'}
+              </span>
+            ) : quet?.ketQua ? (
+              <>
+                Lần quét gần nhất {gio(quet.xongLuc)}: {quet.ketQua.them} phim trong thể loại 18+ của nguồn,{' '}
+                <strong className="text-white/70">{quet.ketQua.moi} phim mới</strong>; phân loại {quet.ketQua.chan}{' '}
+                ẩn, {quet.ketQua.ganMac} hiện kèm mác
+                {quet.ketQua.khongXet ? `, ${quet.ketQua.khongXet} chưa lấy được thông tin` : ''}
+                {quet.ketQua.don ? `; rút ${quet.ketQua.don} phim bị ẩn khỏi kho đệm` : ''}.
+              </>
+            ) : (
+              'Chưa quét lần nào trên máy này. Bấm Quét ngay (cần mạng, mất vài phút).'
+            )}
+          </p>
+        )}
+      </div>
+
+      {/* Bộ lọc */}
       <div className="flex flex-wrap items-center gap-2">
-        {(['chan', 'canh-bao', 'cho-phep', 'tat-ca'] as const).map((m) => (
+        {(['cho-duyet', 'chan', 'canh-bao', 'cho-phep', 'tat-ca'] as const).map((m) => (
           <button
             key={m}
-            onClick={() => datLoc(m)}
+            onClick={() => doiLoc(m)}
             className={`rounded-full px-3 py-1 text-sm transition ${
               loc === m ? 'bg-white font-medium text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'
             }`}
           >
-            {m === 'tat-ca' ? `Tất cả (${ds.length})` : `${NHAN_MUC[m]} (${dem[m]})`}
+            {m === 'tat-ca' ? 'Tất cả' : m === 'cho-duyet' ? 'Chờ duyệt' : NHAN_MUC[m]} ({dem[m]})
           </button>
         ))}
         <input
           value={tim}
-          onChange={(e) => datTim(e.target.value)}
+          onChange={(e) => {
+            datTim(e.target.value)
+            datChon(new Set())
+            datSoHien(MOI_LAN_HIEN)
+          }}
           placeholder="Tìm theo tên hoặc slug"
-          aria-label="Tìm trong danh sách lọc 18+"
+          aria-label="Tìm trong danh sách 18+"
           className="ml-auto w-56 rounded border border-[var(--color-vien)] bg-[var(--color-nen-2)] px-3 py-1.5 text-sm outline-none focus:border-white/40"
         />
       </div>
 
+      {/* Duyệt hàng loạt */}
+      {hien.length > 0 && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--color-vien)] bg-[var(--color-nen)]/95 px-4 py-2.5 backdrop-blur">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-white/70">
+            <input
+              type="checkbox"
+              checked={daChonHet}
+              onChange={() => datChon(daChonHet ? new Set() : new Set(hien.map((d) => d.slug)))}
+              className="accent-[var(--color-nhan)]"
+            />
+            {chon.size ? `Đã chọn ${chon.size} phim` : `Chọn cả ${hien.length} phim đang lọc`}
+          </label>
+          {chon.size > 0 && (
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <button
+                disabled={dangGui}
+                onClick={async () => {
+                  const j = await duyet(dsChon, 'de-xuat')
+                  if (j) bao(`Đã duyệt ${j.doi} phim theo đề xuất.`)
+                }}
+                className="rounded bg-white px-3 py-1 text-xs font-medium text-black hover:bg-white/85 disabled:opacity-40"
+              >
+                Đồng ý đề xuất
+              </button>
+              {(['chan', 'canh-bao', 'cho-phep'] as const).map((m) => (
+                <button
+                  key={m}
+                  disabled={dangGui}
+                  onClick={async () => {
+                    const j = await duyet(dsChon, m)
+                    if (j) bao(`${j.doi} phim: ${NHAN_MUC[m].toLowerCase()}.`)
+                  }}
+                  className="rounded bg-white/10 px-3 py-1 text-xs hover:bg-white/20 disabled:opacity-40"
+                >
+                  {NUT_MUC[m]}
+                </button>
+              ))}
+              <button
+                onClick={() => datChon(new Set())}
+                className="rounded px-2 py-1 text-xs text-white/50 hover:bg-white/10 hover:text-white"
+              >
+                Bỏ chọn
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Danh sách */}
       <div className="overflow-hidden rounded-lg border border-[var(--color-vien)]">
         {hien.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-white/40">Không có phim nào ở mục này.</p>
+          <p className="px-4 py-10 text-center text-sm text-white/40">
+            {loc === 'cho-duyet' ? 'Không còn phim nào chờ duyệt.' : 'Không có phim nào ở mục này.'}
+          </p>
         ) : (
           <ul className="divide-y divide-white/5">
-            {hien.map((d) => (
-              <li key={d.slug} className="flex flex-wrap items-start gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-2 text-sm">
-                    <span className="font-medium text-white/90">{d.ten || d.slug}</span>
-                    <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${MAU_MUC[d.muc]}`}>
-                      {NHAN_MUC[d.muc]}
-                    </span>
-                    {d.muc_tay && <span className="text-[11px] text-white/40">đặt tay</span>}
-                  </p>
-                  {d.ten_goc && d.ten_goc !== d.ten && (
-                    <p className="mt-0.5 line-clamp-1 text-xs text-white/40">{d.ten_goc}</p>
-                  )}
-                  <p className="mt-1 text-xs text-white/50">
-                    {lyDoDoc(d)}
-                    {d.the_loai && <span className="text-white/35"> · Thể loại: {d.the_loai}</span>}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {d.muc !== 'chan' && (
-                    <Link
-                      href={'/phim/' + d.slug}
-                      className="rounded bg-white/10 px-2.5 py-1 text-xs hover:bg-white/20"
-                      target="_blank"
-                    >
-                      Xem
-                    </Link>
-                  )}
-                  {(['chan', 'canh-bao', 'cho-phep'] as const)
-                    .filter((m) => m !== d.muc)
-                    .map((m) => (
-                      <button
-                        key={m}
-                        onClick={async () => {
-                          await datMuc(d.slug, m)
-                          bao(`${d.ten || d.slug}: ${NHAN_MUC[m].toLowerCase()}.`)
-                        }}
-                        className="rounded bg-white/10 px-2.5 py-1 text-xs hover:bg-white/20"
-                      >
-                        {m === 'cho-phep' ? 'Bỏ chặn' : NHAN_MUC[m]}
-                      </button>
-                    ))}
-                  {d.muc_tay && (
-                    <button
-                      onClick={async () => {
-                        await datMuc(d.slug, 'tu-dong')
-                        bao(`${d.ten || d.slug}: trả về mức tự động (${NHAN_MUC[d.muc_tu_dong].toLowerCase()}).`)
-                      }}
-                      className="rounded px-2.5 py-1 text-xs text-white/50 hover:bg-white/10 hover:text-white"
-                    >
-                      Về tự động
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
+            {hien.slice(0, soHien).map((d) => {
+              const cho = laChoDuyet(d)
+              const mo = d.muc !== 'chan' || moAnh.has(d.slug)
+              return (
+                <li key={d.slug} className={`flex gap-3 px-4 py-3 ${chon.has(d.slug) ? 'bg-white/[.04]' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={chon.has(d.slug)}
+                    onChange={() =>
+                      datChon((c) => {
+                        const m = new Set(c)
+                        if (m.has(d.slug)) m.delete(d.slug)
+                        else m.add(d.slug)
+                        return m
+                      })
+                    }
+                    aria-label={`Chọn ${d.ten || d.slug}`}
+                    className="mt-1 shrink-0 accent-[var(--color-nhan)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      datMoAnh((c) => {
+                        const m = new Set(c)
+                        if (m.has(d.slug)) m.delete(d.slug)
+                        else m.add(d.slug)
+                        return m
+                      })
+                    }
+                    title={d.muc === 'chan' ? (mo ? 'Bấm để làm mờ lại' : 'Bấm để xem rõ ảnh') : undefined}
+                    disabled={d.muc !== 'chan'}
+                    className="relative h-[72px] w-12 shrink-0 overflow-hidden rounded bg-white/5"
+                  >
+                    {d.anh ? (
+                      <Anh
+                        src={d.anh}
+                        alt=""
+                        rong={200}
+                        duPhong={d.ten || d.slug}
+                        className={`h-full w-full object-cover transition ${mo ? '' : 'scale-110 blur-md'}`}
+                      />
+                    ) : (
+                      <span className="flex h-full items-center justify-center text-[10px] text-white/30">
+                        không ảnh
+                      </span>
+                    )}
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="font-medium text-white/90">{d.ten || d.slug}</span>
+                      {cho ? (
+                        <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[11px] font-semibold text-sky-300">
+                          Chờ duyệt · đề xuất: {NHAN_MUC[d.muc_tu_dong].toLowerCase()}
+                        </span>
+                      ) : (
+                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${MAU_MUC[d.muc]}`}>
+                          {NHAN_MUC[d.muc]}
+                          {d.muc_tay ? ' · đã duyệt' : ''}
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-white/40">
+                      {[d.ten_goc !== d.ten ? d.ten_goc : null, d.nam, d.quoc_gia].filter(Boolean).join(' · ')}
+                    </p>
+                    <p className="mt-1 text-xs text-white/50">
+                      {lyDoDoc(d)}
+                      {d.the_loai && <span className="text-white/35"> · Thể loại: {d.the_loai}</span>}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {cho && (
+                        <button
+                          disabled={dangGui}
+                          onClick={async () => {
+                            const j = await duyet([d.slug], 'de-xuat')
+                            if (j) bao(`${d.ten || d.slug}: ${NHAN_MUC[d.muc_tu_dong].toLowerCase()} (đã duyệt).`)
+                          }}
+                          className="rounded bg-white px-2.5 py-1 text-xs font-medium text-black hover:bg-white/85 disabled:opacity-40"
+                        >
+                          Đồng ý: {NUT_MUC[d.muc_tu_dong]}
+                        </button>
+                      )}
+                      {(['chan', 'canh-bao', 'cho-phep'] as const)
+                        .filter((m) => (cho ? m !== d.muc_tu_dong : m !== d.muc))
+                        .map((m) => (
+                          <button
+                            key={m}
+                            disabled={dangGui}
+                            onClick={async () => {
+                              const j = await duyet([d.slug], m)
+                              if (j) bao(`${d.ten || d.slug}: ${NHAN_MUC[m].toLowerCase()}.`)
+                            }}
+                            className="rounded bg-white/10 px-2.5 py-1 text-xs hover:bg-white/20 disabled:opacity-40"
+                          >
+                            {NUT_MUC[m]}
+                          </button>
+                        ))}
+                      {d.muc !== 'chan' && (
+                        <Link
+                          href={'/phim/' + d.slug}
+                          className="rounded px-2.5 py-1 text-xs text-white/50 hover:bg-white/10 hover:text-white"
+                          target="_blank"
+                        >
+                          Xem trang phim
+                        </Link>
+                      )}
+                      {d.muc_tay && (
+                        <button
+                          disabled={dangGui}
+                          onClick={async () => {
+                            const j = await duyet([d.slug], 'cho-duyet')
+                            if (j) bao(`${d.ten || d.slug}: đưa về chờ duyệt.`)
+                          }}
+                          className="rounded px-2.5 py-1 text-xs text-white/50 hover:bg-white/10 hover:text-white disabled:opacity-40"
+                        >
+                          Đưa về chờ duyệt
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
+        )}
+        {hien.length > soHien && (
+          <button
+            onClick={() => datSoHien((n) => n + MOI_LAN_HIEN * 2)}
+            className="w-full border-t border-white/5 py-2.5 text-sm text-white/60 hover:bg-white/5 hover:text-white"
+          >
+            Xem thêm ({hien.length - soHien} phim nữa)
+          </button>
         )}
       </div>
 
+      {/* Thêm tay */}
       <div className="rounded-lg border border-[var(--color-vien)] bg-[var(--color-nen-2)] p-4">
-        <p className="text-sm font-medium">Tự chặn hoặc gắn mác một phim</p>
+        <p className="text-sm font-medium">Tự ẩn hoặc gắn mác một phim</p>
         <p className="mt-1 text-xs text-white/45">
           Dán slug của phim, là phần cuối địa chỉ trang phim, ví dụ <code>/phim/ten-phim</code> thì slug là{' '}
           <code>ten-phim</code>.
@@ -1649,34 +1963,17 @@ function TabLoc18({ bao }: { bao: (t: string) => void }) {
               key={m}
               disabled={!/^[a-z0-9-]+$/.test(slugMoi)}
               onClick={async () => {
-                const j = await datMuc(slugMoi, m, true)
+                const j = await goi({ viec: 'dat-muc-18', slug: slugMoi, muc: m, layTen: true })
                 if (j.loi) return bao(j.loi)
-                bao(`Đã ${m === 'chan' ? 'chặn' : 'gắn mác 18+ cho'} ${slugMoi}.`)
+                nhan(j)
+                bao(`Đã ${m === 'chan' ? 'ẩn' : 'gắn mác 18+ cho'} ${slugMoi}.`)
                 datSlugMoi('')
               }}
               className="rounded bg-white/10 px-4 py-1.5 text-sm hover:bg-white/20 disabled:opacity-40"
             >
-              {NHAN_MUC[m]}
+              {NUT_MUC[m]}
             </button>
           ))}
-          <button
-            onClick={async () => {
-              datDangQuet(true)
-              const j = await goi({ viec: 'quet-18' })
-              datDangQuet(false)
-              nap()
-              bao(
-                j.loi ||
-                  `Đã quét ${j.them} phim: ${j.chan} chặn, ${j.ganMac} chỉ gắn mác 18+` +
-                    (j.khongXet ? `, ${j.khongXet} chưa xét được` : '') +
-                    '.',
-              )
-            }}
-            disabled={dangQuet}
-            className="ml-auto rounded bg-white/10 px-4 py-1.5 text-sm hover:bg-white/20 disabled:opacity-40"
-          >
-            {dangQuet ? 'Đang quét và phân loại...' : 'Quét lại sổ đen 18+'}
-          </button>
         </div>
       </div>
     </div>

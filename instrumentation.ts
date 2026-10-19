@@ -2,8 +2,9 @@
  * Chạy MỘT lần khi máy chủ Next khởi động — xem
  * node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/instrumentation.md
  *
- * Hai việc: bật bộ hẹn giờ tự cập nhật phim mới vào kho đệm (lib/cap-nhat-moi.ts)
- * để kho tươi kể cả khi không ai mở app, và dọn kho khi lưới lọc 18+ đổi.
+ * Ba việc: bật bộ hẹn giờ tự cập nhật phim mới vào kho đệm (lib/cap-nhat-moi.ts)
+ * để kho tươi kể cả khi không ai mở app, bộ hẹn giờ tự quét danh sách 18+
+ * (lib/quet-18.ts), và dọn kho khi lưới lọc 18+ đổi.
  */
 export async function register() {
   // proxy.ts chạy ở runtime khác; node:sqlite chỉ có ở Node.js
@@ -14,6 +15,9 @@ export async function register() {
 
   const { henGioCapNhat } = await import('./lib/cap-nhat-moi')
   henGioCapNhat()
+  // Mỗi ngày quét thể loại 18+ của nguồn một lượt; phim mới vào hàng chờ duyệt
+  const { henGioQuet18 } = await import('./lib/quet-18')
+  henGioQuet18()
 
   // Lưới lọc 18+ đổi phiên bản (hoặc máy mới giải nén kho dựng sẵn) thì dọn kho
   // một lần. Để chậm vài giây cho máy chủ lên trước; unref để không giữ tiến trình.

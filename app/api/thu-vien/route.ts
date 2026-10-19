@@ -12,8 +12,9 @@ import { phimLocal, tapCuaPhim, layHangPhim } from '@/lib/thu-vien'
 import { batDauQuet, dungQuet, xoaKho, tienDoQuet } from '@/lib/kho-nguon'
 import { capNhatPhimMoi, trangThaiCapNhat, datTuCapNhat } from '@/lib/cap-nhat-moi'
 import { batDauQuetNguoi, dungQuetNguoi, xoaChiMucNguoi, tienDoQuetNguoi } from '@/lib/quet-nguoi'
-import { quetSlug18, layChiTiet as chiTietKkphim } from '@/lib/nguon-kkphim'
-import { themVaoSoDen, demSoDen, donKho18, danhSach18, datMuc18, phanLoaiSoDen, type MucLuu } from '@/lib/loc-18'
+import { layChiTiet as chiTietKkphim } from '@/lib/nguon-kkphim'
+import { demSoDen, danhSach18, datMuc18, duyet18, demChoDuyet, type MucLuu } from '@/lib/loc-18'
+import { batDauQuet18, dungQuet18, tienDoQuet18, datTuQuet18 } from '@/lib/quet-18'
 import { nguonDangBat, NGUON } from '@/lib/nguon'
 import { datMatKhau, xoaMatKhau, laCheDoLan, daDatMatKhau } from '@/lib/xac-thuc'
 import { networkInterfaces } from 'node:os'
@@ -29,7 +30,11 @@ export async function GET(req: Request) {
       const kq = phimLocal({ tim: sp.get('tim') || undefined, trang: Number(sp.get('trang') || 1), moiTrang: 50 })
       return Response.json(kq)
     }
-    if (sp.get('loc18')) return Response.json({ ds: danhSach18() })
+    if (sp.get('loc18')) {
+      // Chỉ hỏi tiến độ (Quản trị gọi mỗi vài giây lúc đang quét) thì khỏi gửi cả danh sách
+      if (sp.get('chiTienDo')) return Response.json({ quet: tienDoQuet18(), choDuyet: demChoDuyet() })
+      return Response.json({ ds: danhSach18(), quet: tienDoQuet18(), choDuyet: demChoDuyet() })
+    }
     if (sp.get('tap')) {
       // Trả kèm phimId: giao diện quản trị cần id thật, và phim mới quét có thể
       // chưa có tập nào để mà suy ngược ra.
@@ -57,6 +62,7 @@ export async function GET(req: Request) {
         return n
       })(),
       nguon: { danhSach: NGUON, dangBat: nguonDangBat(), soChan18: demSoDen() },
+      choDuyet18: demChoDuyet(),
       lan: {
         bat: laCheDoLan(),
         coMatKhau: daDatMatKhau(),
@@ -153,37 +159,30 @@ export async function POST(req: Request) {
     }
 
     if (viec === 'quet-18') {
-      const ds = await quetSlug18()
-      themVaoSoDen(ds)
+      // Chạy nền: vài trăm lượt gọi chi tiết mất vài phút, Quản trị hỏi tiến độ
+      const batDau = batDauQuet18(b.toanBo === true)
+      return Response.json({ ok: true, batDau, quet: tienDoQuet18() })
+    }
+    if (viec === 'dung-quet-18') {
+      dungQuet18()
+      return Response.json({ ok: true, quet: tienDoQuet18() })
+    }
+    if (viec === 'tu-quet-18') {
+      datTuQuet18(b.bat === true)
+      return Response.json({ ok: true, quet: tienDoQuet18() })
+    }
 
-      /**
-       * Phân loại từng phim theo các thể loại CÒN LẠI của nó: thể loại 18+ của
-       * KKPhim lẫn cả phim đàng hoàng (Kiều, Sa Mạc Namibia, Tra Tấn...). Phim
-       * còn là kinh dị / hình sự / hành động... thì chỉ gắn mác, không chặn.
-       * Gọi chi tiết theo nhóm 4 cho nhanh mà nguồn không bị dồn.
-       */
-      let chan = 0
-      let ganMac = 0
-      let khongXet = 0
-      for (let i = 0; i < ds.length; i += 4) {
-        const nhom = ds.slice(i, i + 4)
-        const ct = await Promise.all(nhom.map((p) => chiTietKkphim(p.slug).catch(() => null)))
-        nhom.forEach((p, j) => {
-          const c = ct[j]
-          if (!c) {
-            khongXet++ // không lấy được chi tiết thì giữ mức cũ (mặc định chặn)
-            return
-          }
-          if (phanLoaiSoDen(p.slug, c.theLoai) === 'chan') chan++
-          else ganMac++
-        })
-        await new Promise((r) => setTimeout(r, 150))
+    if (viec === 'duyet-18') {
+      const slugs = (Array.isArray(b.slugs) ? b.slugs : [])
+        .map((x: unknown) => String(x))
+        .filter((x: string) => /^[a-z0-9-]{1,200}$/.test(x))
+        .slice(0, 5000)
+      const hanhDong = String(b.hanhDong)
+      if (!['chan', 'canh-bao', 'cho-phep', 'de-xuat', 'cho-duyet'].includes(hanhDong)) {
+        return Response.json({ loi: 'Hành động không hợp lệ' }, { status: 400 })
       }
-
-      // Quét sổ đen xong thì dọn luôn kho: phim lọt lưới CŨ vẫn còn nằm đó,
-      // không dọn thì siết lưới mấy cũng vô ích với dữ liệu đã ghi.
-      const don = donKho18()
-      return Response.json({ ok: true, them: ds.length, chan, ganMac, khongXet, don, tong: demSoDen() })
+      const doi = duyet18(slugs, hanhDong as MucLuu | 'de-xuat' | 'cho-duyet')
+      return Response.json({ ok: true, doi, ds: danhSach18(), choDuyet: demChoDuyet(), tong: demSoDen() })
     }
 
     if (viec === 'dat-muc-18') {
@@ -204,7 +203,7 @@ export async function POST(req: Request) {
         }
       }
       datMuc18(slug, muc, thongTin)
-      return Response.json({ ok: true, ds: danhSach18(), tong: demSoDen() })
+      return Response.json({ ok: true, ds: danhSach18(), choDuyet: demChoDuyet(), tong: demSoDen() })
     }
 
     if (viec === 'nguon-bat') {

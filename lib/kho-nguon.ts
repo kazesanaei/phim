@@ -140,7 +140,15 @@ export function luuPhimVaoKho(ds: PhimTom[], slugTheLoai?: string) {
     // thì vẫn ghi — mác tính lúc đọc ra (veTom). Phim lưới tên bắt được thì ghi
     // nhận lại để hiện trong Quản trị, bắt nhầm thì chủ máy bỏ chặn được.
     const muc = mucDo18({ slug: p.slug, ten, tenGoc: p.tenGoc })
-    if (muc) ghiNhanTheoTen({ slug: p.slug, ten, tenGoc: p.tenGoc })
+    if (muc) {
+      ghiNhanTheoTen({
+        slug: p.slug,
+        ten,
+        tenGoc: p.tenGoc,
+        poster: chuoiHoacNull(p.poster) ?? undefined,
+        nam: soHoacNull(p.nam) ?? undefined,
+      })
+    }
     if (muc === 'chan') continue
     const t = tachPhan(ten)
     try {

@@ -148,10 +148,37 @@ export const THE_LOAI_DANG_HOANG = new Set([
   'the-thao',
 ])
 
-/** Phim nằm trong thể loại 18+ của nguồn: chặn hay chỉ gắn mác, dựa vào các thể loại còn lại. */
-export function mucTheoTheLoai(theLoai: string[]): { muc: Muc18; lyDo: string } {
+/**
+ * Phim TMDB có từ chừng này phiếu trở lên là phim chiếu rạp phổ biến (Sắc, Giới;
+ * Mặt Nạ Kiều Nữ...), không phải phim tình dục làm ra để xem tình dục: phim AV
+ * gần như không có trên TMDB, phim 18+ Hàn làm hàng loạt chỉ vài chục phiếu.
+ */
+export const PHIEU_PHO_BIEN = 300
+
+/**
+ * Phim nằm trong thể loại 18+ của nguồn: chặn hay chỉ gắn mác.
+ *
+ * CHỈ CHẶN phim mà nội dung chính xoay quanh tình dục. Thể loại 18+ của nguồn
+ * gom cả phim đàng hoàng có cảnh nóng, nên xét thêm theo thứ tự:
+ *  1. Tên dính lưới chặn (mã AV, "phim sex"...) thì chặn, thể loại gì cũng vậy.
+ *  2. Còn thuộc thể loại đàng hoàng (kinh dị, hình sự, hành động...) thì gắn mác.
+ *  3. Phim phổ biến trên TMDB (từ PHIEU_PHO_BIEN phiếu) thì gắn mác.
+ *  4. Còn lại chặn.
+ * Đây chỉ là ĐỀ XUẤT: phim nào cũng vào hàng "chờ duyệt" trong Quản trị.
+ */
+export function mucTheoTheLoai(
+  theLoai: string[],
+  them: { soPhieu?: number; ten?: string; tenGoc?: string } = {},
+): { muc: Muc18; lyDo: string } {
+  const theoTen = them.ten ? xetTen18(them.ten, them.tenGoc) : null
+  if (theoTen?.muc === 'chan') {
+    // Chỉ hạ chữ đầu: "Tên gốc là mã phim AV" → "tên gốc là mã phim AV", giữ nguyên chữ AV
+    return { muc: 'chan', lyDo: `Thể loại 18+ của nguồn, ${theoTen.lyDo[0].toLowerCase()}${theoTen.lyDo.slice(1)}` }
+  }
   const dangHoang = theLoai.filter((t) => THE_LOAI_DANG_HOANG.has(t))
-  return dangHoang.length
-    ? { muc: 'canh-bao', lyDo: `Thể loại 18+ của nguồn, nhưng cũng là ${dangHoang.join(', ')}` }
-    : { muc: 'chan', lyDo: 'Thể loại 18+ của nguồn' }
+  if (dangHoang.length) return { muc: 'canh-bao', lyDo: `Thể loại 18+ của nguồn, nhưng cũng là ${dangHoang.join(', ')}` }
+  if ((them.soPhieu ?? 0) >= PHIEU_PHO_BIEN) {
+    return { muc: 'canh-bao', lyDo: `Thể loại 18+ của nguồn, nhưng là phim phổ biến (${them.soPhieu} phiếu TMDB)` }
+  }
+  return { muc: 'chan', lyDo: 'Thể loại 18+ của nguồn' }
 }

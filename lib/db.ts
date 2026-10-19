@@ -265,6 +265,10 @@ const COT_THEM: [string, string][] = [
   ['chan_18', "muc_tu_dong text not null default 'chan'"],
   ['chan_18', 'muc_tay text'],
   ['chan_18', 'cap_nhat text'],
+  // Cho màn duyệt 18+ trong Quản trị: có ảnh, năm, nước thì duyệt nhanh hơn chỉ nhìn tên
+  ['chan_18', 'anh text'],
+  ['chan_18', 'nam integer'],
+  ['chan_18', 'quoc_gia text'],
 ]
 
 function nangCap(db: DatabaseSync) {

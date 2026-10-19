@@ -422,12 +422,27 @@ Ba lỗi tìm ra khi thử bằng nguồn giả (mọi máy chủ trả 404):
 - Lưới tên tách hai mức ở `lib/ten-18.ts`. Đo trên kho 18.719 phim: **0 phim kinh dị** bị
   bắt; lưới cũ chặn oan phim tài liệu/nghệ thuật (giờ chỉ gắn mác) và **để lọt 7 phim AV**
   có mã kiểu `SONE-852` ở đầu tên gốc (giờ chặn). Kết quả: 9 chặn, 18 gắn mác.
-- Thể loại `phim-18` của KKPhim lẫn phim đàng hoàng (Kiều, Sa Mạc Namibia, Tra Tấn...). Bấm
-  **Quét lại sổ đen 18+** thì app xem các thể loại còn lại của từng phim: còn là kinh dị /
-  hình sự / hành động / tài liệu... thì chỉ gắn mác. Dòng sổ đen cũ giữ mức chặn cho tới khi quét lại.
-- **Quản trị → Lọc 18+**: danh sách từng phim kèm lý do và thể loại; đổi Chặn / Gắn mác /
-  Bỏ chặn, trả về tự động, hoặc tự chặn một phim theo slug. Mức đặt tay luôn thắng và
-  không bị lần quét sau ghi đè.
+- Thể loại `phim-18` của KKPhim lẫn phim đàng hoàng (Kiều, Sa Mạc Namibia, Tra Tấn...). Khi
+  quét, app xem từng phim (`mucTheoTheLoai`): tên là mã AV / "phim sex"... thì **ẩn** dù gắn
+  thể loại gì; còn là kinh dị / hình sự / hành động / tài liệu... thì **gắn mác**; phim chiếu
+  rạp phổ biến (từ 300 phiếu TMDB, như Sắc, Giới) thì **gắn mác**; còn lại **ẩn**.
+
+### Quét và duyệt 18+ (19/10)
+
+- **Quét chạy nền** (`lib/quet-18.ts`): ~20 trang danh sách + một lượt gọi chi tiết mỗi phim,
+  mất vài phút; Quản trị hỏi tiến độ mỗi 2 giây, đóng tab cũng không mất. Bấm lần nữa khi đang
+  quét thì không chạy chồng.
+- **Tự quét mỗi ngày** (bật/tắt trong tab), lần đầu 5 phút sau khi máy chủ lên. Lượt tự quét
+  chỉ gọi chi tiết cho phim **chưa phân loại**; lỗi mạng thì 3 giờ sau thử lại.
+  **Quét lại toàn bộ** xét lại mọi phim (dùng sau khi đổi luật phân loại).
+- **Quản trị → Duyệt 18+**: phim tự phát hiện vào mục **Chờ duyệt** kèm đề xuất (huy hiệu số
+  trên tab). Mỗi phim có ảnh, năm, nước, thể loại, lý do; nút **Đồng ý**, **Ẩn**, **Hiện + mác
+  18+**, **Hiện, bỏ mác**, **Đưa về chờ duyệt**. Chọn nhiều phim để duyệt một lượt. Ảnh phim
+  đang bị ẩn được **làm mờ**, bấm vào mới xem rõ.
+- Quyết định đã duyệt nằm ở cột `muc_tay`, luôn thắng và không bị lần quét sau ghi đè.
+  "Chờ duyệt" = `muc_tay` rỗng và mức tự động không phải "cho phép".
+- Thẻ phim gắn mác: chữ **18+** đỏ viền trắng ở góc trái trên, đo được chiếm ~1,5% diện tích
+  ảnh — lướt nhanh vẫn thấy mà không che ảnh.
 
 ## Giao diện laptop theo inch màn hình (19/10)
 
