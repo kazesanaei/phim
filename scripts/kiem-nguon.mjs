@@ -21,6 +21,7 @@ import { nhipTuMoc, truocDay } from '../lib/nhip-tap.ts'
 import { bienTheTuKhoa, khopTuKhoa, slugHoa } from '../lib/tu-khoa.ts'
 import { xetTen18, mucTheoTheLoai } from '../lib/ten-18.ts'
 import { chuanHoa, themAfter, nutAfterCredit, nhanNut } from '../lib/after-credit.ts'
+import { laCham } from '../lib/do-cham.ts'
 
 const GOC = 'https://vsmov.com/api'
 const APP = process.env.APP || 'http://127.0.0.1:3000'
@@ -281,6 +282,21 @@ await phep('After credit: nút hiện đúng lúc, xem xong cảnh 1 mới mời
   assert.equal(nhanNut(k, 0), 'Tới after credit', 'một cảnh thì khỏi đánh số')
   assert.deepEqual(chuanHoa({ batDauCredit: -5, after: ['x', NaN, -1, 30] }), { batDauCredit: null, after: [30] }, 'dữ liệu bẩn lọt qua')
   return '10 ca: mốc chạy chữ, chuyển cảnh, gộp mốc trùng, lọc dữ liệu bẩn'
+})
+
+await phep('Máy chủ chậm: bắt chờ lâu và giật lắt nhắt, tha cho lần chờ do tua', async () => {
+  const s = 1000
+  const T = 10_000_000
+  const lan = (tu, den, sauTua = false) => ({ tu: T - tu * s, den: T - den * s, sauTua })
+  assert.equal(laCham([], { tu: T - 11 * s, sauTua: false }, T), null, 'chờ 11 giây đã coi là chậm')
+  assert.ok(laCham([], { tu: T - 12 * s, sauTua: false }, T), 'chờ liền 12 giây mà không bắt')
+  assert.equal(laCham([], { tu: T - 15 * s, sauTua: true }, T), null, 'tua xong chờ 15 giây là bình thường')
+  assert.ok(laCham([], { tu: T - 20 * s, sauTua: true }, T), 'tua xong chờ 20 giây mà không bắt')
+  assert.ok(laCham([lan(100, 93), lan(60, 53), lan(20, 13)], null, T), 'giật 3 lần × 7 giây mà không bắt')
+  assert.equal(laCham([lan(60, 50), lan(20, 10)], null, T), null, 'giật 2 lần đã đổi máy chủ')
+  assert.equal(laCham([lan(100, 92, true), lan(60, 52, true), lan(20, 12, true)], null, T), null, 'người hay tua bị đá oan')
+  assert.equal(laCham([lan(300, 290), lan(250, 240), lan(200, 190)], null, T), null, 'giật từ 3 phút trước vẫn bị tính')
+  return '8 ca: chờ liền, sau tua, giật lắt nhắt, quá cửa sổ'
 })
 
 await phep('Lịch ra tập: chỉ khẳng định khi dữ liệu đủ chắc', async () => {

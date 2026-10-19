@@ -467,3 +467,24 @@ Nút **"Tới after credit 1"** hiện từ lúc chạy chữ (thiếu mốc đ�
 cảnh 1 được 60 giây mới hiện **"Tới after credit 2"**, cứ thế tiếp. Nút tập kế nhường chỗ khi
 còn cảnh after credit phía trước. Thanh tua có vạch ở mỗi cảnh. Trên TV: Cài đặt → After
 credit có đủ nút đánh dấu / tới / xoá. Logic thuần ở `lib/after-credit.ts` (bộ kiểm nạp thẳng).
+
+## Tự đổi máy chủ khi phát chậm (19/10)
+
+Dùng chung cơ chế với tự đổi khi lỗi, thêm phần **phát hiện chậm** (`lib/do-cham.ts`, thuần):
+
+| Kiểu chậm | Ngưỡng |
+|---|---|
+| Chờ tải liền một lèo trong lúc đang xem | 12 giây |
+| Chờ ngay sau khi tua / lúc mới mở (tua tới chỗ chưa tải thì chờ là bình thường) | 20 giây |
+| Giật lắt nhắt trong 2 phút (không tính lần chờ do tua) | ≥ 3 lần, cộng ≥ 20 giây |
+
+Chậm thì hiện **dải báo góc trái, không che phim** (video có thể vẫn chạy): "Máy chủ này đang chậm
+(lý do). Tự đổi sang … sau 6 giây" kèm **Đổi ngay** / **Ở lại**. Ở lại thì thôi hỏi cho tập đó.
+Đổi thì phát tiếp đúng giây đang xem. Đã thử hết máy chủ thì chỉ báo một lần "có thể mạng đang chậm".
+Chỉ chạy khi có từ 2 máy chủ trở lên.
+
+Danh sách máy chủ đã thử giờ **tự hết hạn sau 15 phút** thay cho "phát được thì xoá": máy chủ chậm
+vẫn phát được, xoá khi phát được thì A chậm → B, quên A, B cũng chậm → về A, vòng mãi.
+
+Thử bằng luồng HLS thật (VP9/Opus fMP4 qua `/api/tep`), máy chủ 1 cố ý chờ 15 giây mỗi đoạn:
+phát hiện sau 12 giây chờ, tự sang máy chủ 2 đúng tập, phát tiếp từ đúng giây; "Ở lại" thì đứng yên.

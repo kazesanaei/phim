@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type Hls from 'hls.js'
 import { srtSangVtt, doiThoiGian } from '@/lib/phu-de'
+import { laCham, donLichSu, type LanCho, type DangCho } from '@/lib/do-cham'
 import { MOC_CREDIT_RONG, boAfter, chuanHoa, nhanNut, nutAfterCredit, themAfter, type MocCredit } from '@/lib/after-credit'
 
 export type PhuDeMuc = { ma: string; nhan: string; url?: string; noiDung?: string }
@@ -135,17 +136,27 @@ const DEM_NGUOC_GIAY = 8
 const TAI_TRUOC_GIAY = 120
 
 /**
- * Tự đổi máy chủ khi phát lỗi: đếm ngược chừng này giây rồi chuyển, còn kịp bấm
- * Huỷ. Danh sách máy chủ đã lỗi nhớ theo PHIM + TẬP trong sessionStorage, nên
- * thử mỗi máy chủ đúng một lần rồi dừng — không bao giờ chạy vòng A → B → A.
- * Phát được (sự kiện playing) thì xoá danh sách, lần sau lỗi lại được thử lại từ đầu.
+ * Tự đổi máy chủ khi phát LỖI hoặc phát CHẬM: đếm ngược chừng này giây rồi
+ * chuyển, còn kịp bấm Huỷ / Ở lại. Danh sách máy chủ đã thử nhớ theo PHIM + TẬP
+ * trong sessionStorage, nên thử mỗi máy chủ đúng một lần rồi dừng — không bao giờ
+ * chạy vòng A → B → A.
+ *
+ * Mỗi mục TỰ HẾT HẠN sau HAN_DA_THU_PHUT, thay cho cách cũ "phát được thì xoá cả
+ * danh sách": máy chủ chậm vẫn phát được (chỉ giật), xoá khi phát được thì A chậm
+ * → sang B, B phát được nên quên A, B cũng chậm → quay về A, vòng mãi.
  */
 const DOI_MAY_CHU_GIAY = 4
+/** Đổi vì chậm thì cho thêm chút thời gian đọc dải báo — video vẫn đang chạy. */
+const DOI_KHI_CHAM_GIAY = 6
 const KHOA_MAY_CHU_LOI = 'phim:may-chu-loi:'
+const HAN_DA_THU_PHUT = 15
 
 function docMayChuLoi(khoa: string): string[] {
   try {
-    return JSON.parse(sessionStorage.getItem(khoa) || '[]') as string[]
+    const tho = JSON.parse(sessionStorage.getItem(khoa) || '[]') as (string | { ten: string; luc: number })[]
+    const han = Date.now() - HAN_DA_THU_PHUT * 60_000
+    // Bản cũ lưu chuỗi trần: coi như vừa thử
+    return tho.map((x) => (typeof x === 'string' ? { ten: x, luc: Date.now() } : x)).filter((x) => x.luc > han).map((x) => x.ten)
   } catch {
     return []
   }
@@ -153,8 +164,9 @@ function docMayChuLoi(khoa: string): string[] {
 
 function ghiMayChuLoi(khoa: string, ten: string) {
   try {
-    const ds = docMayChuLoi(khoa)
-    if (!ds.includes(ten)) sessionStorage.setItem(khoa, JSON.stringify([...ds, ten]))
+    const tho = JSON.parse(sessionStorage.getItem(khoa) || '[]') as (string | { ten: string; luc: number })[]
+    const con = tho.filter((x) => (typeof x === 'string' ? x : x.ten) !== ten)
+    sessionStorage.setItem(khoa, JSON.stringify([...con, { ten, luc: Date.now() }]))
   } catch {
     // sessionStorage bị chặn: mỗi lần lỗi chỉ biết máy chủ đang phát, vẫn không vòng lại nó
   }
@@ -307,6 +319,13 @@ export default function Player({
   /** Số giây còn lại trước khi tự đổi máy chủ; null = không đếm. */
   const [demDoi, datDemDoi] = useState<number | null>(null)
   const [huyDoi, datHuyDoi] = useState(false)
+  /** Máy chủ đang chậm: câu giải thích, hoặc null. Bấm "Ở lại" thì thôi hỏi cho tập này. */
+  const [cham, datCham] = useState<string | null>(null)
+  const [oLai, datOLai] = useState(false)
+  const lichSuChoRef = useRef<LanCho[]>([])
+  const dangChoRef = useRef<DangCho>(null)
+  /** Vừa tua (hoặc mới mở): lần chờ kế tiếp được nới ngưỡng — xem lib/do-cham.ts. */
+  const vuaTuaRef = useRef(true)
   const [dangPhat, datDangPhat] = useState(false)
   const [daPhatLanNao, datDaPhatLanNao] = useState(false)
   const [thoiGian, datThoiGian] = useState(0)
@@ -1273,16 +1292,21 @@ export default function Player({
   const mayChuDang = mayChu.find((m) => m.dang)
   const mayChuKhac = mayChu.find((m) => !m.dang)
 
-  // ---- tự đổi máy chủ khi lỗi ---------------------------------------------
+  // ---- tự đổi máy chủ khi lỗi hoặc chậm ----------------------------------
   const khoaMayChuLoi = KHOA_MAY_CHU_LOI + slug + ':' + (maTapChung ?? tap ?? '')
-  /** Máy chủ kế tiếp CHƯA thử, theo thứ tự trong danh sách, bắt đầu sau máy chủ đang phát. */
-  const mayChuKe = useMemo(() => {
-    if (!loi || mayChu.length < 2) return null
+  /**
+   * Máy chủ kế tiếp CHƯA thử, theo thứ tự trong danh sách, bắt đầu sau máy chủ
+   * đang phát. Chỉ tính khi đang lỗi hoặc đang chậm — sessionStorage chỉ có ở
+   * trình duyệt, đọc lúc dựng phía máy chủ là lệch giao diện.
+   */
+  const mayChuChuaThu = useMemo(() => {
+    if ((!loi && !cham) || mayChu.length < 2) return null
     const daLoi = new Set([...docMayChuLoi(khoaMayChuLoi), mayChuDang?.nhan])
     const viTri = mayChu.findIndex((m) => m.dang)
     const xoay = [...mayChu.slice(viTri + 1), ...mayChu.slice(0, Math.max(0, viTri))]
     return xoay.find((m) => !daLoi.has(m.nhan)) ?? null
-  }, [loi, mayChu, mayChuDang, khoaMayChuLoi])
+  }, [loi, cham, mayChu, mayChuDang, khoaMayChuLoi])
+  const mayChuKe = loi ? mayChuChuaThu : null
 
   useEffect(() => {
     if (!loi) {
@@ -1296,14 +1320,48 @@ export default function Player({
   }, [loi])
 
   const doiMayChuNgay = useCallback(() => {
-    if (!mayChuKe) return
+    const den = mayChuChuaThu
+    if (!den) return
     // Tắt đếm TRƯỚC khi chuyển: cùng tập thì trình phát không bị gỡ đi (key giữ
     // nguyên), demDoi = 0 còn sót lại sẽ chuyển thêm lần nữa.
     datDemDoi(null)
+    datCham(null)
+    // Ghi máy chủ đang bỏ đi (lỗi đã ghi rồi, chậm thì chưa) để không vòng lại nó
+    if (mayChuDang) ghiMayChuLoi(khoaMayChuLoi, mayChuDang.nhan)
+    lichSuChoRef.current = []
+    dangChoRef.current = null
     luuTienDo()
     const giay = Math.floor(videoRef.current?.currentTime || 0)
-    router.replace(mayChuKe.href + (giay > 5 ? '&tu=' + giay : ''))
-  }, [mayChuKe, luuTienDo, router])
+    router.replace(den.href + (giay > 5 ? '&tu=' + giay : ''))
+  }, [mayChuChuaThu, mayChuDang, khoaMayChuLoi, luuTienDo, router])
+
+  /**
+   * Đo chậm mỗi giây. Chỉ khi có máy chủ khác để đổi: phim trong máy hay nguồn
+   * chỉ một máy chủ thì báo chậm cũng chẳng làm gì được.
+   */
+  useEffect(() => {
+    if (mayChu.length < 2 || oLai || loi || cham) return
+    const t = setInterval(() => {
+      const bayGio = Date.now()
+      lichSuChoRef.current = donLichSu(lichSuChoRef.current, bayGio)
+      const lyDo = laCham(lichSuChoRef.current, dangChoRef.current, bayGio)
+      if (lyDo) datCham(lyDo)
+    }, 1000)
+    return () => clearInterval(t)
+  }, [mayChu.length, oLai, loi, cham])
+
+  // Vừa phát hiện chậm: còn máy chủ chưa thử thì đếm ngược đổi, hết rồi thì báo một lần
+  useEffect(() => {
+    if (!cham) return
+    if (mayChuChuaThu) {
+      datDemDoi(DOI_KHI_CHAM_GIAY)
+    } else {
+      baoNhac(`Máy chủ này đang chậm (${cham}), mà các máy chủ khác cũng đã thử. Có thể mạng đang chậm.`)
+      datOLai(true)
+      datCham(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cham])
 
   useEffect(() => {
     if (demDoi === null) return
@@ -1370,19 +1428,26 @@ export default function Player({
           }
         }}
         onPause={() => {
+          // Người xem tự dừng giữa lúc chờ tải: lần chờ đó không phải lỗi của máy chủ
+          dangChoRef.current = null
           datDangPhat(false)
           datHienDk(true)
           luuTienDo()
         }}
-        onWaiting={() => datDangTai(true)}
+        onWaiting={() => {
+          datDangTai(true)
+          if (!dangChoRef.current) dangChoRef.current = { tu: Date.now(), sauTua: vuaTuaRef.current }
+        }}
+        onSeeking={() => {
+          vuaTuaRef.current = true
+        }}
         onPlaying={() => {
           datDangTai(false)
-          // Phát được rồi: quên danh sách máy chủ lỗi của tập này
-          try {
-            sessionStorage.removeItem(khoaMayChuLoi)
-          } catch {
-            // bị chặn thì thôi
-          }
+          // Một lần chờ vừa xong: ghi vào lịch sử để xét giật lắt nhắt
+          const c = dangChoRef.current
+          if (c) lichSuChoRef.current.push({ tu: c.tu, den: Date.now(), sauTua: c.sauTua })
+          dangChoRef.current = null
+          vuaTuaRef.current = false
         }}
         onEnded={khiHet}
         onTimeUpdate={(e) => {
@@ -1589,6 +1654,41 @@ export default function Player({
           className="tp-nhac absolute left-1/2 top-16 max-w-[85%] -translate-x-1/2 rounded-lg bg-black/80 px-4 py-2 text-center text-xs text-white/90 shadow-lg backdrop-blur md:top-20"
         >
           {nhac}
+        </div>
+      )}
+
+      {/* ---- máy chủ chậm: dải báo góc trái, KHÔNG che phim — video có thể vẫn chạy ---- */}
+      {cham && demDoi !== null && mayChuChuaThu && !loi && (
+        <div
+          role="status"
+          className="tp-cham absolute bottom-24 left-4 z-20 flex max-w-[min(30rem,calc(100%-2rem))] flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-black/85 px-4 py-3 text-sm shadow-xl ring-1 ring-white/15 backdrop-blur md:left-6"
+        >
+          <p className="min-w-0 flex-1 basis-56 leading-snug">
+            <span className="font-semibold">Máy chủ này đang chậm</span>{' '}
+            <span className="text-white/60">({cham}).</span>{' '}
+            Tự đổi sang <b>{mayChuChuaThu.nhan}</b> sau {demDoi} giây.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={doiMayChuNgay}
+              className="tp-nut-chu rounded-md bg-white px-3.5 py-1.5 text-xs font-semibold text-black transition hover:bg-white/85"
+            >
+              Đổi ngay
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                // Thôi hỏi cho tập này: người xem muốn chịu chậm còn hơn đổi
+                datOLai(true)
+                datCham(null)
+                datDemDoi(null)
+              }}
+              className="tp-nut-chu rounded-md bg-white/12 px-3.5 py-1.5 text-xs font-semibold transition hover:bg-white/20"
+            >
+              Ở lại
+            </button>
+          </div>
         </div>
       )}
 
