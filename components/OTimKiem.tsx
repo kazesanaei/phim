@@ -183,7 +183,7 @@ export default function OTimKiem() {
           placeholder={laTv ? 'Tìm kiếm' : 'Tìm phim...   /'}
           aria-label="Tìm phim hoặc tên diễn viên"
           autoComplete="off"
-          className="w-36 rounded border border-[var(--color-vien)] bg-[var(--color-nen-2)] px-3 py-1.5 text-sm outline-none transition-all placeholder:text-white/30 focus:w-60 focus:border-white/40 sm:w-48"
+          className="w-36 rounded border border-[var(--color-vien)] bg-[var(--color-nen-2)] px-3 py-1.5 text-sm outline-none transition-all placeholder:text-white/30 focus:w-52 focus:border-white/40 @min-[46rem]:w-40 @min-[97rem]:w-48 @min-[97rem]:focus:w-60"
         />
 
         {coMic && (

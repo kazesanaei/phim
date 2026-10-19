@@ -68,7 +68,8 @@ export default function NutCheDo({ dayDu = false }: { dayDu?: boolean }) {
         }`}
       >
         <Icon className="h-3.5 w-3.5" />
-        <span className={dayDu ? '' : 'hidden sm:inline'}>{nhan}</span>
+        {/* Theo bề rộng đầu trang (container query), không theo màn hình — xem DauTrang */}
+        <span className={dayDu ? '' : 'hidden @min-[50rem]:inline'}>{nhan}</span>
       </button>
     )
   }

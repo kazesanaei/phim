@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Anh from '@/components/Anh'
 import Link from 'next/link'
+import {
+  CO_PHO_BIEN,
+  MAC_DINH_MAN_HINH,
+  docCaiDatManHinh,
+  luuManHinh,
+  tinhThuManHinh,
+  type CaiDatManHinh,
+  type KetQuaManHinh,
+} from '@/lib/man-hinh'
 
 type ThuMuc = { id: number; duong_dan: string; bat: number; la_thu_muc_tai: number }
 type PhimHang = {
@@ -24,6 +33,7 @@ const TAB = [
   { ma: 'kho', ten: 'Kho đệm' },
   { ma: 'nguoi', ten: 'Diễn viên' },
   { ma: 'loc-18', ten: 'Lọc 18+' },
+  { ma: 'man-hinh', ten: 'Màn hình' },
 ] as const
 type MaTab = (typeof TAB)[number]['ma']
 
@@ -120,6 +130,7 @@ export default function TrangQuanTri() {
         {tab === 'kho' && <TabKho bao={bao} />}
         {tab === 'nguoi' && <TabNguoi bao={bao} />}
         {tab === 'loc-18' && <TabLoc18 bao={bao} />}
+        {tab === 'man-hinh' && <TabManHinh />}
       </div>
     </div>
   )
@@ -1667,6 +1678,147 @@ function TabLoc18({ bao }: { bao: (t: string) => void }) {
             {dangQuet ? 'Đang quét và phân loại...' : 'Quét lại sổ đen 18+'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cỡ giao diện theo inch màn hình laptop. Áp dụng ngay khi chọn để thấy luôn,
+ * và chỉ cho TRÌNH DUYỆT ĐANG MỞ — xem chú thích đầu lib/man-hinh.ts.
+ */
+function TabManHinh() {
+  const [c, datC] = useState<CaiDatManHinh>(MAC_DINH_MAN_HINH)
+  const [kq, datKq] = useState<KetQuaManHinh | null>(null)
+  const [laTv, datLaTv] = useState(false)
+  const [man, datMan] = useState<{ w: number; h: number; dpr: number } | null>(null)
+  const [tuNhap, datTuNhap] = useState('')
+
+  useEffect(() => {
+    const dau = docCaiDatManHinh()
+    datC(dau)
+    datKq(tinhThuManHinh(dau))
+    datLaTv(document.documentElement.dataset.cheDo === 'tv')
+    datMan({ w: screen.width, h: screen.height, dpr: window.devicePixelRatio || 1 })
+  }, [])
+
+  function doi(moi: CaiDatManHinh) {
+    datC(moi)
+    datKq(luuManHinh(moi))
+  }
+
+  // Cỡ chữ thân bài ước tính ngoài đời thật: 16px × hệ số, quy ra mm theo mật độ
+  const mm = (px: number) => (kq ? ((px * kq.heSo) / kq.matDo) * 25.4 : null)
+  const mmGoc = man && c.inch ? (16 / (Math.sqrt(man.w ** 2 + man.h ** 2) / c.inch)) * 25.4 : null
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-sm font-semibold">Cỡ giao diện theo màn hình laptop</h2>
+        <p className="mt-1 text-sm leading-relaxed text-white/50">
+          Trình duyệt không biết màn hình của bạn bao nhiêu inch. Chọn đúng cỡ máy thì app tự phóng chữ, nút và khoảng
+          cách để vừa mắt ở khoảng cách ngồi laptop, bố cục giữ nguyên. Chỉ áp dụng cho{' '}
+          <strong className="font-semibold text-white/70">trình duyệt đang mở trang này</strong>: TV Box hay máy khác
+          giữ cỡ riêng của nó.
+        </p>
+        {laTv && (
+          <p className="mt-2 rounded bg-amber-500/15 px-3 py-2 text-xs text-amber-200">
+            Đang ở chế độ TV: cỡ chữ TV tự tính theo bề rộng khung, cài đặt này chỉ có tác dụng khi về chế độ PC.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-[var(--color-vien)] bg-[var(--color-nen-2)] p-4">
+        <p className="text-sm font-medium">Màn hình máy này bao nhiêu inch?</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => doi({ ...c, inch: 0 })}
+            className={`rounded-full px-3 py-1.5 text-sm transition ${
+              c.inch === 0 ? 'bg-white font-medium text-black' : 'bg-white/10 text-white/70 hover:bg-white/20'
+            }`}
+          >
+            Tắt (mặc định)
+          </button>
+          {CO_PHO_BIEN.map((inch) => (
+            <button
+              key={inch}
+              onClick={() => doi({ ...c, inch })}
+              className={`rounded-full px-3 py-1.5 text-sm tabular-nums transition ${
+                c.inch === inch ? 'bg-white font-medium text-black' : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}
+            >
+              {String(inch).replace('.', ',')}&quot;
+            </button>
+          ))}
+          <form
+            className="flex items-center gap-1.5"
+            onSubmit={(e) => {
+              e.preventDefault()
+              const so = Number(tuNhap.replace(',', '.'))
+              if (so >= 10 && so <= 40) doi({ ...c, inch: Math.round(so * 10) / 10 })
+            }}
+          >
+            <input
+              value={tuNhap}
+              onChange={(e) => datTuNhap(e.target.value)}
+              inputMode="decimal"
+              placeholder="Cỡ khác"
+              aria-label="Nhập cỡ màn hình khác, đơn vị inch"
+              className="w-24 rounded border border-[var(--color-vien)] bg-black/30 px-2.5 py-1.5 text-sm outline-none focus:border-white/40"
+            />
+            <button className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20">Đặt</button>
+          </form>
+        </div>
+
+        <div className="mt-5">
+          <label htmlFor="tinh-chinh" className="flex items-baseline justify-between text-sm">
+            <span className="font-medium">Tinh chỉnh theo ý thích</span>
+            <span className="tabular-nums text-white/60">{c.tinhChinh}%</span>
+          </label>
+          <input
+            id="tinh-chinh"
+            type="range"
+            min={80}
+            max={130}
+            step={5}
+            value={c.tinhChinh}
+            disabled={c.inch === 0}
+            onChange={(e) => doi({ ...c, tinhChinh: Number(e.target.value) })}
+            className="mt-2 w-full accent-[var(--color-nhan)] disabled:opacity-40"
+          />
+          <p className="mt-1 text-xs text-white/40">Kéo trái cho nhỏ hơn (nhiều phim mỗi hàng), kéo phải cho to hơn.</p>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-[var(--color-vien)] bg-[var(--color-nen-2)] p-4 text-sm">
+        <p className="font-medium">Kết quả</p>
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-white/65">
+          <dt className="text-white/40">Màn hình trình duyệt báo</dt>
+          <dd className="tabular-nums">
+            {man ? `${man.w} × ${man.h} px, Windows phóng ${Math.round(man.dpr * 100)}%` : '...'}
+          </dd>
+          <dt className="text-white/40">Cỡ giao diện</dt>
+          <dd className="tabular-nums">
+            {kq ? <strong className="text-white">{Math.round(kq.heSo * 100)}%</strong> : 'Mặc định (100%)'}
+          </dd>
+          {kq && (
+            <>
+              <dt className="text-white/40">Chữ thân bài ngoài đời</dt>
+              <dd className="tabular-nums">
+                cao khoảng {mm(16)!.toFixed(1).replace('.', ',')} mm
+                {mmGoc && Math.abs(mmGoc - mm(16)!) > 0.05 && (
+                  <span className="text-white/40"> (chưa chỉnh: {mmGoc.toFixed(1).replace('.', ',')} mm)</span>
+                )}
+              </dd>
+            </>
+          )}
+        </dl>
+        <p className="mt-3 text-xs text-white/40">
+          Mốc vừa mắt khi ngồi laptop là chữ cao khoảng 3,5–4 mm. Đổi độ phân giải hay mức phóng của Windows thì mở lại
+          trang là app tự tính lại.
+        </p>
       </div>
     </div>
   )

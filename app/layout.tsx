@@ -6,6 +6,7 @@ import OTimKiem from '@/components/OTimKiem'
 import DauTrang from '@/components/DauTrang'
 import PhimRemote from '@/components/PhimRemote'
 import { SCRIPT_CHE_DO } from '@/lib/che-do'
+import { SCRIPT_MAN_HINH } from '@/lib/man-hinh'
 
 const inter = Inter({
   variable: '--font-inter',
@@ -25,6 +26,8 @@ export default function RootLayout({ children, modal }: LayoutProps<'/'>) {
             giao diện PC rồi mới phóng to. Lý do không đọc cookie phía máy chủ:
             xem chú thích đầu lib/che-do.ts. */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_CHE_DO }} />
+        {/* Cỡ giao diện theo inch màn hình laptop — cùng lý do chạy trước khi vẽ */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_MAN_HINH }} />
       </head>
       <body className="flex min-h-full flex-col">
         <DauTrang

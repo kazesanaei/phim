@@ -428,3 +428,25 @@ Ba lỗi tìm ra khi thử bằng nguồn giả (mọi máy chủ trả 404):
 - **Quản trị → Lọc 18+**: danh sách từng phim kèm lý do và thể loại; đổi Chặn / Gắn mác /
   Bỏ chặn, trả về tự động, hoặc tự chặn một phim theo slug. Mức đặt tay luôn thắng và
   không bị lần quét sau ghi đè.
+
+## Giao diện laptop theo inch màn hình (19/10)
+
+**Quản trị → Màn hình**: chọn cỡ màn hình (13,3" / 14" / 15,6" / 16" / 17,3" hoặc tự nhập)
+và tinh chỉnh 80–130%. App lấy inch + số CSS px của màn (đã tính mức phóng của Windows) ra mật
+độ điểm ảnh, so với mốc 110 px/inch (chữ 16px cao ~3,7 mm, vừa mắt ở ~50 cm) rồi phóng cỡ chữ
+gốc của `<html>` — mọi rem giãn theo, bố cục giữ nguyên. Lưu ở localStorage **của từng trình
+duyệt** (TV Box không ăn theo laptop), áp dụng trước khi vẽ như chế độ PC/TV (`lib/man-hinh.ts`).
+
+| Laptop 14" | Chưa đặt | Đặt 14" |
+|---|---|---|
+| 1920×1080, Windows 100% | chữ cao 2,6 mm | **3,7 mm** (phóng 143%) |
+| 1920×1080, Windows 150% | 3,9 mm | 3,7 mm (95%) |
+
+Màn ≤ 14" còn thu banner về 46vh để thấy được hàng phim đầu.
+
+**Lỗi có từ trước, sửa luôn:** ở bề rộng 1280–1536px (đúng cỡ laptop 14") đầu trang **tràn
+mất** ô tìm, nút PC/TV và Quản trị; "Bộ sưu tập", "Tải về" bị giấu mà không còn lối vào nào.
+Đầu trang giờ co giãn bằng **container query theo rem** (`@container` + `@min-[..rem]`) thay vì
+điểm ngắt màn hình — điểm ngắt màn hình luôn tính theo 16px nên không biết giao diện đang phóng.
+Chật thì nút phụ còn biểu tượng, menu giữ 5 mục chính; ba mục bị giấu có lối tắt trong menu
+Duyệt. Đo 16 tổ hợp (1024–1920px, có/không phóng, chế độ TV): không chỗ nào tràn hay đè.

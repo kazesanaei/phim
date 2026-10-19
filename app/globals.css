@@ -20,6 +20,19 @@ html {
   color-scheme: dark;
 }
 
+/* Cỡ giao diện theo inch màn hình laptop (lib/man-hinh.ts). Chỉ ở chế độ PC —
+   TV đã có cỡ chữ riêng theo bề rộng khung. Mọi rem trong trang giãn theo. */
+html[data-che-do='pc'][data-man-hinh] {
+  font-size: calc(16px * var(--ti-le-giao-dien, 1));
+}
+
+/* Màn ≤ 14": khung thường chỉ cao 720–800 CSS px, banner 60vh ăn mất chỗ của
+   hàng phim đầu tiên. Thu về 46vh. Không layer nên thắng lớp tiện ích Tailwind. */
+html[data-che-do='pc'][data-man-hinh-nho] .co-banner,
+html[data-che-do='pc'][data-man-hinh-nho] .co-banner .noi-dung-banner {
+  min-height: 46vh;
+}
+
 body {
   background: var(--color-nen);
   color: #ededed;

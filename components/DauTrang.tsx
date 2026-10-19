@@ -18,16 +18,20 @@ import NutCheDo from '@/components/NutCheDo'
 import MenuTv from '@/components/MenuTv'
 import { dungCheDo } from '@/components/dung-che-do'
 
-type Muc = { href: string; nhan: string; phu?: boolean }
+/**
+ * `phu`: mức ưu tiên khi đầu trang hẹp. 1 = giấu trước khi chật, 2 = giấu sớm
+ * nhất. Mọi mục bị giấu vẫn có trong ngăn menu (nút ☰ hiện ra khi nav thu gọn).
+ */
+type Muc = { href: string; nhan: string; phu?: 1 | 2 }
 
 const MENU: Muc[] = [
   { href: '/', nhan: 'Trang chủ' },
   { href: '/duyet?danh-sach=phim-moi-cap-nhat', nhan: 'Mới cập nhật' },
   { href: '/duyet?danh-sach=phim-le', nhan: 'Phim lẻ' },
   { href: '/duyet?danh-sach=phim-bo', nhan: 'Phim bộ' },
-  { href: '/duyet?nguon=local', nhan: 'Kho của tôi' },
-  { href: '/bo-suu-tap', nhan: 'Bộ sưu tập', phu: true },
-  { href: '/tai-ve', nhan: 'Tải về', phu: true },
+  { href: '/duyet?nguon=local', nhan: 'Kho của tôi', phu: 1 },
+  { href: '/bo-suu-tap', nhan: 'Bộ sưu tập', phu: 2 },
+  { href: '/tai-ve', nhan: 'Tải về', phu: 2 },
 ]
 
 type MucDanhMuc = { ten: string; slug: string }
@@ -76,7 +80,7 @@ function DsMuc({ chon, dong }: { chon: (m: Muc) => boolean; dong?: () => void })
           data-phu-tv={m.href === '/' ? undefined : '1'}
           className={`gach-chan muc-menu whitespace-nowrap rounded-sm px-0.5 py-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white ${
             chon(m) ? 'font-semibold text-white' : 'hover:text-white'
-          } ${m.phu ? 'hidden xl:inline-block' : ''}`}
+          } ${m.phu === 2 ? 'hidden @min-[96rem]:inline-block' : m.phu === 1 ? 'hidden @min-[84rem]:inline-block' : ''}`}
         >
           {m.nhan}
         </Link>
@@ -202,12 +206,20 @@ export default function DauTrang({ oTim }: { oTim: React.ReactNode }) {
             : 'bg-gradient-to-b from-black/80 to-transparent'
         }`}
       >
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-4 lg:gap-5">
+        {/*
+          `@container`: đầu trang co giãn theo CHÍNH BỀ RỘNG CỦA NÓ tính bằng rem,
+          không theo bề rộng màn hình (lg, xl...). Lý do: điểm ngắt màn hình luôn
+          tính theo 16px gốc, còn cài đặt cỡ màn hình laptop (lib/man-hinh.ts)
+          phóng cỡ chữ gốc lên — màn 1920px phóng 143% thì nội dung rộng như màn
+          1340px, mà `xl:` vẫn tưởng là màn to và bày hết ra, tràn mất nút bên
+          phải. Ngưỡng `@min-[..rem]` thì giãn theo đúng cỡ chữ đó.
+        */}
+        <div className="@container mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-4 @min-[66rem]:gap-5">
           <button
             onClick={batNgan}
             aria-label="Mở menu"
             aria-expanded={moNgan}
-            className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded text-white/80 transition hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white lg:hidden"
+            className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded text-white/80 transition hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white @min-[66rem]:hidden"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
               <path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" />
@@ -221,7 +233,7 @@ export default function DauTrang({ oTim }: { oTim: React.ReactNode }) {
             KHO PHIM
           </Link>
 
-          <nav className="an-tren-tv hidden items-center gap-4 text-sm text-white/70 lg:flex">
+          <nav className="an-tren-tv hidden items-center gap-3 text-sm text-white/70 @min-[66rem]:flex @min-[92rem]:gap-4">
             <Suspense fallback={<DsMuc chon={() => false} />}>
               <DsMucDong />
             </Suspense>
@@ -246,7 +258,7 @@ export default function DauTrang({ oTim }: { oTim: React.ReactNode }) {
               aria-expanded={moMenu === 'tiep'}
               aria-haspopup="true"
               title="Phim đang xem dở"
-              className={`an-tren-tv hidden items-center gap-1.5 rounded border px-3 py-1.5 text-xs transition md:flex ${
+              className={`an-tren-tv hidden items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs transition @min-[46rem]:flex @min-[97rem]:px-3 ${
                 moMenu === 'tiep'
                   ? 'border-white/40 text-white'
                   : 'border-[var(--color-vien)] text-white/70 hover:text-white'
@@ -255,7 +267,7 @@ export default function DauTrang({ oTim }: { oTim: React.ReactNode }) {
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
                 <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 10.6V6h-2v7.4l5.2 3.1 1-1.7z" />
               </svg>
-              Tiếp tục xem
+              <span className="hidden @min-[97rem]:inline">Tiếp tục xem</span>
               <MuiTen mo={moMenu === 'tiep'} />
             </button>
 
@@ -269,7 +281,7 @@ export default function DauTrang({ oTim }: { oTim: React.ReactNode }) {
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
                 <path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm8 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm-4 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm-4 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm8 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" />
               </svg>
-              <span className="hidden lg:inline">Xem gì đó đi</span>
+              <span className="hidden @min-[97rem]:inline">Xem gì đó đi</span>
             </a>
 
             {oTim}
@@ -278,9 +290,14 @@ export default function DauTrang({ oTim }: { oTim: React.ReactNode }) {
 
             <Link
               href="/quan-tri"
-              className="an-tren-tv hidden rounded border border-[var(--color-vien)] px-3 py-1.5 text-xs text-white/70 transition hover:border-white/40 hover:text-white sm:block"
+              title="Quản trị"
+              aria-label="Quản trị"
+              className="an-tren-tv hidden items-center gap-1.5 rounded border border-[var(--color-vien)] px-2.5 py-1.5 text-xs text-white/70 transition hover:border-white/40 hover:text-white sm:flex @min-[88rem]:px-3"
             >
-              Quản trị
+              <svg viewBox="0 0 24 24" aria-hidden className="h-3.5 w-3.5 fill-current @min-[88rem]:hidden">
+                <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z" />
+              </svg>
+              <span className="hidden @min-[88rem]:inline">Quản trị</span>
             </Link>
           </div>
         </div>
@@ -295,7 +312,8 @@ export default function DauTrang({ oTim }: { oTim: React.ReactNode }) {
       {moNgan && laTv && <MenuTv du={du} dong={() => datMoNgan(false)} />}
 
       {moNgan && !laTv && (
-        <div className="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+        <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Menu">
+          {/* Không gắn lg:hidden: nút ☰ giờ hiện cả trên laptop khi đầu trang chật */}
           <button
             aria-label="Đóng menu"
             onClick={() => datMoNgan(false)}
@@ -414,6 +432,14 @@ function BangDuyet({ du, dong }: { du: DuLieu | null; dong: () => void }) {
         <Vien1 href="/duyet?sap-xep=diem" ten="Điểm cao nhất" dong={dong} />
         <Vien1 href="/duyet?sap-xep=nam" ten="Mới nhất theo năm" dong={dong} />
         <Vien1 href="/duyet" ten="Xem tất cả" dong={dong} />
+        {/* Ba mục này bị giấu khỏi thanh đầu trang khi chật (laptop 14", xem
+            `phu` trong MENU) — phải luôn còn lối vào ở đây. */}
+        <span className="mx-1 self-center text-white/20" aria-hidden>
+          |
+        </span>
+        {MENU.filter((m) => m.phu).map((m) => (
+          <Vien1 key={m.href} href={m.href} ten={m.nhan} dong={dong} />
+        ))}
       </div>
     </Vien>
   )
