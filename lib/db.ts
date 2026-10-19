@@ -128,6 +128,15 @@ create table if not exists moc_intro (
   cap_nhat text not null default (datetime('now'))
 );
 
+-- Mốc after credit, theo TỪNG TẬP (khoá slug:tập như bảng xem) — mỗi tập một chỗ,
+-- khác mốc intro dùng chung cả phim. Xem lib/after-credit.ts.
+create table if not exists moc_credit (
+  khoa text primary key,
+  bat_dau_credit real,
+  after_credit text not null default '[]',
+  cap_nhat text not null default (datetime('now'))
+);
+
 -- Phim bộ đang theo dõi: nhớ số tập lúc đánh dấu để biết khi nào có tập mới.
 create table if not exists theo_doi (
   slug text primary key,

@@ -1,11 +1,14 @@
 /** Tiến độ xem, yêu thích, xem sau. Tất cả nằm trong SQLite nên không mất khi đổi trình duyệt. */
 import { db } from '@/lib/db'
+import { chuanHoa } from '@/lib/after-credit'
 import { traLoiLoi, chanCheoTrang } from '@/lib/an-toan'
 import {
   layTienDo,
   danhSachTiepTuc,
   danhDauTheoLoai,
   datMocIntro,
+  datMocCredit,
+  layMocCredit,
   xoaMocIntro,
   dangTheoDoi,
 } from '@/lib/theo-doi'
@@ -107,6 +110,14 @@ export async function POST(req: Request) {
       }
       datMocIntro(slug, batDau, ketThuc)
       return Response.json({ ok: true })
+    }
+
+    if (viec === 'moc-credit') {
+      const khoa = String(b.khoa || '')
+      if (!khoa || khoa.length > 400) return Response.json({ loi: 'Thiếu khoá tập' }, { status: 400 })
+      // chuanHoa() lọc hết giá trị lạ (chuỗi, số âm, NaN) và chặn trần số mốc
+      datMocCredit(khoa, chuanHoa({ batDauCredit: b.batDauCredit as number, after: b.after as number[] }))
+      return Response.json({ ok: true, moc: layMocCredit(khoa) })
     }
 
     if (viec === 'xoa-moc-intro') {

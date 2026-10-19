@@ -450,3 +450,20 @@ mất** ô tìm, nút PC/TV và Quản trị; "Bộ sưu tập", "Tải về" b�
 điểm ngắt màn hình — điểm ngắt màn hình luôn tính theo 16px nên không biết giao diện đang phóng.
 Chật thì nút phụ còn biểu tượng, menu giữ 5 mục chính; ba mục bị giấu có lối tắt trong menu
 Duyệt. Đo 16 tổ hợp (1024–1920px, có/không phóng, chế độ TV): không chỗ nào tràn hay đè.
+
+## Tua thẳng tới after credit (19/10)
+
+Đánh dấu tay một lần, giống mốc intro — không nguồn nào cho mốc after credit (TMDB chỉ có từ
+khoá "aftercreditsstinger": biết CÓ, không biết Ở ĐÂU), còn tự dò chữ chạy thì tốn hàng phút
+CPU mỗi phim. Khác intro ở chỗ **lưu theo từng tập** (`slug:tập`, bảng `moc_credit`).
+
+| Phím | Việc |
+|---|---|
+| `A` | Đánh dấu đầu một cảnh after credit (nhiều cảnh thì bấm ở từng cảnh) |
+| `E` | Đánh dấu chỗ chạy chữ bắt đầu — không bắt buộc |
+| `S` | Lúc đang chạy chữ: tua tới cảnh after credit kế tiếp (ngoài lúc đó vẫn là bỏ qua intro) |
+
+Nút **"Tới after credit 1"** hiện từ lúc chạy chữ (thiếu mốc đó thì 8 phút trước cảnh 1); xem
+cảnh 1 được 60 giây mới hiện **"Tới after credit 2"**, cứ thế tiếp. Nút tập kế nhường chỗ khi
+còn cảnh after credit phía trước. Thanh tua có vạch ở mỗi cảnh. Trên TV: Cài đặt → After
+credit có đủ nút đánh dấu / tới / xoá. Logic thuần ở `lib/after-credit.ts` (bộ kiểm nạp thẳng).

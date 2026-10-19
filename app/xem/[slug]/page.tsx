@@ -5,7 +5,7 @@ import { type Tap } from '@/lib/vsmov'
 import { layChiTiet, kieuNguonPhat } from '@/lib/nguon'
 import { layHangPhim, tapCuaPhim, phuDeCuaTap } from '@/lib/thu-vien'
 import { db } from '@/lib/db'
-import { layMocIntro } from '@/lib/theo-doi'
+import { layMocIntro, layMocCredit } from '@/lib/theo-doi'
 import { nhanNgonNgu } from '@/lib/phu-de'
 import Player, { type NguonPhat, type PhuDeMuc, type TrackAm } from '@/components/Player'
 import DanhSachTap from '@/components/DanhSachTap'
@@ -176,6 +176,7 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
       nguonTen={laLocal ? 'local' : 'vsmov'}
       tapSau={ke ? { nhan: `Tập ${ke.ten}`, href: duong(ke.slug) } : null}
       mocIntro={layMocIntro(slug)}
+      mocCredit={layMocCredit(`${slug}:${khoaTap}`)}
       trackAm={trackAm}
       tepLocal={tepLocal}
       tapId={tapId}

@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type Hls from 'hls.js'
 import { srtSangVtt, doiThoiGian } from '@/lib/phu-de'
+import { MOC_CREDIT_RONG, boAfter, chuanHoa, nhanNut, nutAfterCredit, themAfter, type MocCredit } from '@/lib/after-credit'
 
 export type PhuDeMuc = { ma: string; nhan: string; url?: string; noiDung?: string }
 
@@ -62,6 +63,8 @@ type Props = {
   tapSau?: TapKe | null
   /** Mốc intro đã đánh dấu cho phim/phần này — dùng chung cho mọi tập. */
   mocIntro?: MocIntro | null
+  /** Mốc after credit của RIÊNG tập này — xem lib/after-credit.ts. */
+  mocCredit?: MocCredit
   /** Nhiều hơn 1 thì hiện menu chọn tiếng (chỉ file trong máy). */
   trackAm?: TrackAm[]
   /** Đường dẫn file local — cần để đổi tiếng (phải chuyển mã lại). */
@@ -207,6 +210,7 @@ type Bang =
   | 'tieng'
   | 'hen-gio'
   | 'intro'
+  | 'after-credit'
   | 'may-chu'
   | 'phim-tat'
   | 'tap'
@@ -274,6 +278,7 @@ export default function Player({
   nguonTen = 'vsmov',
   tapSau = null,
   mocIntro = null,
+  mocCredit = MOC_CREDIT_RONG,
   trackAm = [],
   tepLocal,
   tapId,
@@ -340,6 +345,7 @@ export default function Player({
 
   // Bỏ qua intro
   const [intro, datIntro] = useState<MocIntro | null>(mocIntro)
+  const [credit, datCredit] = useState<MocCredit>(mocCredit)
   const [dangDanhDau, datDangDanhDau] = useState<number | null>(null)
   const [nhac, datNhac] = useState<string | null>(null)
 
@@ -943,6 +949,49 @@ export default function Player({
 
   const trongIntro = !!intro && thoiGian >= intro.bat_dau && thoiGian < intro.ket_thuc - 0.5
 
+  // ---- after credit --------------------------------------------------------
+  // Lưu theo `khoa` (slug:tập), không theo slug như intro — mỗi tập một chỗ.
+  const luuCredit = useCallback(
+    (m: MocCredit) => {
+      const sach = chuanHoa(m)
+      datCredit(sach)
+      fetch('/api/xem', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ viec: 'moc-credit', khoa, ...sach }),
+      }).catch(() => {})
+      return sach
+    },
+    [khoa],
+  )
+
+  const danhDauAfter = useCallback(() => {
+    const v = videoRef.current
+    if (!v) return
+    const moi = luuCredit(themAfter(credit, v.currentTime))
+    const thu = moi.after.findIndex((x) => Math.abs(x - v.currentTime) < 3) + 1
+    baoNhac(
+      moi.after.length === credit.after.length
+        ? `Đã có mốc after credit ở ${mmss(v.currentTime)} rồi.`
+        : `Đã đánh dấu after credit ${thu} ở ${mmss(v.currentTime)}. Còn cảnh sau nữa thì tới đó bấm lần nữa.`,
+    )
+  }, [credit, luuCredit, baoNhac])
+
+  const danhDauDauCredit = useCallback(() => {
+    const v = videoRef.current
+    if (!v) return
+    luuCredit({ ...credit, batDauCredit: v.currentTime })
+    baoNhac(`Đã đánh dấu chạy chữ bắt đầu ở ${mmss(v.currentTime)}. Nút tới after credit sẽ hiện từ đây.`)
+  }, [credit, luuCredit, baoNhac])
+
+  /** Nút "Tới after credit k" đang nên hiện không, và tới đâu. */
+  const nutCredit = useMemo(() => nutAfterCredit(credit, thoiGian), [credit, thoiGian])
+
+  const toiAfter = useCallback((den: number) => {
+    const v = videoRef.current
+    if (v) v.currentTime = den
+  }, [])
+
   // ---- điều khiển --------------------------------------------------------
   const batTat = useCallback(() => {
     const v = videoRef.current
@@ -1079,7 +1128,15 @@ export default function Player({
           danhDauIntro()
           break
         case 's':
-          if (intro) boQuaIntro()
+          // Đang ở đoạn credit thì S tới after credit; không thì bỏ qua intro như cũ
+          if (nutCredit) toiAfter(nutCredit.den)
+          else if (intro) boQuaIntro()
+          break
+        case 'a':
+          danhDauAfter()
+          break
+        case 'e':
+          danhDauDauCredit()
           break
         case 'm':
           datTat(!tat)
@@ -1126,6 +1183,10 @@ export default function Player({
     danhDauIntro,
     boQuaIntro,
     intro,
+    nutCredit,
+    toiAfter,
+    danhDauAfter,
+    danhDauDauCredit,
     conNguoi,
     bang,
     amLuong,
@@ -1543,7 +1604,21 @@ export default function Player({
         </button>
       )}
 
-      {hienTapSau && tapSau && demNguoc === null && !trongIntro && !coLop && (
+      {nutCredit && demNguoc === null && !trongIntro && !coLop && (
+        <button
+          type="button"
+          onClick={() => toiAfter(nutCredit.den)}
+          title={`Tua tới ${mmss(nutCredit.den)} (phím S)`}
+          className="tp-noi absolute bottom-24 right-4 flex items-center gap-2 rounded-md border border-white/70 bg-black/55 px-5 py-2.5 text-sm font-semibold backdrop-blur transition hover:border-white hover:bg-white hover:text-black md:right-6"
+        >
+          <Bieu ten="tua-nhanh" className="h-5 w-5" />
+          {nhanNut(credit, nutCredit.chiSo)}
+        </button>
+      )}
+
+      {/* Nút tập kế nhường chỗ cho nút after credit: cùng một góc, và đang có cảnh
+          sau credit thì sang tập mới là bỏ lỡ nó. */}
+      {hienTapSau && tapSau && demNguoc === null && !trongIntro && !nutCredit && !coLop && (
         <button
           type="button"
           onClick={() => router.push(tapSau.href)}
@@ -1670,6 +1745,18 @@ export default function Player({
               />
             )}
             <div className="absolute inset-y-0 left-0 bg-[var(--color-nhan)]" style={{ width: tiChay * 100 + '%' }} />
+            {/* After credit: vạch nhỏ ở đầu mỗi cảnh, chạy chữ bắt đầu là vạch mờ hơn */}
+            {thoiLuong > 0 &&
+              [...(credit.batDauCredit !== null ? [{ giay: credit.batDauCredit, dau: true }] : []), ...credit.after.map((giay) => ({ giay, dau: false }))].map(
+                (m) => (
+                  <div
+                    key={(m.dau ? 'c' : 'a') + m.giay}
+                    title={m.dau ? 'Chạy chữ bắt đầu' : 'After credit'}
+                    className={`absolute inset-y-0 w-[3px] -translate-x-1/2 ${m.dau ? 'bg-sky-300/60' : 'bg-sky-300'}`}
+                    style={{ left: Math.min(100, (m.giay / thoiLuong) * 100) + '%' }}
+                  />
+                ),
+              )}
           </div>
           <div
             aria-hidden
@@ -1874,6 +1961,12 @@ export default function Player({
                   nhan="Đoạn intro"
                   giaTri={intro ? `${mmss(intro.bat_dau)}–${mmss(intro.ket_thuc)}` : 'Chưa đặt'}
                   onClick={() => datBang('intro')}
+                />
+                <HangBang
+                  bieu="tua-nhanh"
+                  nhan="After credit"
+                  giaTri={credit.after.length ? `${credit.after.length} cảnh` : 'Chưa đặt'}
+                  onClick={() => datBang('after-credit')}
                 />
                 <div className="an-tren-tv">
                   <HangBang bieu="ban-phim" nhan="Phím tắt" giaTri="?" onClick={() => datBang('phim-tat')} />
@@ -2087,6 +2180,59 @@ export default function Player({
               </>
             )}
 
+            {bang === 'after-credit' && (
+              <>
+                <TieuDeBang nhan="After credit" onLui={() => datBang('cai-dat')} />
+                <div className="px-4 pb-3 pt-1 text-xs leading-relaxed text-white/60">
+                  <p>
+                    Tới đầu mỗi cảnh sau phần chạy chữ thì đánh dấu một lần. Lần sau xem tập này, lúc chạy chữ sẽ có nút
+                    tua thẳng tới cảnh 1, xem xong cảnh 1 lại có nút tới cảnh 2. Mốc lưu riêng cho tập này.
+                  </p>
+                  {credit.after.length > 0 && (
+                    <ol className="mt-3 grid gap-1">
+                      {credit.after.map((giay, i) => (
+                        <li key={giay} className="flex items-center gap-2">
+                          <span className="w-24 shrink-0 text-white/80">
+                            Cảnh {i + 1}: <b className="tabular-nums text-white">{mmss(giay)}</b>
+                          </span>
+                          <NutNho
+                            onClick={() => {
+                              toiAfter(giay)
+                              datBang(null)
+                            }}
+                          >
+                            Tới
+                          </NutNho>
+                          <NutNho onClick={() => luuCredit(boAfter(credit, i))}>Xoá</NutNho>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  {credit.batDauCredit !== null && (
+                    <p className="mt-2 flex items-center gap-2">
+                      <span>
+                        Chạy chữ bắt đầu: <b className="tabular-nums text-white">{mmss(credit.batDauCredit)}</b>
+                      </span>
+                      <NutNho onClick={() => luuCredit({ ...credit, batDauCredit: null })}>Xoá</NutNho>
+                    </p>
+                  )}
+                  <div className="mt-3 grid gap-1.5">
+                    {/* Nút thay cho phím A / E: trên TV không có bàn phím để bấm */}
+                    <NutNho onClick={danhDauAfter}>Đánh dấu after credit tại {mmss(thoiGian)}</NutNho>
+                    <NutNho onClick={danhDauDauCredit}>Đánh dấu chạy chữ bắt đầu tại {mmss(thoiGian)}</NutNho>
+                  </div>
+                  <p className="mt-2 text-white/40">
+                    Đánh dấu chỗ chạy chữ bắt đầu là không bắt buộc: thiếu nó thì nút tới cảnh 1 hiện 8 phút trước cảnh đó.
+                  </p>
+                  <p className="an-tren-tv mt-1 text-white/40">
+                    Phím tắt: <kbd className="rounded bg-white/15 px-1">A</kbd> after credit,{' '}
+                    <kbd className="rounded bg-white/15 px-1">E</kbd> chạy chữ bắt đầu,{' '}
+                    <kbd className="rounded bg-white/15 px-1">S</kbd> tua tới.
+                  </p>
+                </div>
+              </>
+            )}
+
             {bang === 'phim-tat' && (
               <>
                 <TieuDeBang nhan="Phím tắt" onLui={() => datBang('cai-dat')} />
@@ -2102,6 +2248,8 @@ export default function Player({
                     ['[ ]', 'Chậm / nhanh hơn'],
                     ['0 – 9', 'Nhảy tới 0% – 90%'],
                     ['I · S', 'Đánh dấu / bỏ qua intro'],
+                    ['A · E', 'Đánh dấu after credit / chạy chữ bắt đầu'],
+                    ['S', 'Lúc chạy chữ: tới after credit kế tiếp'],
                     ['P', 'Cửa sổ nhỏ'],
                     ['?', 'Bảng này'],
                   ].map(([k, y]) => (

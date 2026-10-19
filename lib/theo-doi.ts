@@ -1,5 +1,6 @@
 /** Tiến độ xem + đánh dấu. Tách khỏi route để page cũng dùng được mà không import file route. */
 import { db } from './db'
+import { chuanHoa, MOC_CREDIT_RONG, type MocCredit } from './after-credit'
 
 export type BanGhiXem = {
   khoa: string
@@ -68,6 +69,29 @@ export function datMocIntro(slug: string, batDau: number, ketThuc: number) {
 
 export function xoaMocIntro(slug: string) {
   db.prepare('delete from moc_intro where phim_slug = ?').run(slug)
+}
+
+/** Mốc after credit của một tập (khoá `slug:tập`). Chưa đánh dấu thì trả rỗng. */
+export function layMocCredit(khoa: string): MocCredit {
+  const h = db.prepare('select bat_dau_credit, after_credit from moc_credit where khoa = ?').get(khoa) as
+    | { bat_dau_credit: number | null; after_credit: string }
+    | undefined
+  if (!h) return MOC_CREDIT_RONG
+  try {
+    return chuanHoa({ batDauCredit: h.bat_dau_credit, after: JSON.parse(h.after_credit) })
+  } catch {
+    return MOC_CREDIT_RONG
+  }
+}
+
+/** Ghi đè cả bộ mốc của một tập. Bộ rỗng vẫn ghi (không xoá dòng) cho đơn giản. */
+export function datMocCredit(khoa: string, m: MocCredit) {
+  const sach = chuanHoa(m)
+  db.prepare(
+    `insert into moc_credit (khoa, bat_dau_credit, after_credit, cap_nhat) values (?, ?, ?, datetime('now'))
+     on conflict(khoa) do update set bat_dau_credit = excluded.bat_dau_credit,
+       after_credit = excluded.after_credit, cap_nhat = datetime('now')`,
+  ).run(khoa, sach.batDauCredit, JSON.stringify(sach.after))
 }
 
 export type HangTheoDoi = {

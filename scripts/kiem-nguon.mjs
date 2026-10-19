@@ -20,6 +20,7 @@ import { xepTap } from '../lib/xep-tap.ts'
 import { nhipTuMoc, truocDay } from '../lib/nhip-tap.ts'
 import { bienTheTuKhoa, khopTuKhoa, slugHoa } from '../lib/tu-khoa.ts'
 import { xetTen18, mucTheoTheLoai } from '../lib/ten-18.ts'
+import { chuanHoa, themAfter, nutAfterCredit, nhanNut } from '../lib/after-credit.ts'
 
 const GOC = 'https://vsmov.com/api'
 const APP = process.env.APP || 'http://127.0.0.1:3000'
@@ -260,6 +261,26 @@ await phep('Lọc 18+ hai mức: chặn phim tình dục, chỉ gắn mác phim 
   assert.equal(mucTheoTheLoai(['phim-18', 'kinh-di']).muc, 'canh-bao')
   assert.equal(mucTheoTheLoai(['phim-18', 'tinh-cam', 'co-trang']).muc, 'chan')
   return '3 ca chặn, 2 ca gắn mác, 3 ca không bắt oan, 2 ca theo thể loại'
+})
+
+await phep('After credit: nút hiện đúng lúc, xem xong cảnh 1 mới mời sang cảnh 2', async () => {
+  // Phim 2 giờ: chạy chữ từ 1:50:00, hai cảnh sau credit ở 1:55:00 và 1:58:00
+  let m = chuanHoa({ batDauCredit: 6600, after: [] })
+  m = themAfter(themAfter(m, 6900), 7080)
+  assert.equal(themAfter(m, 6901).after.length, 2, 'bấm hai lần liền phải gộp thành một mốc')
+  assert.equal(nutAfterCredit(m, 6500), null, 'chưa tới chạy chữ mà đã hiện nút')
+  assert.deepEqual(nutAfterCredit(m, 6600), { chiSo: 0, den: 6900 })
+  assert.equal(nhanNut(m, 0), 'Tới after credit 1')
+  assert.equal(nutAfterCredit(m, 6930), null, 'đang xem cảnh 1 mà đã mời sang cảnh 2')
+  assert.deepEqual(nutAfterCredit(m, 6960), { chiSo: 1, den: 7080 }, 'xem cảnh 1 được 60 giây phải mời sang cảnh 2')
+  assert.equal(nutAfterCredit(m, 7080), null, 'qua cảnh cuối rồi thì nhường chỗ cho nút tập kế')
+  // Chưa đánh dấu chạy chữ: hiện 8 phút trước cảnh 1, không lòi ra giữa phim
+  const k = chuanHoa({ batDauCredit: null, after: [6900] })
+  assert.equal(nutAfterCredit(k, 6000), null)
+  assert.deepEqual(nutAfterCredit(k, 6420), { chiSo: 0, den: 6900 })
+  assert.equal(nhanNut(k, 0), 'Tới after credit', 'một cảnh thì khỏi đánh số')
+  assert.deepEqual(chuanHoa({ batDauCredit: -5, after: ['x', NaN, -1, 30] }), { batDauCredit: null, after: [30] }, 'dữ liệu bẩn lọt qua')
+  return '10 ca: mốc chạy chữ, chuyển cảnh, gộp mốc trùng, lọc dữ liệu bẩn'
 })
 
 await phep('Lịch ra tập: chỉ khẳng định khi dữ liệu đủ chắc', async () => {
