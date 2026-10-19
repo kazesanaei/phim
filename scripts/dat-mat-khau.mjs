@@ -13,7 +13,10 @@ import { DatabaseSync } from 'node:sqlite'
 import { randomBytes, scryptSync } from 'node:crypto'
 import { networkInterfaces } from 'node:os'
 import path from 'node:path'
+import { mkdirSync } from 'node:fs'
 
+// Máy mới chưa chạy app lần nào thì chưa có du-lieu/ — tạo luôn, không thì SQLite báo "unable to open"
+mkdirSync(path.join(process.cwd(), 'du-lieu'), { recursive: true })
 const db = new DatabaseSync(path.join(process.cwd(), 'du-lieu', 'phim.db'))
 db.exec('create table if not exists cai_dat (khoa text primary key, gia_tri text)')
 
@@ -46,6 +49,69 @@ if (!doiSo || doiSo === '--xem') {
   if (ip.length) console.log('  Địa chỉ LAN: ' + ip.map((a) => `http://${a}:3000`).join('  '))
   console.log('\n  Đặt mật khẩu: node scripts/dat-mat-khau.mjs <mật khẩu>')
   console.log('  Tắt LAN     : node scripts/dat-mat-khau.mjs --xoa\n')
+  process.exit(0)
+}
+
+// Cho chay-tu-xa.cmd: mã thoát 0 nếu cửa mật khẩu đang bật, 1 nếu chưa.
+if (doiSo === '--kiem') {
+  process.exit(doc('che_do_lan') === 'bat' && doc('mat_khau_bam') ? 0 : 1)
+}
+
+/**
+ * Hỏi mật khẩu ngay trong cửa sổ, KHÔNG hiện chữ khi gõ. Cho chay-tu-xa.cmd:
+ * để cmd đọc mật khẩu bằng `set /p` thì ký tự như & | ^ % làm vỡ lệnh, và mật
+ * khẩu hiện rõ trên màn hình.
+ */
+if (doiSo === '--hoi') {
+  // Phần gõ/dán dư sau dấu xuống dòng giữ lại cho câu hỏi sau: dán hai dòng một
+  // lần thì cả hai tới trong CÙNG một lần đọc, vứt đi là câu hỏi thứ hai treo mãi.
+  let du = ''
+  const doc1Dong = (cau) =>
+    new Promise((ok) => {
+      process.stdout.write(cau)
+      const vao = process.stdin
+      let chu = ''
+      const xong = (conLai) => {
+        du = conLai
+        if (vao.isTTY) vao.setRawMode(false)
+        vao.pause()
+        vao.off('data', nghe)
+        process.stdout.write('\n')
+        ok(chu)
+      }
+      const nghe = (k) => {
+        for (let i = 0; i < k.length; i++) {
+          const c = k[i]
+          if (c === '\r' || c === '\n') {
+            // \r\n của Windows: nuốt luôn \n đi kèm
+            return xong(k.slice(c === '\r' && k[i + 1] === '\n' ? i + 2 : i + 1))
+          }
+          if (c === '\u0003') process.exit(1) // Ctrl+C
+          if (c === '\u0008' || c === '\u007f') chu = chu.slice(0, -1)
+          else chu += c
+        }
+      }
+      vao.on('data', nghe)
+      if (vao.isTTY) vao.setRawMode(true)
+      vao.setEncoding('utf8')
+      if (du) nghe(du)
+      if (vao.listenerCount('data')) vao.resume()
+    })
+  const mk = await doc1Dong('  Nhập mật khẩu mới (ít nhất 4 ký tự, không hiện khi gõ): ')
+  if (mk.length < 4) {
+    console.error('\n  Mật khẩu quá ngắn (tối thiểu 4 ký tự).\n')
+    process.exit(1)
+  }
+  if ((await doc1Dong('  Nhập lại cho chắc: ')) !== mk) {
+    console.error('\n  Hai lần nhập không khớp. Chạy lại để thử lần nữa.\n')
+    process.exit(1)
+  }
+  const muoi = randomBytes(16).toString('hex')
+  ghi('mat_khau_bam', muoi + ':' + scryptSync(mk, muoi, 64).toString('hex'))
+  // Xoay khoá ký như datMatKhau() trong lib/xac-thuc.ts: mọi vé đăng nhập cũ chết ngay
+  ghi('khoa_ky', randomBytes(32).toString('hex'))
+  ghi('che_do_lan', 'bat')
+  console.log('\n  Đã đặt mật khẩu. Mọi máy (kể cả máy này) đăng nhập một lần là nhớ 1 năm.\n')
   process.exit(0)
 }
 

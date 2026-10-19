@@ -110,18 +110,33 @@ export function tenTepAnToan(ten: string): string {
  */
 export function chanCheoTrang(req: Request) {
   const site = req.headers.get('sec-fetch-site')
-  if (site && site !== 'same-origin' && site !== 'same-site' && site !== 'none') {
-    throw new LoiChan('Chặn request từ trang khác')
+  if (site) {
+    if (site !== 'same-origin' && site !== 'same-site' && site !== 'none') {
+      throw new LoiChan('Chặn request từ trang khác')
+    }
+    return
   }
-  // Lối lui cho trình duyệt cũ không gửi Sec-Fetch-Site: đối chiếu Origin với Host.
+  /**
+   * Lối lui CHỈ cho trình duyệt cũ không gửi Sec-Fetch-Site: đối chiếu Origin
+   * với Host. Trước đây phép so này chạy cả khi đã có Sec-Fetch-Site, và nó gãy
+   * khi xem từ xa qua `tailscale serve` (xem CAI-DAT.md): bộ chuyển tiếp có thể
+   * đổi Host thành 127.0.0.1:3000 trong khi Origin là https://<máy>.ts.net —
+   * đã tái hiện: đúng mật khẩu vẫn bị 403, không đăng nhập nổi.
+   *
+   * Nhận thêm X-Forwarded-Host (bộ chuyển tiếp gắn vào). Trang lạ không giả được
+   * nó: request chéo trang có header tự đặt sẽ phải qua preflight CORS, mà app
+   * không trả lời preflight nên trình duyệt chặn trước khi gửi.
+   */
   const origin = req.headers.get('origin')
   if (origin) {
-    const host = req.headers.get('host')
+    const hopLe = [req.headers.get('host'), req.headers.get('x-forwarded-host')].filter(Boolean)
+    let hostGoc: string
     try {
-      if (host && new URL(origin).host !== host) throw new LoiChan('Chặn request từ trang khác')
+      hostGoc = new URL(origin).host
     } catch {
       throw new LoiChan('Origin không hợp lệ')
     }
+    if (hopLe.length && !hopLe.includes(hostGoc)) throw new LoiChan('Chặn request từ trang khác')
   }
 }
 

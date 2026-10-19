@@ -134,6 +134,46 @@ cửa xác thực nên không tự cứu được.
 
 **Quay lại chỉ chạy riêng laptop:** `npm run mat-khau --xoa` rồi `npm start`.
 
+### Xem từ xa bằng Tailscale (ở ngoài nhà, nhiều máy)
+
+Không phải clone hay cài Node trên máy xem. Laptop ở nhà chạy app như bình thường,
+các máy khác vào qua **mạng riêng Tailscale** — chỉ thiết bị đăng nhập **cùng tài khoản
+Tailscale của bạn** mới thấy trang, người ngoài internet không vào được.
+
+**Một lần trên laptop chạy app (máy chủ):**
+
+1. Cài Tailscale cho Windows: https://tailscale.com/download, đăng nhập (Google/Microsoft...).
+2. Vào https://login.tailscale.com/admin/dns, bật **MagicDNS** và **HTTPS Certificates**.
+3. Bấm đúp **`chay-tu-xa.cmd`**. Lần đầu nó hỏi đặt mật khẩu (bắt buộc), rồi in ra địa chỉ
+   dạng `https://ten-may.tailxxxx.ts.net`.
+
+Lần sau chỉ cần bấm đúp `chay-tu-xa.cmd`. Đóng cửa sổ là tắt app.
+
+**Trên mỗi máy muốn xem:**
+
+| Máy | Cách |
+|---|---|
+| Laptop / PC khác | Cài Tailscale, đăng nhập cùng tài khoản, mở trình duyệt vào địa chỉ trên |
+| Điện thoại Android / iPhone | Cài app Tailscale từ CH Play / App Store, đăng nhập, mở địa chỉ trên |
+| TV Box Android | Cài app Tailscale từ CH Play (có bản Android TV), đăng nhập, mở địa chỉ trên |
+
+Đăng nhập mật khẩu của app một lần là mỗi máy nhớ 1 năm. Lịch sử xem, yêu thích, tiến độ
+**dùng chung** giữa các máy vì đều đọc cùng một máy chủ.
+
+**Cần biết:**
+- **Laptop ở nhà phải bật** và đang chạy `chay-tu-xa.cmd`. Máy tắt thì link báo lỗi.
+- Phim đi qua đường **tải lên** của mạng nhà. Mạng nhà chậm chiều tải lên thì xem từ xa
+  có thể giật; mỗi người xem 1080p cần khoảng 4–6 Mbit/s.
+- **Tuyệt đối không dùng `tailscale funnel`** — lệnh đó mở trang ra CẢ INTERNET.
+  `tailscale serve` (script đang dùng) chỉ mở trong mạng riêng của bạn.
+- Tắt hẳn lối vào từ xa: `tailscale serve reset`.
+- Mất điện thoại hay muốn đuổi mọi thiết bị: chạy lại `node scripts\dat-mat-khau.mjs --hoi`
+  để đặt mật khẩu mới (mọi vé đăng nhập cũ hết hạn ngay), và gỡ máy đó khỏi
+  https://login.tailscale.com/admin/machines.
+
+Vì sao không đưa lên internet công khai: phim lấy từ nguồn không có bản quyền phân phối và
+đi qua chính máy chủ của bạn, còn trang Quản trị xoá được file thật trên ổ cứng.
+
 ## 6. Phím tắt khi xem
 
 | Phím | Việc |
