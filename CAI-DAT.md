@@ -134,13 +134,39 @@ cửa xác thực nên không tự cứu được.
 
 **Quay lại chỉ chạy riêng laptop:** `npm run mat-khau --xoa` rồi `npm start`.
 
+### Chọn máy làm máy chủ — KHÔNG dùng laptop công ty
+
+Máy chạy app là máy chủ: nó tải và chuyển tiếp video, giữ kho phim và lịch sử xem. **Đừng
+dùng laptop công ty** cho việc này: cài phần mềm mở đường vào từ xa (Tailscale, Cloudflare
+Tunnel, ngrok...) thường trái quy định IT, và lưu lượng phim đi qua máy công ty có thể bị
+phần mềm giám sát ghi lại. Laptop công ty chỉ nên là **máy xem** (mở trình duyệt).
+
+| Máy chủ | Hợp khi | Ghi chú |
+|---|---|---|
+| Máy tính / laptop cũ **cá nhân**, để bật ở nhà | Có sẵn máy | Windows, dùng ngay các script `.cmd` |
+| Raspberry Pi 5 / mini PC | Muốn ít tốn điện, chạy 24/7 | Linux, khoảng 5–15 W |
+| VPS thuê | Không có máy ở nhà | **Không khuyên dùng**: tốn băng thông, dễ bị khoá, nguồn phim hay chặn IP trung tâm dữ liệu, mất kho phim trên ổ cứng |
+
+Lối vào từ xa, cho máy chủ CÁ NHÂN:
+
+- **Tailscale** (mục dưới): mỗi máy xem cài app Tailscale. Miễn phí, không cần tên miền.
+- **Cloudflare Tunnel + Cloudflare Access**: máy xem **không cài gì**, mở trình duyệt vào
+  `https://phim.<tên-miền>`, Cloudflare gửi mã về email và chỉ cho email được phép đi qua —
+  hợp khi máy xem là máy công ty không cài được phần mềm. Cần tên miền (~250.000 đ/năm); gói
+  miễn phí của Cloudflare hạn chế việc dùng chủ yếu để truyền video, dùng cá nhân ít người
+  thường không sao nhưng vẫn có rủi ro bị nhắc.
+
+Cả hai đều **không** biến app thành trang công khai: người ngoài không vào được.
+
 ### Xem từ xa bằng Tailscale (ở ngoài nhà, nhiều máy)
+
+> Chạy phần này trên **máy chủ cá nhân**, không phải laptop công ty (xem mục trên).
 
 Không phải clone hay cài Node trên máy xem. Laptop ở nhà chạy app như bình thường,
 các máy khác vào qua **mạng riêng Tailscale** — chỉ thiết bị đăng nhập **cùng tài khoản
 Tailscale của bạn** mới thấy trang, người ngoài internet không vào được.
 
-**Một lần trên laptop chạy app (máy chủ):**
+**Một lần trên máy chủ cá nhân:**
 
 1. Cài Tailscale cho Windows: https://tailscale.com/download, đăng nhập (Google/Microsoft...).
 2. Vào https://login.tailscale.com/admin/dns, bật **MagicDNS** và **HTTPS Certificates**.

@@ -8,6 +8,9 @@ rem
 rem TUYET DOI KHONG dung "tailscale funnel": funnel mo ra CA INTERNET.
 rem Chi tiet: CAI-DAT.md, muc "Xem tu xa bang Tailscale".
 rem
+rem CHI chay tren may CA NHAN. Khong chay tren laptop cong ty: cai phan mem
+rem mo duong vao tu xa thuong trai quy dinh IT (xem CAI-DAT.md).
+rem
 rem Khong dung nhan goto: kho luu file nay bang LF (.gitattributes), cmd.exe
 rem doc nhan voi LF hay nhay sai cho.
 cd /d "%~dp0"
