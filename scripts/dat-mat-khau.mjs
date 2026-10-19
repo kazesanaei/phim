@@ -52,15 +52,15 @@ if (!doiSo || doiSo === '--xem') {
   process.exit(0)
 }
 
-// Cho chay-tu-xa.cmd: mã thoát 0 nếu cửa mật khẩu đang bật, 1 nếu chưa.
+// Mã thoát 0 nếu cửa mật khẩu đang bật, 1 nếu chưa — cho script .cmd kiểm trước khi chạy.
 if (doiSo === '--kiem') {
   process.exit(doc('che_do_lan') === 'bat' && doc('mat_khau_bam') ? 0 : 1)
 }
 
 /**
- * Hỏi mật khẩu ngay trong cửa sổ, KHÔNG hiện chữ khi gõ. Cho chay-tu-xa.cmd:
- * để cmd đọc mật khẩu bằng `set /p` thì ký tự như & | ^ % làm vỡ lệnh, và mật
- * khẩu hiện rõ trên màn hình.
+ * Hỏi mật khẩu ngay trong cửa sổ, KHÔNG hiện chữ khi gõ. Thay cho việc gõ mật
+ * khẩu thẳng trên dòng lệnh: ở đó ký tự như & | ^ % làm vỡ lệnh cmd, và mật khẩu
+ * hiện rõ trên màn hình lẫn nằm lại trong lịch sử lệnh.
  */
 if (doiSo === '--hoi') {
   // Phần gõ/dán dư sau dấu xuống dòng giữ lại cho câu hỏi sau: dán hai dòng một

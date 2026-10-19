@@ -119,9 +119,9 @@ export function chanCheoTrang(req: Request) {
   /**
    * Lối lui CHỈ cho trình duyệt cũ không gửi Sec-Fetch-Site: đối chiếu Origin
    * với Host. Trước đây phép so này chạy cả khi đã có Sec-Fetch-Site, và nó gãy
-   * khi xem từ xa qua `tailscale serve` (xem CAI-DAT.md): bộ chuyển tiếp có thể
-   * đổi Host thành 127.0.0.1:3000 trong khi Origin là https://<máy>.ts.net —
-   * đã tái hiện: đúng mật khẩu vẫn bị 403, không đăng nhập nổi.
+   * khi app nằm sau một bộ chuyển tiếp (reverse proxy) đổi Host thành
+   * 127.0.0.1:3000 trong khi Origin là địa chỉ trình duyệt thấy — đã tái hiện:
+   * đúng mật khẩu vẫn bị 403, không đăng nhập nổi.
    *
    * Nhận thêm X-Forwarded-Host (bộ chuyển tiếp gắn vào). Trang lạ không giả được
    * nó: request chéo trang có header tự đặt sẽ phải qua preflight CORS, mà app

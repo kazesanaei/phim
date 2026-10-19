@@ -186,19 +186,11 @@ Ba việc phải làm TRƯỚC khi đổi `-H`:
 2. Xem lại `/api/thu-vien`: các việc `xoa-phim` (kèm `xoaCaFile`) và `them-thu-muc` cho phép xoá file thật và mở rộng phạm vi đọc file.
 3. Bật HTTPS + HSTS, và siết CSP (bỏ `'unsafe-inline'` cho `style-src` nếu làm được).
 
-## Cập nhật 19/10/2026 — xem từ xa qua Tailscale
+## Cập nhật 19/10/2026 — `chanCheoTrang`
 
-- **Không mở ra internet công khai.** Lối vào từ xa duy nhất được hỗ trợ là `tailscale serve`
-  (`chay-tu-xa.cmd`): app vẫn chỉ nghe `127.0.0.1`, Tailscale nhận HTTPS ở `*.ts.net` và chỉ
-  thiết bị cùng tài khoản Tailscale tới được. `tailscale funnel` (mở ra cả internet) bị cấm
-  trong hướng dẫn.
-- Qua `tailscale serve`, mọi request tới app đều có nguồn `127.0.0.1`, nên app không phân biệt
-  được máy ở xa với chính laptop. Vì vậy script **bắt buộc đặt mật khẩu** (bật cửa xác thực)
-  trước khi mở lối vào.
-- **`chanCheoTrang` đổi:** trước đây luôn so `Origin` với `Host`, kể cả khi trình duyệt đã gửi
-  `Sec-Fetch-Site`. Sau bộ chuyển tiếp có thể đổi `Host` thành `127.0.0.1:3000` trong khi
-  `Origin` là `https://<máy>.ts.net` — đã tái hiện: đúng mật khẩu vẫn bị 403. Giờ có
-  `Sec-Fetch-Site` thì dựa vào nó (trang web không giả được); không có (trình duyệt cũ) mới so
-  `Origin` với `Host` **hoặc** `X-Forwarded-Host`. Trang lạ không đặt được `X-Forwarded-Host`
-  vì header tự đặt buộc qua preflight CORS mà app không trả lời. Đã kiểm: trang lạ gọi chéo
-  vẫn 403 ở cả hai kiểu chuyển tiếp (giữ / đổi `Host`), với cả trình duyệt mới lẫn cũ.
+Trước đây hàm này luôn so `Origin` với `Host`, kể cả khi trình duyệt đã gửi `Sec-Fetch-Site`.
+Đặt app sau một bộ chuyển tiếp (reverse proxy) đổi `Host` thành `127.0.0.1:3000` thì đúng mật
+khẩu vẫn bị 403 — đã tái hiện. Giờ có `Sec-Fetch-Site` thì dựa vào nó (trang web không giả
+được); không có (trình duyệt cũ) mới so `Origin` với `Host` **hoặc** `X-Forwarded-Host`. Trang lạ
+không đặt được `X-Forwarded-Host` vì header tự đặt buộc qua preflight CORS mà app không trả lời.
+Đã kiểm: trang lạ gọi chéo vẫn 403 ở cả hai kiểu chuyển tiếp, với cả trình duyệt mới lẫn cũ.
