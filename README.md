@@ -488,3 +488,29 @@ vẫn phát được, xoá khi phát được thì A chậm → B, quên A, B c�
 
 Thử bằng luồng HLS thật (VP9/Opus fMP4 qua `/api/tep`), máy chủ 1 cố ý chờ 15 giây mỗi đoạn:
 phát hiện sau 12 giây chờ, tự sang máy chủ 2 đúng tập, phát tiếp từ đúng giây; "Ở lại" thì đứng yên.
+
+## Mốc tự động cho anime từ AniSkip (19/10)
+
+Web anime có nút "Bỏ qua intro / outro" là nhờ **AniSkip** — cơ sở dữ liệu cộng đồng, mốc
+opening (op) và ending (ed) cho từng tập, khoá theo mã MyAnimeList. App dùng nó cho phim là
+**anime** (thể loại Hoạt hình + quốc gia Nhật Bản):
+
+    tên gốc ──Jikan (api.jikan.moe)──▶ mã MAL ──AniSkip (api.aniskip.com)──▶ mốc op/ed của tập
+
+| AniSkip có | Trình phát hiện |
+|---|---|
+| opening | nút **Bỏ qua intro** (thay cho mốc intro tay nếu chưa đánh dấu) |
+| ending, sau đó tập còn chạy tiếp | nút **Tới after credit** — phần sau ending chính là cảnh sau credit |
+| ending chạy tới hết tập | nút **Bỏ qua ending** sang tập kế (tập cuối thì không có) |
+
+- **Mốc đánh dấu tay luôn thắng** mốc AniSkip.
+- **Chỉ nhận anime khớp CHẮC**: một tên trên MAL trùng hẳn tên gốc / tên Việt sau chuẩn hoá;
+  nhiều bản trùng tên thì tách bằng năm và kiểu (TV / Movie), vẫn hoà thì bỏ — tua sai chỗ giữa
+  tập còn tệ hơn không có nút. Anime đặt tên gốc lạ thì sẽ không có nút tự động.
+- Lưu đệm trong SQLite (`anime_mal`, `aniskip_dem`): mã MAL 30 ngày (không chắc thì 3 ngày dò
+  lại), mốc tập 7 ngày (chưa có thì 1 ngày hỏi lại). Mọi lệnh gọi có hạn chờ 6 giây.
+- Logic thuần ở `lib/aniskip-khop.ts` (bộ kiểm nạp thẳng), gọi mạng ở `lib/aniskip.ts`.
+
+**Chưa thử với AniSkip / Jikan THẬT**: máy dựng bị chặn mạng tới hai dịch vụ này. Định dạng
+dữ liệu viết theo cách các công cụ cộng đồng đang gọi, phần đọc dữ liệu chấp nhận cả kiểu v1
+lẫn v2. Nếu anime quen thuộc mà không hiện nút, kiểm `/api/aniskip?slug=<slug>&tap=1`.

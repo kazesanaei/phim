@@ -137,6 +137,19 @@ create table if not exists moc_credit (
   cap_nhat text not null default (datetime('now'))
 );
 
+-- AniSkip (lib/aniskip.ts): mã MyAnimeList đã dò cho từng phim (null = đã dò mà
+-- không chắc, đừng dò lại ngay), và mốc opening/ending đã lấy cho từng tập.
+create table if not exists anime_mal (
+  slug text primary key,
+  mal_id integer,
+  kiem_luc text not null default (datetime('now'))
+);
+create table if not exists aniskip_dem (
+  khoa text primary key,
+  du_lieu text not null,
+  kiem_luc text not null default (datetime('now'))
+);
+
 -- Phim bộ đang theo dõi: nhớ số tập lúc đánh dấu để biết khi nào có tập mới.
 create table if not exists theo_doi (
   slug text primary key,

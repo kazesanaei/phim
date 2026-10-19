@@ -22,6 +22,7 @@ import { useRouter } from 'next/navigation'
 import type Hls from 'hls.js'
 import { srtSangVtt, doiThoiGian } from '@/lib/phu-de'
 import { laCham, donLichSu, type LanCho, type DangCho } from '@/lib/do-cham'
+import type { MocAniSkip } from '@/lib/aniskip-khop'
 import { MOC_CREDIT_RONG, boAfter, chuanHoa, nhanNut, nutAfterCredit, themAfter, type MocCredit } from '@/lib/after-credit'
 
 export type PhuDeMuc = { ma: string; nhan: string; url?: string; noiDung?: string }
@@ -364,6 +365,8 @@ export default function Player({
 
   // Bỏ qua intro
   const [intro, datIntro] = useState<MocIntro | null>(mocIntro)
+  /** Mốc tự động cho anime từ AniSkip (lib/aniskip.ts). Mốc đánh dấu tay luôn thắng. */
+  const [aniskip, datAniskip] = useState<MocAniSkip | null>(null)
   const [credit, datCredit] = useState<MocCredit>(mocCredit)
   const [dangDanhDau, datDangDanhDau] = useState<number | null>(null)
   const [nhac, datNhac] = useState<string | null>(null)
@@ -908,6 +911,23 @@ export default function Player({
     }
   }, [])
 
+  // ---- mốc tự động AniSkip (chỉ anime từ nguồn, máy chủ tự lọc) ---------------
+  useEffect(() => {
+    if (nguonTen === 'local' || slug.startsWith('local-')) return
+    const huy = new AbortController()
+    fetch(`/api/aniskip?slug=${encodeURIComponent(slug)}&tap=${encodeURIComponent(maTapChung ?? tap ?? '1')}`, {
+      signal: huy.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: (MocAniSkip & { malId: number | null }) | null) => {
+        if (j && (j.op || j.ed)) datAniskip({ op: j.op, ed: j.ed })
+      })
+      .catch(() => {
+        // không có mạng / không phải anime: không có nút tự động, thế thôi
+      })
+    return () => huy.abort()
+  }, [slug, tap, maTapChung, nguonTen])
+
   // ---- đánh dấu / bỏ qua intro -------------------------------------------
   const baoNhac = useCallback((tin: string) => {
     datNhac(tin)
@@ -961,12 +981,18 @@ export default function Player({
     [tepLocal, amDangChon],
   )
 
+  /** Intro đang dùng: mốc đánh dấu tay, không có thì opening của AniSkip. */
+  const introHieuLuc = useMemo<MocIntro | null>(
+    () => intro ?? (aniskip?.op ? { bat_dau: aniskip.op.tu, ket_thuc: aniskip.op.den } : null),
+    [intro, aniskip],
+  )
+
   const boQuaIntro = useCallback(() => {
     const v = videoRef.current
-    if (v && intro) v.currentTime = intro.ket_thuc
-  }, [intro])
+    if (v && introHieuLuc) v.currentTime = introHieuLuc.ket_thuc
+  }, [introHieuLuc])
 
-  const trongIntro = !!intro && thoiGian >= intro.bat_dau && thoiGian < intro.ket_thuc - 0.5
+  const trongIntro = !!introHieuLuc && thoiGian >= introHieuLuc.bat_dau && thoiGian < introHieuLuc.ket_thuc - 0.5
 
   // ---- after credit --------------------------------------------------------
   // Lưu theo `khoa` (slug:tập), không theo slug như intro — mỗi tập một chỗ.
@@ -1004,7 +1030,31 @@ export default function Player({
   }, [credit, luuCredit, baoNhac])
 
   /** Nút "Tới after credit k" đang nên hiện không, và tới đâu. */
-  const nutCredit = useMemo(() => nutAfterCredit(credit, thoiGian), [credit, thoiGian])
+  const coCreditTay = credit.after.length > 0 || credit.batDauCredit !== null
+  /**
+   * After credit từ AniSkip: hết ending mà tập còn chạy tiếp (quá 5 giây) thì
+   * phần còn lại là cảnh sau credit. Ending chạy tới hết tập thì không có cảnh
+   * nào — khi đó là nút "Bỏ qua ending" sang tập kế (boQuaEnding bên dưới).
+   */
+  const sauEnding = !!aniskip?.ed && thoiLuong > 0 && aniskip.ed.den < thoiLuong - 5
+  const creditHieuLuc = useMemo<MocCredit>(
+    () =>
+      coCreditTay
+        ? credit
+        : sauEnding && aniskip?.ed
+          ? { batDauCredit: aniskip.ed.tu, after: [aniskip.ed.den] }
+          : MOC_CREDIT_RONG,
+    [coCreditTay, credit, sauEnding, aniskip],
+  )
+  const creditTuAniskip = !coCreditTay && creditHieuLuc.after.length > 0
+  const nutCredit = useMemo(() => nutAfterCredit(creditHieuLuc, thoiGian), [creditHieuLuc, thoiGian])
+  const boQuaEnding =
+    !coCreditTay &&
+    !sauEnding &&
+    !!aniskip?.ed &&
+    !!tapSau &&
+    thoiGian >= aniskip.ed.tu &&
+    thoiGian < aniskip.ed.den - 1
 
   const toiAfter = useCallback((den: number) => {
     const v = videoRef.current
@@ -1149,7 +1199,8 @@ export default function Player({
         case 's':
           // Đang ở đoạn credit thì S tới after credit; không thì bỏ qua intro như cũ
           if (nutCredit) toiAfter(nutCredit.den)
-          else if (intro) boQuaIntro()
+          else if (boQuaEnding && tapSau) router.push(tapSau.href)
+          else if (introHieuLuc) boQuaIntro()
           break
         case 'a':
           danhDauAfter()
@@ -1202,6 +1253,8 @@ export default function Player({
     danhDauIntro,
     boQuaIntro,
     intro,
+    introHieuLuc,
+    boQuaEnding,
     nutCredit,
     toiAfter,
     danhDauAfter,
@@ -1708,17 +1761,30 @@ export default function Player({
         <button
           type="button"
           onClick={() => toiAfter(nutCredit.den)}
-          title={`Tua tới ${mmss(nutCredit.den)} (phím S)`}
+          title={`Tua tới ${mmss(nutCredit.den)} (phím S)${creditTuAniskip ? ' — mốc từ AniSkip' : ''}`}
           className="tp-noi absolute bottom-24 right-4 flex items-center gap-2 rounded-md border border-white/70 bg-black/55 px-5 py-2.5 text-sm font-semibold backdrop-blur transition hover:border-white hover:bg-white hover:text-black md:right-6"
         >
           <Bieu ten="tua-nhanh" className="h-5 w-5" />
-          {nhanNut(credit, nutCredit.chiSo)}
+          {nhanNut(creditHieuLuc, nutCredit.chiSo)}
+        </button>
+      )}
+
+      {/* Anime: ending chạy tới hết tập (không có cảnh sau credit) thì bỏ qua ending = sang tập kế */}
+      {boQuaEnding && tapSau && demNguoc === null && !coLop && (
+        <button
+          type="button"
+          onClick={() => router.push(tapSau.href)}
+          title="Mốc ending từ AniSkip (phím S)"
+          className="tp-noi absolute bottom-24 right-4 flex items-center gap-2 rounded-md border border-white/70 bg-black/55 px-5 py-2.5 text-sm font-semibold backdrop-blur transition hover:border-white hover:bg-white hover:text-black md:right-6"
+        >
+          <Bieu ten="tap-sau" className="h-5 w-5" />
+          Bỏ qua ending
         </button>
       )}
 
       {/* Nút tập kế nhường chỗ cho nút after credit: cùng một góc, và đang có cảnh
           sau credit thì sang tập mới là bỏ lỡ nó. */}
-      {hienTapSau && tapSau && demNguoc === null && !trongIntro && !nutCredit && !coLop && (
+      {hienTapSau && tapSau && demNguoc === null && !trongIntro && !nutCredit && !boQuaEnding && !coLop && (
         <button
           type="button"
           onClick={() => router.push(tapSau.href)}
@@ -1834,20 +1900,23 @@ export default function Player({
           <div className="tp-ray relative h-1 w-full overflow-hidden rounded-full bg-white/25 transition-[height] duration-150 group-hover/tua:h-1.5">
             <div className="absolute inset-y-0 left-0 bg-white/35" style={{ width: phanTramDem + '%' }} />
             {/* Đoạn intro hiện thành một vệt: nhìn là biết bỏ qua được tới đâu */}
-            {intro && thoiLuong > 0 && (
+            {introHieuLuc && thoiLuong > 0 && (
               <div
-                title="Intro"
+                title={intro ? 'Intro' : 'Opening (AniSkip)'}
                 className="absolute inset-y-0 bg-amber-300/45"
                 style={{
-                  left: (intro.bat_dau / thoiLuong) * 100 + '%',
-                  width: ((intro.ket_thuc - intro.bat_dau) / thoiLuong) * 100 + '%',
+                  left: (introHieuLuc.bat_dau / thoiLuong) * 100 + '%',
+                  width: ((introHieuLuc.ket_thuc - introHieuLuc.bat_dau) / thoiLuong) * 100 + '%',
                 }}
               />
             )}
             <div className="absolute inset-y-0 left-0 bg-[var(--color-nhan)]" style={{ width: tiChay * 100 + '%' }} />
             {/* After credit: vạch nhỏ ở đầu mỗi cảnh, chạy chữ bắt đầu là vạch mờ hơn */}
             {thoiLuong > 0 &&
-              [...(credit.batDauCredit !== null ? [{ giay: credit.batDauCredit, dau: true }] : []), ...credit.after.map((giay) => ({ giay, dau: false }))].map(
+              [
+                ...(creditHieuLuc.batDauCredit !== null ? [{ giay: creditHieuLuc.batDauCredit, dau: true }] : []),
+                ...creditHieuLuc.after.map((giay) => ({ giay, dau: false })),
+              ].map(
                 (m) => (
                   <div
                     key={(m.dau ? 'c' : 'a') + m.giay}
@@ -2059,13 +2128,19 @@ export default function Player({
                 <HangBang
                   bieu="tua-nhanh"
                   nhan="Đoạn intro"
-                  giaTri={intro ? `${mmss(intro.bat_dau)}–${mmss(intro.ket_thuc)}` : 'Chưa đặt'}
+                  giaTri={
+                    intro
+                      ? `${mmss(intro.bat_dau)}–${mmss(intro.ket_thuc)}`
+                      : introHieuLuc
+                        ? `AniSkip ${mmss(introHieuLuc.bat_dau)}–${mmss(introHieuLuc.ket_thuc)}`
+                        : 'Chưa đặt'
+                  }
                   onClick={() => datBang('intro')}
                 />
                 <HangBang
                   bieu="tua-nhanh"
                   nhan="After credit"
-                  giaTri={credit.after.length ? `${credit.after.length} cảnh` : 'Chưa đặt'}
+                  giaTri={credit.after.length ? `${credit.after.length} cảnh` : creditTuAniskip ? 'AniSkip' : 'Chưa đặt'}
                   onClick={() => datBang('after-credit')}
                 />
                 <div className="an-tren-tv">
@@ -2251,6 +2326,12 @@ export default function Player({
                   ) : (
                     <p>Đánh dấu một lần ở đầu và cuối intro là mọi tập của phim này đều có nút bỏ qua.</p>
                   )}
+                  {!intro && introHieuLuc && (
+                    <p className="mt-2 text-sky-300/80">
+                      Đang dùng mốc opening từ AniSkip ({mmss(introHieuLuc.bat_dau)}–{mmss(introHieuLuc.ket_thuc)}), riêng
+                      cho tập này. Đánh dấu tay thì mốc của bạn được dùng thay.
+                    </p>
+                  )}
                   <div className="mt-3 grid gap-1.5">
                     {/* Nút thay cho phím I: trên TV không có bàn phím để bấm */}
                     <NutNho onClick={danhDauIntro}>
@@ -2288,6 +2369,12 @@ export default function Player({
                     Tới đầu mỗi cảnh sau phần chạy chữ thì đánh dấu một lần. Lần sau xem tập này, lúc chạy chữ sẽ có nút
                     tua thẳng tới cảnh 1, xem xong cảnh 1 lại có nút tới cảnh 2. Mốc lưu riêng cho tập này.
                   </p>
+                  {creditTuAniskip && (
+                    <p className="mt-2 text-sky-300/80">
+                      Đang dùng mốc từ AniSkip: ending {mmss(creditHieuLuc.batDauCredit ?? 0)}, cảnh sau credit từ{' '}
+                      {mmss(creditHieuLuc.after[0])}. Đánh dấu tay thì mốc của bạn được dùng thay.
+                    </p>
+                  )}
                   {credit.after.length > 0 && (
                     <ol className="mt-3 grid gap-1">
                       {credit.after.map((giay, i) => (

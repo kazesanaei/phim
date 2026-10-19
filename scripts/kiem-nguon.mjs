@@ -22,6 +22,7 @@ import { bienTheTuKhoa, khopTuKhoa, slugHoa } from '../lib/tu-khoa.ts'
 import { xetTen18, mucTheoTheLoai } from '../lib/ten-18.ts'
 import { chuanHoa, themAfter, nutAfterCredit, nhanNut } from '../lib/after-credit.ts'
 import { laCham } from '../lib/do-cham.ts'
+import { chonMal, docAniSkip, laAnime } from '../lib/aniskip-khop.ts'
 
 const GOC = 'https://vsmov.com/api'
 const APP = process.env.APP || 'http://127.0.0.1:3000'
@@ -297,6 +298,29 @@ await phep('Máy chủ chậm: bắt chờ lâu và giật lắt nhắt, tha cho
   assert.equal(laCham([lan(100, 92, true), lan(60, 52, true), lan(20, 12, true)], null, T), null, 'người hay tua bị đá oan')
   assert.equal(laCham([lan(300, 290), lan(250, 240), lan(200, 190)], null, T), null, 'giật từ 3 phút trước vẫn bị tính')
   return '8 ca: chờ liền, sau tua, giật lắt nhắt, quá cửa sổ'
+})
+
+await phep('AniSkip: chỉ nhận anime khớp chắc, đọc được cả hai kiểu dữ liệu', async () => {
+  const jikan = [
+    { mal_id: 38000, title: 'Kimetsu no Yaiba', title_english: 'Demon Slayer: Kimetsu no Yaiba', type: 'TV', year: 2019 },
+    { mal_id: 40456, title: 'Kimetsu no Yaiba Movie: Mugen Ressha-hen', type: 'Movie', year: 2020 },
+  ]
+  assert.equal(chonMal(jikan, { tenGoc: 'Kimetsu no Yaiba', nam: 2019, laBo: true }), 38000)
+  assert.equal(chonMal(jikan, { tenGoc: 'Demon Slayer' }), null, 'khớp một phần tên mà đã nhận')
+  const hxh = [
+    { mal_id: 136, title: 'Hunter x Hunter', type: 'TV', year: 1999 },
+    { mal_id: 11061, title: 'Hunter x Hunter (2011)', title_english: 'Hunter x Hunter', type: 'TV', year: 2011 },
+  ]
+  assert.equal(chonMal(hxh, { tenGoc: 'Hunter x Hunter', nam: 2011, laBo: true }), 11061, 'năm phải tách được bản 2011')
+  assert.equal(chonMal(hxh, { tenGoc: 'Hunter x Hunter', laBo: true }), null, 'hai bản trùng tên mà dám đoán')
+  assert.deepEqual(
+    docAniSkip({ found: true, results: [{ interval: { startTime: 88.5, endTime: 178.6 }, skipType: 'op' }, { interval: { start_time: 1320, end_time: 1410 }, skip_type: 'mixed-ed' }] }),
+    { op: { tu: 88.5, den: 178.6 }, ed: { tu: 1320, den: 1410 } },
+  )
+  assert.deepEqual(docAniSkip({ found: false }), { op: null, ed: null })
+  assert.ok(laAnime([{ slug: 'hoat-hinh' }], [{ slug: 'nhat-ban' }]))
+  assert.ok(!laAnime([{ slug: 'hoat-hinh' }], [{ slug: 'au-my' }]), 'hoạt hình Mỹ không có trên AniSkip')
+  return '4 ca chọn MAL, 2 kiểu dữ liệu, nhận diện anime'
 })
 
 await phep('Lịch ra tập: chỉ khẳng định khi dữ liệu đủ chắc', async () => {
