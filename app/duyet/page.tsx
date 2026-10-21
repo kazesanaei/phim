@@ -7,6 +7,7 @@ import { duyet, layDanhMuc } from '@/lib/nguon'
 import { phimLocal, danhMucLocal } from '@/lib/thu-vien'
 import { gomPhan } from '@/lib/phan-phim'
 import { demKho, locKho, veTom } from '@/lib/kho-nguon'
+import Trong from '@/components/Trong'
 
 export const revalidate = 300
 
@@ -121,11 +122,20 @@ export default async function TrangDuyet({ searchParams }: PageProps<'/duyet'>) 
       )}
 
       {the.length === 0 ? (
-        <p className="py-16 text-center text-sm text-white/40">
-          {laLocal
-            ? 'Kho trong máy chưa có phim nào khớp. Vào Quản trị để thêm thư mục và quét.'
-            : 'Không tìm thấy phim nào khớp bộ lọc này.'}
-        </p>
+        laLocal ? (
+          <Trong
+            tieuDe="Kho trong máy chưa có phim nào khớp"
+            moTa="Thêm thư mục phim trong Quản trị rồi quét một lần là có."
+            nut={[{ nhan: 'Mở Quản trị', href: '/quan-tri', chinh: true }]}
+          />
+        ) : (
+          <Trong
+            hinh="tim"
+            tieuDe="Không có phim nào khớp bộ lọc này"
+            moTa="Bỏ bớt một điều kiện lọc, hoặc xem toàn bộ danh mục."
+            nut={[{ nhan: 'Xoá bộ lọc', href: '/duyet', chinh: true }]}
+          />
+        )
       ) : (
         <div className="troi-len luoi-phim grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
           {the.map((t) => (

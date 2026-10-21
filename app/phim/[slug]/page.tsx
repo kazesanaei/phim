@@ -13,6 +13,8 @@ import ChonPhan from '@/components/ChonPhan'
 import NutTheoDoi from '@/components/NutTheoDoi'
 import { tachPhan } from '@/lib/ten-phan'
 import GoiYPhim from '@/components/GoiYPhim'
+import TabTrang from '@/components/TabTrang'
+import { layMau } from '@/lib/mau-phim'
 import { ghiLichTap, uocLichTap, truocDay } from '@/lib/lich-tap'
 
 export const revalidate = 300
@@ -72,11 +74,40 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
 
   const duongXem = tapTiep ? `/xem/${slug}?tap=${tapTiep.slug}` : `/xem/${slug}`
 
+  /**
+   * Tự nhận intro/đoạn kết TRƯỚC cho tập sắp xem, để lúc bấm phát mốc đã có sẵn
+   * thay vì chờ 1–2 phút. Import động và bỏ qua lúc `next build` — cùng lý do với
+   * hâm ảnh: kéo lib có đường dẫn tệp động vào trang làm build gãy.
+   */
+  if (process.env.NEXT_PHASE !== 'phase-production-build') {
+    void import('@/lib/tu-dong-intro')
+      .then((m) => nhieuTap && !laLocal && tapTiep && m.xepHangPhanTich(slug, tapTiep.slug))
+      .catch(() => {})
+  }
+
+
+  const coNguoi = ct.daoDien.length > 0 || ct.dienVien.length > 0
+  const mau = laLocal ? null : await layMau(ct.poster)
+  const tab = [
+    { id: 'thong-tin', nhan: 'Thông tin' },
+    ...(ct.mayChu.length ? [{ id: 'tap', nhan: nhieuTap ? 'Tập phim' : 'Xem phim' }] : []),
+    ...(coNguoi ? [{ id: 'dien-vien', nhan: 'Diễn viên' }] : []),
+    ...(laLocal ? [] : [{ id: 'tuong-tu', nhan: 'Tương tự' }]),
+  ]
+
   return (
     <div>
-      <div className="relative">
+      <div id="thong-tin" className="tab-dich relative">
         <Anh src={anh} rong={1280} uuTien anAnToan className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-[var(--color-nen)]/80 backdrop-blur-sm" />
+        {/* Sắc màu riêng của phim, lấy từ poster — mỗi trang phim một không khí. */}
+        {mau && (
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-80"
+            style={{ background: `radial-gradient(110% 100% at 10% 0%, ${mau}, transparent 70%)` }}
+          />
+        )}
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[var(--color-nen)] to-transparent" />
 
         <div className="ct-dau relative mx-auto flex max-w-[1400px] flex-col gap-6 px-4 py-8 md:flex-row md:py-10">
@@ -244,6 +275,8 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
       </div>
 
       <div className="mx-auto max-w-[1400px] px-4 pb-12">
+        <TabTrang tab={tab} />
+        <section id="tap" className="tab-dich">
         {/* Bọc Suspense: dải chọn phần phải tra thêm một lượt tìm kiếm ở nguồn,
             đừng để nó chặn phần còn lại của trang. Phim local không có phần. */}
         {!laLocal && (
@@ -252,7 +285,7 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
           </Suspense>
         )}
 
-        <div className="mt-6" />
+        <div className="mt-2" />
 
         {ct.mayChu.map((m, i) => (
           <div key={i} className="mb-6">
@@ -265,13 +298,14 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
         {ct.mayChu.length === 0 && (
           <p className="py-10 text-center text-sm text-white/40">Phim này chưa có nguồn phát.</p>
         )}
+        </section>
 
         {/* Đạo diễn / diễn viên nằm SAU danh sách tập. Trước đây chúng ở khối đầu
             trang, thành một bức tường thẻ tên đẩy danh sách tập xuống quá màn hình
             đầu — ảnh chụp TV 960x540 không thấy tập nào. Người mở trang phim bộ
             chủ yếu để chọn tập; FPT Play, VieON, Netflix đều đặt tập ngay dưới nút. */}
-        {(ct.daoDien.length > 0 || ct.dienVien.length > 0) && (
-          <dl className="mb-8 grid gap-2 border-t border-white/10 pt-6 text-sm">
+        {coNguoi && (
+          <dl id="dien-vien" className="tab-dich mb-8 grid gap-2 border-t border-white/10 pt-6 text-sm">
             {ct.daoDien.length > 0 && (
               <Dong nhan="Đạo diễn">
                 {ct.daoDien.map((ten) => (
@@ -305,7 +339,11 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
         )}
 
         {/* Gợi ý dựng từ kho trong máy, không gọi mạng — xem GoiYPhim.tsx */}
-        {!laLocal && <GoiYPhim slug={slug} />}
+        {!laLocal && (
+          <div id="tuong-tu" className="tab-dich">
+            <GoiYPhim slug={slug} />
+          </div>
+        )}
       </div>
     </div>
   )

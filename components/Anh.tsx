@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 /** Bề rộng phải nằm trong danh sách BE_RONG của lib/anh.ts. */
-export type BeRongAnh = 200 | 400 | 800 | 1280
+export type BeRongAnh = 200 | 400 | 800 | 1280 | 1920
 
 const NGOAI = /^https?:\/\//i
 
@@ -73,6 +73,9 @@ export default function Anh({
   const [trangThai, datTrangThai] = useState<'cho' | 'xong' | 'hong'>('xong')
   const oRef = useRef<HTMLImageElement>(null)
   const dich = urlAnh(src, rong)
+  // 1280 chỉ dùng cho banner tràn khung. Màn 1920 thật (TV 960 CSS px × dpr 2,
+  // laptop 4K) thì kèm bản 1920 để trình duyệt tự chọn — ảnh nguồn đa số lớn hơn.
+  const srcSet = rong === 1280 && dich !== src ? `${dich} 1280w, ${urlAnh(src, 1920)} 1920w` : undefined
 
   useEffect(() => {
     const e = oRef.current
@@ -91,6 +94,8 @@ export default function Anh({
       <img
         ref={oRef}
         src={dich}
+        srcSet={srcSet}
+        sizes={srcSet && '100vw'}
         alt={alt}
         aria-hidden={anAnToan || undefined}
         loading={uuTien ? 'eager' : 'lazy'}

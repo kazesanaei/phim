@@ -8,6 +8,9 @@
  * `visible` — vẽ tại chỗ là bị cắt cụt ngay.
  */
 import Link from 'next/link'
+import { ChoLink } from '@/components/ThanhTai'
+import { thongBao } from '@/components/ThongBao'
+import { ghiTheVuaBam } from '@/components/HopThoai'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -49,8 +52,12 @@ export default function TheePhim({
   const oRef = useRef<HTMLDivElement>(null)
   const hen = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [viTri, datViTri] = useState<ViTri | null>(null)
+  const [daGo, datDaGo] = useState(false)
 
   const laTv = dungCheDo() === 'tv'
+  // Thẻ đang xem dở (có tiến độ) dùng ảnh ngang cả trên PC, như Netflix: ảnh ngang
+  // gần với khung hình đang xem dở hơn poster, và thanh tiến độ dài ra dễ đọc.
+  const ngang = laTv || !!tienDo
   const dich = href || `/phim/${phim.slug}`
   const ten = tenHienThi || phim.ten
   const nhieuPhan = (soPhan ?? 0) > 1
@@ -100,25 +107,33 @@ export default function TheePhim({
 
   useEffect(() => () => huyHen(), [])
 
-  async function goKhoiDangXem(e: React.MouseEvent) {
+  // Ẩn ngay, 5 giây sau (hết thông báo, không ai hoàn tác) mới xoá thật.
+  function goKhoiDangXem(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     if (!khoaXoa) return
-    await fetch('/api/xem', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ viec: 'xoa-tien-do', khoa: khoaXoa }),
-    })
     datViTri(null)
-    router.refresh()
+    datDaGo(true)
+    thongBao('Đã gỡ khỏi Tiếp tục xem', {
+      hoanTac: () => datDaGo(false),
+      khiHet: () =>
+        void fetch('/api/xem', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ viec: 'xoa-tien-do', khoa: khoaXoa }),
+        }).then(() => router.refresh()),
+    })
   }
 
+  if (daGo) return null
+
   return (
-    <div ref={oRef} className="the-phim group/the relative" onMouseEnter={moBang} onMouseLeave={dongBang}>
+    <div ref={oRef} className={`the-phim group/the relative ${tienDo ? 'the-ngang' : ''}`} onMouseEnter={moBang} onMouseLeave={dongBang}>
       {/* Đặt NGOÀI <Link> để bấm lưu không kích hoạt link mở phim */}
       <NutLuuNhanh phim={phim} ten={ten} />
 
-      <Link href={dich} title={ten} aria-label={ten} className="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+      <Link href={dich} title={ten} aria-label={ten} onClick={(e) => !laTv && ghiTheVuaBam(e.currentTarget)} className="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+        <ChoLink />
         {thuHang !== undefined && (
           /**
            * Số thứ hạng nằm BÊN TRÁI poster, chỉ gối lên mép một đoạn nhỏ.
@@ -151,7 +166,7 @@ export default function TheePhim({
              * nên thẻ thấp hơn là thấy được nhiều hàng hơn. 18.351/18.719 phim
              * đã có sẵn ảnh ngang; phim nào không có thì lùi về poster.
              */
-            src={laTv ? phim.anhNgang || phim.poster : phim.poster}
+            src={ngang ? phim.anhNgang || phim.poster : phim.poster}
             alt={ten}
             rong={400}
             duPhong={ten}
@@ -215,7 +230,7 @@ export default function TheePhim({
       {viTri &&
         createPortal(
           <div
-            className="fixed z-[100] hidden animate-[hienBang_.18s_ease-out] overflow-hidden rounded-lg bg-[#181818] shadow-[0_16px_40px_rgba(0,0,0,.8)] ring-1 ring-white/10 md:block"
+            className="fixed z-[100] hidden animate-[hienBang_.18s_ease-out] overflow-hidden rounded-lg bg-noi shadow-[0_16px_40px_rgba(0,0,0,.8)] ring-1 ring-white/10 md:block"
             style={{ left: viTri.trai, top: viTri.tren, width: viTri.rong }}
             onMouseEnter={huyHen}
             onMouseLeave={dongBang}
@@ -223,7 +238,7 @@ export default function TheePhim({
             <Link href={dich} className="block">
               <div className="relative aspect-video w-full bg-black">
                 <Anh src={phim.anhNgang || phim.poster} rong={400} anAnToan className="h-full w-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-noi via-transparent to-transparent" />
               </div>
             </Link>
 

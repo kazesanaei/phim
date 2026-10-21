@@ -5,12 +5,26 @@
  * đều quay lại đúng chỗ cũ trong lưới nhờ router.back().
  */
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+
+/**
+ * Thẻ phim vừa bấm (D1): hộp thoại nở ra TỪ đúng chỗ tấm poster thay vì hiện
+ * giữa màn. Không dùng ViewTransition có tên: thẻ vẫn nằm nguyên trong lưới khi
+ * hộp mở (khác với chuyển trang), và một phim có thể nằm ở nhiều hàng cùng lúc
+ * — trùng view-transition-name là trình duyệt bỏ cả hiệu ứng. Nên làm FLIP tay:
+ * nhớ khung thẻ lúc bấm, hộp mở thì chạy từ khung đó về chỗ thật.
+ */
+let theVuaBam: { khung: DOMRect; luc: number } | null = null
+
+export function ghiTheVuaBam(e: Element) {
+  theVuaBam = { khung: e.getBoundingClientRect(), luc: performance.now() }
+}
 
 export default function HopThoai({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const duong = usePathname()
   const oRef = useRef<HTMLDivElement>(null)
+  const hopRef = useRef<HTMLDivElement>(null)
 
   /**
    * TỰ ĐÓNG KHI ĐƯỜNG DẪN KHÔNG CÒN LÀ TRANG PHIM NỮA.
@@ -45,6 +59,25 @@ export default function HopThoai({ children }: { children: React.ReactNode }) {
     }
   }, [router, hien])
 
+  useLayoutEffect(() => {
+    const the = theVuaBam
+    theVuaBam = null
+    const hop = hopRef.current
+    // Quá 1,5 giây (nguồn chậm) thì thôi: bay từ một tấm thẻ đã cuộn đi mất trông lạc lõng.
+    if (!hien || !hop || !the || performance.now() - the.luc > 1500) return
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const o = hop.getBoundingClientRect()
+    const ti = the.khung.width / o.width
+    hop.style.animation = 'none'
+    hop.animate(
+      [
+        { transform: `translate(${the.khung.left - o.left}px, ${the.khung.top - o.top}px) scale(${ti})`, opacity: 0.4, borderRadius: '24px' },
+        { transform: 'none', opacity: 1, borderRadius: '12px' },
+      ],
+      { duration: 340, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' },
+    )
+  }, [hien])
+
   if (!hien) return null
 
   return (
@@ -55,7 +88,7 @@ export default function HopThoai({ children }: { children: React.ReactNode }) {
       }}
       ref={oRef}
     >
-      <div className="no-hop mx-auto my-8 w-full max-w-3xl overflow-hidden rounded-xl bg-[#181818] shadow-2xl ring-1 ring-white/10">
+      <div ref={hopRef} className="no-hop mx-auto my-8 w-full max-w-3xl origin-top-left overflow-hidden rounded-xl bg-noi shadow-2xl ring-1 ring-white/10">
         <div className="relative">
           <button
             onClick={() => router.back()}

@@ -238,6 +238,37 @@ create table if not exists nguoi_da_quet (
 -- Mỗi lần thấy phim bộ lên tập mới thì ghi một dòng, để suy ra lịch ra tập.
 -- thay_luc là giờ NGUỒN cập nhật (modified.time), không phải giờ mình nhìn thấy:
 -- mở trang muộn ba ngày thì giờ nhìn thấy lệch ba ngày, giờ nguồn thì không.
+-- Mốc intro / đoạn kết TỰ NHẬN cho từng tập (lib/tu-dong-intro.ts).
+-- Theo từng tập chứ không theo cả phim: có phim mở màn bằng một cảnh rồi mới
+-- tới tựa, nên intro nằm ở chỗ khác nhau mỗi tập (30 Rock: 0:56 tập 3, 0:27 tập 4).
+-- trang_thai: 'xong' | 'loi' | 'mot-tap' (phim chỉ có một tập, không có gì để so).
+-- Cột mốc NULL khi đã phân tích mà không thấy đoạn chung đủ dài.
+create table if not exists moc_tap (
+  phim_slug text not null,
+  tap_slug text not null,
+  intro_tu real,
+  intro_den real,
+  ket_tu real,
+  ket_den real,
+  thoi_luong real,
+  trang_thai text not null,
+  loi text,
+  cap_nhat text not null default (datetime('now')),
+  primary key (phim_slug, tap_slug)
+);
+
+-- Câu thoại trong phụ đề phim trong máy, để tìm phim theo câu nói (lib/cau-thoai.ts).
+-- Cột tim là chữ đã đổi đ→d: remove_diacritics bỏ dấu thanh/mũ nhưng KHÔNG coi
+-- đ là d có dấu (đó là chữ riêng), nên "dau roi" không khớp "đâu rồi".
+create virtual table if not exists cau_thoai using fts5(
+  tim,
+  chu unindexed,
+  phu_de_id unindexed,
+  giay unindexed,
+  tokenize = 'unicode61 remove_diacritics 2'
+);
+create table if not exists cau_thoai_da (phu_de_id integer primary key);
+
 create table if not exists lich_tap (
   slug text not null,
   tap text not null,

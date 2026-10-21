@@ -6,6 +6,9 @@
   --color-nen-2: #15151c;
   --color-vien: #26262f;
   --color-nhan: #e5251f;
+  /* Mặt nổi: hộp thoại, bảng bung, thẻ hover. Mặt mờ: nền nhẹ trên ảnh/video. */
+  --color-noi: #17171e;
+  --color-mo: rgb(255 255 255 / 0.06);
 }
 
 /* Nhịp chung cho mọi chuyển động. Đổi ở đây là đổi cả trang. */
@@ -908,4 +911,103 @@ header a {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ==================================================================
+   Chữ hiển thị (tiêu đề) dùng Be Vietnam Pro — dấu tiếng Việt vẽ cho
+   cỡ lớn, nét đậm không dính. Chữ thân giữ Inter.
+   ================================================================== */
+h1,
+h2,
+.chu-hien-thi {
+  font-family: var(--font-be-vn), var(--font-inter), system-ui, sans-serif;
+  letter-spacing: -0.015em;
+}
+
+/* Hàng phim mờ dần lên khi cuộn tới — CSS thuần, trình duyệt cũ bỏ qua. */
+@keyframes hienDan {
+  from {
+    opacity: 0.15;
+  }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* Chỉ opacity: transform trên hàng sẽ thành khối chứa cho thẻ hover position:fixed. */
+    .hang-phim {
+      animation: hienDan linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 35%;
+    }
+  }
+}
+
+/* Chữ và nút trên banner vào lần lượt mỗi lần đổi phim (khối có key theo phim). */
+.vao-tang > * {
+  animation: troiLen var(--nhip-cham) var(--duong-cong) both;
+}
+.vao-tang > :nth-child(2) { animation-delay: 60ms; }
+.vao-tang > :nth-child(3) { animation-delay: 120ms; }
+.vao-tang > :nth-child(4) { animation-delay: 180ms; }
+
+/* Vạch tải trên đỉnh trang (components/ThanhTai.tsx). Chạy nhanh lúc đầu rồi
+   chậm dần, không bao giờ tự chạm 100% — trang về thì vạch biến mất. */
+@keyframes chayTai {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(0.92);
+  }
+}
+.thanh-tai,
+html[data-dang-tai] body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 200;
+  height: 3px;
+  background: var(--color-nhan);
+  box-shadow: 0 0 10px var(--color-nhan);
+  transform-origin: left;
+  animation: chayTai 6s cubic-bezier(0.08, 0.8, 0.2, 1) both;
+  pointer-events: none;
+}
+
+/* Thẻ "Tiếp tục xem" trên PC: ảnh ngang 16:9 (TV đã ngang sẵn ở trên). */
+.the-ngang .khung-anh {
+  aspect-ratio: 16 / 9;
+}
+.the-ngang p:first-of-type {
+  min-height: 0;
+}
+
+/* Neo của dải tab trang phim: chừa đầu trang (3.5rem) + dải tab. */
+.tab-dich {
+  scroll-margin-top: 7rem;
+}
+
+/* Ánh sáng tràn quanh trình phát (components/AnhSangVideo.tsx). Canvas nằm
+   ngay trước .trinh-phat, đè đúng khung 16:9 của nó (px-4 py-5 của .trang-xem). */
+.trang-xem {
+  position: relative;
+}
+.anh-sang-video {
+  position: absolute;
+  top: 1.25rem;
+  left: 1rem;
+  width: calc(100% - 2rem);
+  aspect-ratio: 16 / 9;
+  filter: blur(80px) saturate(1.6);
+  transform: scale(1.06);
+  opacity: 0;
+  transition: opacity 1.5s ease;
+  pointer-events: none;
+}
+.anh-sang-video[data-co] {
+  opacity: 0.5;
+}
+/* Canvas phóng to 1.06 và nhoè tràn ra ngoài — clip ngang để trang không có
+   thanh cuộn ngang. `clip` chứ không `hidden`: không tạo khung cuộn, sticky vẫn chạy. */
+main:has(.trang-xem) {
+  overflow-x: clip;
 }

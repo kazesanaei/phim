@@ -70,3 +70,70 @@ export function gioPhut(giay: number): string {
   if (g <= 0) return p + ' phút'
   return p > 0 ? `${g} giờ ${p} phút` : `${g} giờ`
 }
+
+export type NamXem = {
+  nam: string
+  soPhim: number
+  soTap: number
+  giay: number
+  phimDinh: { slug: string; ten: string | null; poster: string | null; anh: string | null; giay: number } | null
+  gioHay: number | null
+  thangDinh: { thang: number; giay: number } | null
+  chuoiDai: number
+}
+
+/** Các năm có dữ liệu, mới nhất trước. */
+export function cacNam(): string[] {
+  return (
+    db.prepare(`select distinct strftime('%Y', cap_nhat, '+7 hours') as nam from xem order by nam desc`).all() as { nam: string }[]
+  ).map((r) => r.nam)
+}
+
+/**
+ * "Năm xem phim của bạn". Cùng giới hạn như phần trên: mỗi tập chỉ có MỘT mốc
+ * cap_nhat (lần xem gần nhất), nên giờ hay xem và chuỗi ngày là ước lượng thấp.
+ */
+export function namXem(nam: string): NamXem {
+  const loc = `strftime('%Y', cap_nhat, '+7 hours') = ?`
+  const a = db.prepare(`select count(distinct slug) as soPhim, count(*) as soTap, sum(vi_tri) as giay from xem where ${loc}`).get(nam) as {
+    soPhim: number
+    soTap: number
+    giay: number | null
+  }
+  const phimDinh = db
+    .prepare(
+      `select slug, max(ten) as ten, max(poster) as poster, max(anh_ngang) as anh, sum(vi_tri) as giay
+       from xem where ${loc} group by slug order by giay desc limit 1`,
+    )
+    .get(nam) as NamXem['phimDinh'] | undefined
+  const gio = db
+    .prepare(`select cast(strftime('%H', cap_nhat, '+7 hours') as int) as gio, count(*) as n from xem where ${loc} group by gio order by n desc limit 1`)
+    .get(nam) as { gio: number } | undefined
+  const thang = db
+    .prepare(`select cast(strftime('%m', cap_nhat, '+7 hours') as int) as thang, sum(vi_tri) as giay from xem where ${loc} group by thang order by giay desc limit 1`)
+    .get(nam) as { thang: number; giay: number } | undefined
+  const ngay = (db.prepare(`select distinct date(cap_nhat, '+7 hours') as d from xem where ${loc} order by d`).all(nam) as { d: string }[]).map(
+    (r) => Date.parse(r.d) / 86_400_000,
+  )
+  return {
+    nam,
+    soPhim: a.soPhim || 0,
+    soTap: a.soTap || 0,
+    giay: a.giay || 0,
+    phimDinh: phimDinh ?? null,
+    gioHay: gio?.gio ?? null,
+    thangDinh: thang ?? null,
+    chuoiDai: chuoiDaiNhat(ngay),
+  }
+}
+
+/** Chuỗi ngày liên tiếp dài nhất trong danh sách số-ngày đã sắp tăng dần. */
+export function chuoiDaiNhat(ngay: number[]): number {
+  let dai = 0
+  let dang = 0
+  for (let i = 0; i < ngay.length; i++) {
+    dang = i > 0 && ngay[i] - ngay[i - 1] === 1 ? dang + 1 : 1
+    dai = Math.max(dai, dang)
+  }
+  return dai
+}

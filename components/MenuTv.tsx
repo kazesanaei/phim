@@ -15,6 +15,7 @@
  * đỡ được một nhịp bấm.
  */
 import Link from 'next/link'
+import Logo from '@/components/Logo'
 import { useEffect, useRef, useState } from 'react'
 
 type Muc = { ten: string; slug: string }
@@ -77,7 +78,7 @@ export default function MenuTv({ du, dong }: { du: DuMenu | null; dong: () => vo
       >
         {/* ---- Cột trái: lối đi chính + tên nhóm ---- */}
         <nav className="flex w-[15rem] shrink-0 flex-col overflow-y-auto py-3">
-          <p className="px-4 pb-2 text-lg font-extrabold tracking-tight text-[var(--color-nhan)]">KHO PHIM</p>
+          <p className="px-4 pb-2"><Logo /></p>
 
           {/* Việc một-bấm-là-xong, để trên cùng: trên TV đây là thứ hay dùng nhất
               và nó vốn nằm ở đầu trang, giờ đầu trang đã rút gọn nên phải có chỗ.
@@ -106,6 +107,10 @@ export default function MenuTv({ du, dong }: { du: DuMenu | null; dong: () => vo
           ))}
 
           <div className="my-2 border-t border-[var(--color-vien)]" />
+
+          <Link href="/ghep-dien-thoai" onClick={dong} onMouseEnter={() => datNhom(null)} className="muc-tv px-4 py-1.5 text-white/80 transition hover:bg-white/12 hover:text-white">
+            Điện thoại làm remote
+          </Link>
 
           {(['the-loai', 'quoc-gia', 'nam', 'tiep-tuc'] as Nhom[]).map((n) => (
             <button

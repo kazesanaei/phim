@@ -46,7 +46,7 @@ const HOST_CHO_PHEP = new Set([
  * lạ là một lần gọi ffmpeg và một tệp đệm mới — dễ thành chỗ cho người ta bơm
  * đầy đĩa. components/Anh.tsx phải dùng đúng các số này.
  */
-export const BE_RONG = [200, 400, 800, 1280] as const
+export const BE_RONG = [200, 400, 800, 1280, 1920] as const
 export type BeRong = (typeof BE_RONG)[number]
 
 /** Số kết nối ra CDN cùng lúc. 3 là mức đo được không rớt. */
@@ -148,6 +148,11 @@ async function ghiDem(u: string, rong: BeRong | undefined, than: Buffer, kieu: s
  * dùng ảnh gốc, vì thiếu ffmpeg là chuyện bình thường (xem CAI-DAT.md).
  */
 async function thuNho(goc: Buffer, rong: BeRong): Promise<Buffer | null> {
+  return quaFfmpeg(goc, ['-vf', `scale='min(iw,${rong})':-2:flags=lanczos`, '-q:v', '4', '-f', 'mjpeg'])
+}
+
+/** Đưa ảnh qua ffmpeg bằng ống vào/ra. `ra` là các cờ đầu ra (bộ lọc, định dạng). */
+async function quaFfmpeg(goc: Buffer, ra: string[]): Promise<Buffer | null> {
   let lenh: string
   try {
     lenh = timLenh('ffmpeg')
@@ -161,9 +166,8 @@ async function thuNho(goc: Buffer, rong: BeRong): Promise<Buffer | null> {
       [
         '-hide_banner', '-loglevel', 'error',
         '-i', 'pipe:0',
-        '-vf', `scale='min(iw,${rong})':-2:flags=lanczos`,
-        '-q:v', '4',
-        '-f', 'mjpeg', 'pipe:1',
+        ...ra,
+        'pipe:1',
       ],
       { windowsHide: true },
     )
@@ -345,4 +349,64 @@ export async function xoaDemAnh(): Promise<number> {
     // chưa có thư mục đệm
   }
   return n
+}
+
+/* ------------------------------ màu chủ đạo ------------------------------ */
+
+/**
+ * Màu nền riêng của một phim (A2): lấy từ poster đã đệm 200px, tính MỘT lần rồi
+ * ghi ra đĩa cạnh kho ảnh. ffmpeg thu ảnh về 8x8 điểm ảnh RGB; chọn điểm vừa
+ * rực vừa sáng nhất (trung bình cộng cả ảnh thường ra màu bùn), rồi kéo về độ
+ * sáng thấp cố định để làm nền tối mà chữ trắng vẫn đọc được.
+ */
+const KHO_MAU = path.join(THU_MUC, 'mau')
+type KhoMau = Map<string, Promise<string | null>>
+const khoMau = globalThis as unknown as { __khoMau?: KhoMau }
+const dangTinhMau: KhoMau = (khoMau.__khoMau ??= new Map())
+
+export function chonMau(rgb: Buffer): string | null {
+  let tot = -1
+  let chon: [number, number, number] | null = null
+  for (let i = 0; i + 2 < rgb.length; i += 3) {
+    const r = rgb[i] / 255, g = rgb[i + 1] / 255, b = rgb[i + 2] / 255
+    const max = Math.max(r, g, b), min = Math.min(r, g, b)
+    const bao = max === 0 ? 0 : (max - min) / max
+    // Ưu tiên rực, phạt điểm quá tối/quá sáng (nền đen, bầu trời trắng).
+    const diem = bao * (1 - Math.abs(max - 0.65))
+    if (diem > tot) {
+      tot = diem
+      chon = [r, g, b]
+    }
+  }
+  if (!chon) return null
+  const [r, g, b] = chon
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min
+  let h = 0
+  if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  h = Math.round(((h * 60) + 360) % 360)
+  // Ảnh gần như xám: trả màu xám lạnh thay vì bịa ra một sắc độ.
+  const bh = max === 0 ? 0 : d / max
+  return bh < 0.15 ? 'hsl(230 12% 22%)' : `hsl(${h} ${Math.round(Math.min(70, 35 + bh * 45))}% 26%)`
+}
+
+export async function mauPhim(u: string | null | undefined): Promise<string | null> {
+  if (!u || !hopLe(u)) return null
+  const tep = path.join(KHO_MAU, createHash('sha1').update(u).digest('hex') + '.txt')
+  const co = await readFile(tep, 'utf8').catch(() => null)
+  if (co !== null) return co || null
+
+  const dang = dangTinhMau.get(tep)
+  if (dang) return dang
+  const viec = (async () => {
+    const anh = await layAnh(u, 200)
+    if (!anh) return null
+    const rgb = await quaFfmpeg(anh.than, ['-vf', 'scale=8:8:flags=area', '-pix_fmt', 'rgb24', '-f', 'rawvideo'])
+    const mau = rgb ? chonMau(rgb) : null
+    mkdirSync(KHO_MAU, { recursive: true })
+    // Ghi cả kết quả rỗng: ảnh hỏng thì đừng chạy ffmpeg lại mỗi lần mở trang.
+    await writeFile(tep, mau ?? '').catch(() => {})
+    return mau
+  })().finally(() => dangTinhMau.delete(tep))
+  dangTinhMau.set(tep, viec)
+  return viec
 }

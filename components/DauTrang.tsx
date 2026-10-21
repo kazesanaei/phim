@@ -16,6 +16,8 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { urlAnh } from '@/components/Anh'
 import NutCheDo from '@/components/NutCheDo'
 import MenuTv from '@/components/MenuTv'
+import Logo from '@/components/Logo'
+import { ChoLink } from '@/components/ThanhTai'
 import { dungCheDo } from '@/components/dung-che-do'
 
 /**
@@ -83,6 +85,7 @@ function DsMuc({ chon, dong }: { chon: (m: Muc) => boolean; dong?: () => void })
           } ${m.phu === 2 ? 'hidden @min-[96rem]:inline-block' : m.phu === 1 ? 'hidden @min-[84rem]:inline-block' : ''}`}
         >
           {m.nhan}
+          <ChoLink />
         </Link>
       ))}
     </>
@@ -228,9 +231,10 @@ export default function DauTrang({ oTim }: { oTim: React.ReactNode }) {
 
           <Link
             href="/"
-            className="shrink-0 text-lg font-extrabold tracking-tight text-[var(--color-nhan)] transition-transform hover:scale-105"
+            aria-label="Kho phim — trang chủ"
+            className="shrink-0 transition-transform hover:scale-105"
           >
-            KHO PHIM
+            <Logo />
           </Link>
 
           <nav className="an-tren-tv hidden items-center gap-3 text-sm text-white/70 @min-[66rem]:flex @min-[92rem]:gap-4">
@@ -376,6 +380,7 @@ function Vien1({ href, ten, dong }: { href: string; ten: string; dong: () => voi
       className="rounded-full bg-white/8 px-2.5 py-1 text-xs text-white/70 transition hover:bg-white/20 hover:text-white focus-visible:ring-2 focus-visible:ring-white"
     >
       {ten}
+      <ChoLink />
     </Link>
   )
 }
@@ -499,7 +504,7 @@ function NganKeo({ du, dong }: { du: DuLieu | null; dong: () => void }) {
   return (
     <>
       <div className="mb-5 flex items-center justify-between">
-        <span className="text-lg font-extrabold tracking-tight text-[var(--color-nhan)]">KHO PHIM</span>
+        <Logo />
         <button
           onClick={dong}
           aria-label="Đóng menu"
@@ -594,6 +599,7 @@ function DsMucNgan({ chon, dong }: { chon: (m: Muc) => boolean; dong: () => void
           }`}
         >
           {m.nhan}
+          <ChoLink />
         </Link>
       ))}
     </>

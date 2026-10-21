@@ -13,11 +13,13 @@ import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { srtSangVtt, doiThoiGian } from '../lib/phu-de.ts'
+import { srtSangVtt, doiThoiGian, docCue, boD } from '../lib/phu-de.ts'
+import { DatabaseSync } from 'node:sqlite'
 import { bocVoTS, docSegment } from '../lib/hls.ts'
 import { tachPhan } from '../lib/ten-phan.ts'
 import { xepTap } from '../lib/xep-tap.ts'
 import { nhipTuMoc, truocDay } from '../lib/nhip-tap.ts'
+import { timDoanChung, doiRaGiay, GIAY_MOI_KHUNG, INTRO_NGAN_NHAT, INTRO_DAI_NHAT } from '../lib/van-tay.ts'
 import { bienTheTuKhoa, khopTuKhoa, slugHoa } from '../lib/tu-khoa.ts'
 import { xetTen18, mucTheoTheLoai } from '../lib/ten-18.ts'
 import { chuanHoa, themAfter, nutAfterCredit, nhanNut } from '../lib/after-credit.ts'
@@ -348,6 +350,59 @@ await phep('Lịch ra tập: chỉ khẳng định khi dữ liệu đủ chắc'
   assert.equal(truocDay(new Date(bay - 3 * 86400000).toISOString(), bay), '3 ngày trước')
   assert.equal(truocDay('rác', bay), null)
   return 'thứ cố định, hằng ngày, hai tập/tuần, và không bịa khi lộn xộn'
+})
+
+await phep('Tìm câu thoại: tách đúng câu và mốc, gõ không dấu vẫn khớp cả chữ đ', async () => {
+  const srt = '1\r\n00:03:42,625 --> 00:03:44,416\r\n<i>Bố ơi,</i> bố đâu rồi?\r\n\r\n2\r\n01:02:03,000 --> 01:02:04,000\r\nDòng một\r\nDòng hai\r\n'
+  const cue = docCue(srtSangVtt(srt))
+  assert.deepEqual(cue, [
+    { giay: 222, chu: 'Bố ơi, bố đâu rồi?' },
+    { giay: 3723, chu: 'Dòng một Dòng hai' },
+  ])
+  // Cùng bộ tách từ với bảng cau_thoai (lib/db.ts), trên DB tạm trong RAM.
+  const db = new DatabaseSync(':memory:')
+  db.exec("create virtual table t using fts5(tim, tokenize = 'unicode61 remove_diacritics 2')")
+  db.prepare('insert into t (tim) values (?)').run(boD(cue[0].chu))
+  const dem = (q) => db.prepare('select count(*) as n from t where t match ?').get('"' + q + '"').n
+  assert.equal(dem(boD('bo oi bo dau roi')), 1, 'gõ không dấu không ra')
+  assert.equal(dem(boD('bố đâu rồi')), 1, 'gõ có dấu không ra')
+  // Bẫy cũ: không đổi đ→d thì "dau" không khớp "đâu"
+  const tho = new DatabaseSync(':memory:')
+  tho.exec("create virtual table t using fts5(tim, tokenize = 'unicode61 remove_diacritics 2')")
+  tho.prepare('insert into t (tim) values (?)').run(cue[0].chu)
+  assert.equal(tho.prepare('select count(*) as n from t where t match ?').get('"dau roi"').n, 0, 'FTS5 đã tự bỏ dấu chữ đ — bỏ được boD')
+  return '2 câu tách đúng mốc; "bo oi bo dau roi" khớp, và FTS5 trần vẫn trượt chữ đ như đã đo'
+})
+
+await phep('Tự nhận intro: tìm đúng đoạn chung, không bịa khi hai tập không liên quan', async () => {
+  // Bộ sinh số giả ngẫu nhiên có hạt giống — chạy lần nào cũng ra một kết quả
+  let hat = 12345
+  const ngauNhien = () => {
+    hat = (hat + 0x6d2b79f5) >>> 0
+    let t = hat
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return (t ^ (t >>> 14)) >>> 0
+  }
+  const day = (n) => Uint32Array.from({ length: n }, ngauNhien)
+  // Đoạn nhạc chung ~99 giây, nằm ở khung 100 của tập A và khung 300 của tập B
+  // (như phim có cảnh mở màn dài ngắn khác nhau trước tựa)
+  const chung = day(800)
+  const a = day(2400)
+  const b = day(2400)
+  a.set(chung, 100)
+  // Bản trong tập B lệch vài bit — nén âm thanh hai lần không bao giờ ra y hệt
+  b.set(chung.map((x) => (x ^ (1 << (ngauNhien() % 32)) ^ (1 << (ngauNhien() % 32))) >>> 0), 300)
+  const d = timDoanChung(a, b)
+  assert.ok(Math.abs(d.dai - 800) <= 2, 'độ dài đoạn chung sai: ' + d.dai)
+  assert.ok(Math.abs(d.aTu - 100) <= 2 && Math.abs(d.bTu - 300) <= 2, `vị trí sai: A ${d.aTu}, B ${d.bTu}`)
+  const g = doiRaGiay(d, 0, 0, INTRO_NGAN_NHAT, INTRO_DAI_NHAT)
+  assert.ok(g && Math.abs(g.a.tu - 100 * GIAY_MOI_KHUNG) < 0.5, 'đổi ra giây sai')
+
+  // Hai tập không có gì chung: không được nói là có intro
+  const khong = timDoanChung(day(2400), day(2400))
+  assert.equal(doiRaGiay(khong, 0, 0, INTRO_NGAN_NHAT, INTRO_DAI_NHAT), null, 'bịa ra intro dài ' + (khong.dai * GIAY_MOI_KHUNG).toFixed(1) + 's')
+  return `đoạn 99s tìm đúng vị trí ở cả hai tập; hai tập lạ chỉ trùng ngẫu nhiên ${(khong.dai * GIAY_MOI_KHUNG).toFixed(1)}s`
 })
 
 await phep('Quy ước ảnh của nguồn: vsmov poster_url ngang, KKPhim poster_url dọc', async () => {

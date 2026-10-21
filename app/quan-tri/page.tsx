@@ -1813,7 +1813,7 @@ function TabLoc18({ bao, datChoDuyet }: { bao: (t: string) => void; datChoDuyet:
               const cho = laChoDuyet(d)
               const mo = d.muc !== 'chan' || moAnh.has(d.slug)
               return (
-                <li key={d.slug} className={`flex gap-3 px-4 py-3 ${chon.has(d.slug) ? 'bg-white/[.04]' : ''}`}>
+                <li key={d.slug} className={`flex gap-3 px-4 py-3 ${chon.has(d.slug) ? 'bg-mo' : ''}`}>
                   <input
                     type="checkbox"
                     checked={chon.has(d.slug)}

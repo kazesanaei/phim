@@ -12,6 +12,7 @@
  */
 import { useTransition } from 'react'
 import { datDanhDau, dungDanhDau } from '@/components/dung-danh-dau'
+import { thongBao } from '@/components/ThongBao'
 import type { PhimTom } from '@/lib/vsmov'
 
 export default function NutLuuNhanh({ phim, ten }: { phim: PhimTom; ten: string }) {
@@ -22,6 +23,10 @@ export default function NutLuuNhanh({ phim, ten }: { phim: PhimTom; ten: string 
     // Nút nằm ĐÈ LÊN link mở phim, không chặn thì bấm lưu lại nhảy sang trang.
     e.preventDefault()
     e.stopPropagation()
+    doi(true)
+  }
+
+  function doi(baoLai: boolean) {
     batDau(async () => {
       try {
         const r = await fetch('/api/xem', {
@@ -38,7 +43,9 @@ export default function NutLuuNhanh({ phim, ten }: { phim: PhimTom; ten: string 
           }),
         })
         const j = await r.json()
-        if (typeof j.bat === 'boolean') datDanhDau(phim.slug, j.bat)
+        if (typeof j.bat !== 'boolean') return
+        datDanhDau(phim.slug, j.bat)
+        if (baoLai) thongBao(j.bat ? 'Đã lưu vào Xem sau' : 'Đã bỏ khỏi Xem sau', { hoanTac: () => doi(false) })
       } catch {
         // Mất mạng: không đổi trạng thái, người dùng bấm lại là xong.
       }
