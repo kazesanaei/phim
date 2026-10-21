@@ -1011,3 +1011,8 @@ html[data-dang-tai] body::before {
 main:has(.trang-xem) {
   overflow-x: clip;
 }
+
+/* Lịch tuần trên TV: chữ phóng to nên 7 cột quá hẹp, 2 cột thì dài cả trang. */
+[data-che-do='tv'] .lich-tuan {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}

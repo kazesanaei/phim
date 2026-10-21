@@ -34,6 +34,7 @@ const CHINH = [
   { href: '/duyet?danh-sach=phim-bo', nhan: 'Phim bộ' },
   { href: '/duyet?nguon=local', nhan: 'Kho của tôi' },
   { href: '/bo-suu-tap', nhan: 'Bộ sưu tập' },
+  { href: '/lich', nhan: 'Lịch tuần' },
   { href: '/tai-ve', nhan: 'Tải về' },
 ]
 

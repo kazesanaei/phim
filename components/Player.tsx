@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type Hls from 'hls.js'
 import { srtSangVtt, doiThoiGian } from '@/lib/phu-de'
+import { SU_KIEN_TRANG_THAI } from '@/components/NhanDieuKhien'
 import { laCham, donLichSu, type LanCho, type DangCho } from '@/lib/do-cham'
 import type { MocAniSkip } from '@/lib/aniskip-khop'
 import { MOC_CREDIT_RONG, boAfter, chuanHoa, nhanNut, nutAfterCredit, themAfter, type MocCredit } from '@/lib/after-credit'
@@ -1002,6 +1003,32 @@ export default function Player({
     }, 1000)
     return () => clearInterval(t)
   }, [henGio])
+
+  // ---- báo trạng thái cho remote điện thoại (C2) ---------------------------
+  // Chỉ phát sự kiện trên window; components/NhanDieuKhien.tsx lo gửi đi (và chỉ
+  // gửi khi TV đã ghép điện thoại). Giây làm tròn để mỗi giây chạy một lần thôi.
+  const giayNguyen = Math.floor(thoiGian)
+  useEffect(() => {
+    const i = dsTap.findIndex((t) => t.dang)
+    window.dispatchEvent(
+      new CustomEvent(SU_KIEN_TRANG_THAI, {
+        detail: {
+          ten: tenPhim || tieuDe,
+          tap: nhanTap ?? null,
+          t: giayNguyen,
+          dai: Math.floor(thoiLuong),
+          dang: dangPhat,
+          phuDe: chiSoPhuDe >= 0,
+          coPhuDe: dsPhuDe.length > 0,
+          // Một khúc quanh tập đang xem thôi — phim 1.000 tập mà gửi cả danh sách là quá cỡ.
+          dsTap: i < 0 ? [] : dsTap.slice(Math.max(0, i - 2), i + 6),
+          tapSau: tapSau?.href ?? null,
+          tapTruoc: i > 0 ? dsTap[i - 1].href : null,
+        },
+      }),
+    )
+  }, [giayNguyen, thoiLuong, dangPhat, chiSoPhuDe, dsPhuDe.length, dsTap, tapSau, tenPhim, tieuDe, nhanTap])
+  useEffect(() => () => void window.dispatchEvent(new CustomEvent(SU_KIEN_TRANG_THAI, { detail: null })), [])
 
   // ---- hẹn giờ êm (E4): 30 giây cuối nhỏ tiếng dần và tối dần --------------
   // Tắt phụt giữa câu thoại là giật mình tỉnh giấc — đúng cái hẹn giờ muốn tránh.

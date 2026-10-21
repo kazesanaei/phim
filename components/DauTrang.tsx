@@ -33,6 +33,7 @@ const MENU: Muc[] = [
   { href: '/duyet?danh-sach=phim-bo', nhan: 'Phim bộ' },
   { href: '/duyet?nguon=local', nhan: 'Kho của tôi', phu: 1 },
   { href: '/bo-suu-tap', nhan: 'Bộ sưu tập', phu: 2 },
+  { href: '/lich', nhan: 'Lịch tuần', phu: 2 },
   { href: '/tai-ve', nhan: 'Tải về', phu: 2 },
 ]
 

@@ -1,17 +1,24 @@
 import { networkInterfaces } from 'node:os'
 import QRCode from 'qrcode'
 import { traLoiLoi, chanCheoTrang } from '@/lib/an-toan'
-import { taoMa, guiLenh, hopLeLenh, nghe } from '@/lib/dieu-khien'
+import { taoMa, guiLenh, hopLeLenh, nghe, ghiTrangThai, xemTrangThai, type TrangThai } from '@/lib/dieu-khien'
 
-/** TV nghe lệnh: luồng SSE theo mã ghép. Ping 20 giây/lần cho khỏi bị cắt vì im lâu. */
+/**
+ * Luồng SSE theo mã ghép. Ping 20 giây/lần cho khỏi bị cắt vì im lâu.
+ *   ?ma=…          TV nghe lệnh
+ *   ?ma=…&ben=dt   điện thoại nghe trạng thái đang phát
+ */
 export async function GET(req: Request) {
-  const ma = new URL(req.url).searchParams.get('ma') || ''
+  const sp = new URL(req.url).searchParams
+  const ma = sp.get('ma') || ''
+  const laDt = sp.get('ben') === 'dt'
   let thoi: (() => void) | null = null
   let ping: ReturnType<typeof setInterval> | undefined
   const maHoa = new TextEncoder()
   const luong = new ReadableStream<Uint8Array>({
     start(ctl) {
-      thoi = nghe(ma, (l) => ctl.enqueue(maHoa.encode(`data: ${JSON.stringify(l)}\n\n`)))
+      const day = (x: unknown) => ctl.enqueue(maHoa.encode(`data: ${JSON.stringify(x)}\n\n`))
+      thoi = laDt ? xemTrangThai(ma, day) : nghe(ma, day)
       if (!thoi) {
         ctl.enqueue(maHoa.encode('event: het\ndata: 1\n\n'))
         ctl.close()
@@ -57,6 +64,11 @@ export async function POST(req: Request) {
       const url = `${goc.origin}/dk?ma=${ma}`
       const svg = await QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#000', light: '#fff' } })
       return Response.json({ ma, url, svg })
+    }
+    if (b.viec === 'trang-thai') {
+      const tt = (b as { tt?: unknown }).tt
+      const hop = tt === null || (typeof tt === 'object' && !Array.isArray(tt))
+      return Response.json({ ok: hop && ghiTrangThai(String(b.ma || ''), tt as TrangThai) })
     }
     if (b.viec === 'gui') {
       if (!hopLeLenh(b.lenh)) return Response.json({ loi: 'Lệnh lạ' }, { status: 400 })
