@@ -62,6 +62,7 @@ export default async function XemNhanh({ params }: PageProps<'/phim/[slug]'>) {
             {tapTiep && (
               <Link
                 href={`/xem/${slug}?tap=${tapTiep.slug}`}
+                data-nut-chinh
                 className="flex items-center gap-2 rounded bg-white px-5 py-2 text-sm font-semibold text-black transition hover:bg-white/85"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">

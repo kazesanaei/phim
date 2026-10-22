@@ -17,7 +17,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { db } from './db'
-import { coFfmpeg, docThongTin, timLenh, UA } from './ffmpeg'
+import { coFfmpeg, coVanTay, docThongTin, timLenh, UA } from './ffmpeg'
 import { bocVoTS } from './hls'
 import { giaiMaEmbed } from './nguon-phat'
 import { layChiTiet, kieuNguonPhat } from './nguon'
@@ -40,7 +40,7 @@ const HET_GIO_MS = 4 * 60_000
 const THU_LAI_SAU_MS = 10 * 60_000
 
 export type MocTap = {
-  trangThai: 'xong' | 'loi' | 'mot-tap' | 'dang-lam' | 'chua'
+  trangThai: 'xong' | 'loi' | 'mot-tap' | 'dang-lam' | 'chua' | 'khong-ho-tro'
   intro: Khoang | null
   ket: Khoang | null
 }
@@ -75,6 +75,8 @@ function docHang(slug: string, tap: string): HangMoc | null {
 /** Mốc tự nhận của một tập, kèm trạng thái để trình phát biết có nên chờ. */
 export function layMocTap(slug: string, tap: string): MocTap {
   const h = docHang(slug, tap)
+  // Máy không làm được vân tay (TV Box): nói thẳng, trình phát khỏi hỏi lại 20 lần. Kết quả cũ (chép từ laptop) vẫn dùng.
+  if (!h && !coVanTay()) return { trangThai: 'khong-ho-tro', intro: null, ket: null }
   if (!h) return { trangThai: kho.dang.has(khoa(slug, tap)) ? 'dang-lam' : 'chua', intro: null, ket: null }
   return {
     trangThai: kho.dang.has(khoa(slug, tap)) ? 'dang-lam' : (h.trang_thai as MocTap['trangThai']),
@@ -349,7 +351,7 @@ async function chayHang() {
  * Bỏ qua nếu đã có kết quả, đang làm, hoặc lỗi chưa quá 6 tiếng.
  */
 export function xepHangPhanTich(slug: string, tap: string, server = 0) {
-  if (!slug || !tap || !coFfmpeg()) return
+  if (!slug || !tap || !coFfmpeg() || !coVanTay()) return
   const k = khoa(slug, tap)
   if (kho.dang.has(k)) return
   const h = docHang(slug, tap)

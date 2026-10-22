@@ -15,6 +15,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { srtSangVtt, doiThoiGian, docCue, boD } from '../lib/phu-de.ts'
 import { DatabaseSync } from 'node:sqlite'
+import { laMienCongKhai } from '../lib/mien-hoc.ts'
 import { bocVoTS, docSegment } from '../lib/hls.ts'
 import { tachPhan } from '../lib/ten-phan.ts'
 import { xepTap } from '../lib/xep-tap.ts'
@@ -350,6 +351,15 @@ await phep('Lịch ra tập: chỉ khẳng định khi dữ liệu đủ chắc'
   assert.equal(truocDay(new Date(bay - 3 * 86400000).toISOString(), bay), '3 ngày trước')
   assert.equal(truocDay('rác', bay), null)
   return 'thứ cố định, hằng ngày, hai tập/tuần, và không bịa khi lộn xộn'
+})
+
+await phep('Máy chủ phát học từ API nguồn: nhận tên miền thật, chặn IP và tên nội mạng', async () => {
+  // Đúng các host KKPhim đang dùng (đo 22/10/2026) phải được nhận
+  for (const h of ['a.kvp726.com', 's5.phim1280.tv', 'v7.kkphimplayer7.com']) assert.ok(laMienCongKhai(h), 'chặn nhầm ' + h)
+  // Dữ liệu nguồn bị đầu độc cũng không được biến proxy thành công cụ dò mạng nhà
+  for (const h of ['192.168.1.1', '10.0.0.1', '127.0.0.1', '[::1]', '::1', 'localhost', 'router', 'nas.local', 'box.lan', 'printer.home', 'x.internal', '1.2.3.4'])
+    assert.ok(!laMienCongKhai(h), 'lọt ' + h)
+  return '3 host KKPhim thật được nhận, 12 dạng IP/nội mạng bị chặn'
 })
 
 await phep('Tìm câu thoại: tách đúng câu và mốc, gõ không dấu vẫn khớp cả chữ đ', async () => {

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { thuMucNguon } from './db'
+import { daHocMien } from './mien-hoc'
 
 /** Lỗi do đầu vào bị chặn — route bắt lỗi này và trả 403. */
 export class LoiChan extends Error {}
@@ -39,7 +40,10 @@ export function urlChoPhep(raw: string): URL {
   const u = phanTich(raw)
   const host = u.hostname.toLowerCase()
   const ok =
-    MIEN_CHO_PHEP.some((m) => host === m || host.endsWith('.' + m)) || MAU_MIEN.some((r) => r.test(host))
+    MIEN_CHO_PHEP.some((m) => host === m || host.endsWith('.' + m)) ||
+    MAU_MIEN.some((r) => r.test(host)) ||
+    // Host phát mà API nguồn tự trả về (KKPhim đổi tên miền liên tục) — xem lib/mien-hoc.ts
+    daHocMien(host)
   if (!ok) throw new LoiChan('Miền không được phép: ' + host)
   return u
 }

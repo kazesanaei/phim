@@ -47,7 +47,10 @@ export default function HopThoai({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hien) return
     const f = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') router.back()
+      if (e.key !== 'Escape') return
+      // Đánh dấu đã xử lý: PhimRemote (TV) bỏ qua phím này, không thì lùi HAI bước, văng khỏi trang chủ
+      e.preventDefault()
+      router.back()
     }
     document.addEventListener('keydown', f)
     // Khoá cuộn nền để hộp thoại không trôi theo trang phía sau
@@ -58,6 +61,21 @@ export default function HopThoai({ children }: { children: React.ReactNode }) {
       document.body.style.overflow = cu
     }
   }, [router, hien])
+
+  /**
+   * Mở ra là trỏ sẵn vào nút chính (`data-nut-chinh`, "Xem ngay") — trên TV đó là thứ người ta
+   * bấm OK tiếp theo. Đóng lại thì trả ô trỏ về tấm thẻ đã mở hộp thoại, khỏi lạc về đầu trang.
+   */
+  useEffect(() => {
+    if (!hien) return
+    const truoc = document.activeElement as HTMLElement | null
+    const hop = hopRef.current
+    const nut = hop?.querySelector<HTMLElement>('[data-nut-chinh]') ?? hop?.querySelector<HTMLElement>('a[href]')
+    nut?.focus({ preventScroll: true })
+    return () => {
+      if (truoc?.isConnected) truoc.focus({ preventScroll: true })
+    }
+  }, [hien])
 
   useLayoutEffect(() => {
     const the = theVuaBam
@@ -82,6 +100,8 @@ export default function HopThoai({ children }: { children: React.ReactNode }) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       className="mo-man fixed inset-0 z-[90] overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === oRef.current) router.back()

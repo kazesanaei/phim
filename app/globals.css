@@ -430,10 +430,11 @@ body {
   width: 1.1rem;
 }
 
-/* Thanh âm lượng luôn mở: trên TV không có "rê chuột" để nó trượt ra */
+/* Không có thanh trượt âm lượng trên TV: remote có nút âm lượng thật, còn thanh trượt là
+   cái bẫy cho ô trỏ — đứng vào đó thì Trái/Phải chỉnh âm lượng, không đi tiếp được tới
+   Cài đặt / Danh sách tập (đo thật trên TV Box 22/10/2026). Nút tắt tiếng vẫn giữ. */
 [data-che-do='tv'] .trinh-phat .tp-khung-am {
-  width: 8rem;
-  opacity: 1;
+  display: none;
 }
 [data-che-do='tv'] .trinh-phat .tp-thanh-am {
   width: 7.25rem;
@@ -1015,4 +1016,15 @@ main:has(.trang-xem) {
 /* Lịch tuần trên TV: chữ phóng to nên 7 cột quá hẹp, 2 cột thì dài cả trang. */
 [data-che-do='tv'] .lich-tuan {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* TV: ô chờ ảnh đứng yên. Mỗi ảnh chưa tải (kể cả ảnh lười ngoài màn hình, chưa ai
+   xin) là một vệt sáng chạy mãi — trang chủ có ~270 cái cùng lúc. Đo trên Xiaomi
+   TV Box S đời 3 (22/10/2026): bấm mũi tên chỉ được 19 fps, tính style 1 giây cho
+   9 lần bấm; tắt riêng hai hiệu ứng này lên 56 fps. PC gánh được nên giữ nguyên. */
+[data-che-do='tv'] .o-cho::after {
+  display: none;
+}
+[data-che-do='tv'] .animate-pulse {
+  animation: none;
 }

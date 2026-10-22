@@ -12,6 +12,7 @@
  * Danh mục trần (`/the-loai`, `/quoc-gia`) trả `data` chứ không phải `data.items`.
  */
 import type { PhimTom, Trang, ChiTiet, MayChu, MucDanhMuc } from './vsmov'
+import { hocMienPhat } from './mien-hoc'
 
 const GOC = 'https://phimapi.com'
 /** CDN ảnh của nguồn này — khác host với API, và phải có dấu / ở cuối. */
@@ -138,11 +139,12 @@ export async function layChiTiet(slug: string): Promise<ChiTiet | null> {
       ten: 'KKPhim · ' + String(s.server_name || 'Server').replace(/\s+/g, ' ').trim(),
       tap: ((s.server_data || []) as Bat[])
         // Ưu tiên m3u8; không có thì đành lấy embed
-        .map((e) => ({
-          ten: String(e.name || ''),
-          slug: String(e.slug || ''),
-          embed: String(e.link_m3u8 || e.link_embed || ''),
-        }))
+        .map((e) => {
+          const embed = String(e.link_m3u8 || e.link_embed || '')
+          // Cho proxy biết host phát này do chính nguồn đưa ra (lib/mien-hoc.ts)
+          hocMienPhat(embed)
+          return { ten: String(e.name || ''), slug: String(e.slug || ''), embed }
+        })
         .filter((e) => e.embed),
     }))
     .filter((s) => s.tap.length)

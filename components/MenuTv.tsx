@@ -52,7 +52,12 @@ export default function MenuTv({ du, dong }: { du: DuMenu | null; dong: () => vo
   const oNgan = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const f = (e: KeyboardEvent) => e.key === 'Escape' && dong()
+    // preventDefault: app Kho phim trên TV hỏi trang "có xử lý Back không" — không báo là app thoát luôn.
+    const f = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      dong()
+    }
     window.addEventListener('keydown', f)
     // Đưa tiêu điểm vào ngăn để trình duyệt nào có gửi phím thì đi lại được ngay.
     oNgan.current?.querySelector('a,button')?.dispatchEvent(new Event('focus'))
