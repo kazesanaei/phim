@@ -6,7 +6,9 @@ name: Ban TV box
 on:
   workflow_dispatch:
   push:
-    branches: [main, claude/tv-box-chromecast]
+    # Chỉ nhánh TV box: bản trên main (laptop, box Xiaomi) chưa có các sửa cho Chromecast — để main tạo
+    # release thì "latest" thành bản main và Chromecast cập nhật nhầm.
+    branches: [claude/tv-box-chromecast]
     paths:
       - 'app/**'
       - 'components/**'

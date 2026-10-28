@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation'
 import { type Tap } from '@/lib/vsmov'
 import { layChiTiet, kieuNguonPhat } from '@/lib/nguon'
 import { layHangPhim, tapCuaPhim, phuDeCuaTap } from '@/lib/thu-vien'
-import { db } from '@/lib/db'
+import { headers } from 'next/headers'
+import { db, layCaiDat } from '@/lib/db'
 import { layMocIntro, layMocCredit } from '@/lib/theo-doi'
 import { nhanNgonNgu } from '@/lib/phu-de'
 import Player, { type NguonPhat, type PhuDeMuc, type TrackAm } from '@/components/Player'
@@ -43,6 +44,32 @@ function timTap(ds: Tap[], tap: Tap): Tap | undefined {
     ds.find((t) => t.ten === tap.ten) ??
     (so !== null ? ds.find((t) => soTap(t.ten) === so) : undefined)
   )
+}
+
+/** Vị trí tập theo slug trong danh sách của MỘT máy chủ; khác kiểu slug ("tap-1"/"tap-01") thì khớp theo số. */
+function viTriTap(ds: Tap[], slugTap: string): number {
+  const i = ds.findIndex((t) => t.slug === slugTap)
+  if (i >= 0 || !slugTap) return i
+  const so = soTap(slugTap)
+  return so === null ? -1 : ds.findIndex((t) => soTap(t.slug) === so || soTap(t.ten) === so)
+}
+
+/** "Thuyết Minh #1", "Lồng Tiếng" — có giọng đọc tiếng Việt, không phải đọc phụ đề. */
+function laThuyetMinh(ten: string): boolean {
+  const k = ten.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase()
+  return /thuyet\s*minh|long\s*tieng/.test(k)
+}
+
+/**
+ * Mở phim mà không chỉ rõ máy chủ thì có chọn máy chủ thuyết minh/lồng tiếng trước không.
+ * Cài đặt `uu_tien_thuyet_minh`: 'bat' | 'tat' | '' (mặc định: bật cho app Kho phim trên TV box —
+ * người xem ở đó là bố mẹ, khó đọc phụ đề; tắt trên laptop). Đổi trên box: xem tv-box/HUONG-DAN.md.
+ */
+async function uuTienThuyetMinh(): Promise<boolean> {
+  const c = layCaiDat('uu_tien_thuyet_minh')
+  if (c === 'bat') return true
+  if (c === 'tat') return false
+  return (await headers()).get('user-agent')?.includes('KhoPhimTV') ?? false
 }
 
 export default async function TrangXem({ params, searchParams }: PageProps<'/xem/[slug]'>) {
@@ -119,9 +146,15 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
     if (!ct || !ct.mayChu.length) notFound()
 
     soMayChu = Math.min(Math.max(0, Number(sp.server ?? 0) || 0), ct.mayChu.length - 1)
+    // Không chỉ rõ máy chủ (bấm "Xem ngay", "Tiếp tục xem"...): máy chủ thuyết minh có đúng tập này thì
+    // lấy nó. Chọn tay ở danh sách máy chủ/tập thì luôn có ?server= nên không bị đè.
+    if (sp.server === undefined && (await uuTienThuyetMinh())) {
+      const tm = ct.mayChu.findIndex((m) => laThuyetMinh(m.ten) && (!tapMongMuon || viTriTap(m.tap, tapMongMuon) >= 0))
+      if (tm >= 0) soMayChu = tm
+    }
     const mayChu = ct.mayChu[soMayChu]
     dsTap = mayChu.tap
-    viTri = Math.max(0, dsTap.findIndex((t) => t.slug === tapMongMuon))
+    viTri = Math.max(0, viTriTap(dsTap, tapMongMuon))
     const t = dsTap[viTri]
 
     tenPhim = ct.ten

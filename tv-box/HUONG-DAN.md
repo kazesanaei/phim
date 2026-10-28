@@ -61,3 +61,26 @@ bản cũ để ở `~/phim.cu`, script hỏi rồi mới xoá.
 
 `adb uninstall vn.khophim.tv`, gỡ Termux:Boot và Termux trong Cài đặt → Ứng dụng (mất luôn `~/phim`),
 rồi trong Termux trước khi gỡ: `adb -s 127.0.0.1:5555 shell settings put global settings_enable_monitor_phantom_procs true`.
+
+## App trên TV khác bản laptop chỗ nào
+
+Trang nhận ra app Kho phim trên TV nhờ user agent có chữ "KhoPhimTV" (`data-nhe` trong `lib/che-do.ts`):
+
+- Không hiệu ứng nào: không mờ nền, không chuyển động, không bóng đổ, cuộn nhảy thẳng, thẻ được chọn
+  chỉ có khung trắng (không phóng to). Giữ vòng xoay chờ tải; thông báo âm lượng/tua hiện rồi tắt phụt.
+- Trang chủ: mỗi hàng 15 phim (có "Xem tất cả"), banner một ảnh đứng yên.
+- Không tải trước trang của mọi phim lướt qua; chỉ tải trước phim mà ô chọn dừng lại 0,6 giây,
+  và trang tập sau khi tập đang xem đã quá 80%.
+- Trình phát: Xuống ở hàng nút dưới cùng mở danh sách tập (phim bộ) / máy chủ (phim lẻ); có nút
+  Đổi máy chủ; Trái/Phải tua liên tục, OK dừng/phát.
+- **Ưu tiên máy chủ Thuyết minh / Lồng tiếng** khi mở phim mà không chọn máy chủ (cài đặt
+  `uu_tien_thuyet_minh`, mặc định bật cho app TV, tắt trên laptop). Đổi trên box (qua SSH):
+  ```
+  cd ~/phim && node -e "const {DatabaseSync}=require('node:sqlite');new DatabaseSync('du-lieu/phim.db').prepare(\"insert into cai_dat (khoa, gia_tri) values ('uu_tien_thuyet_minh', ?) on conflict(khoa) do update set gia_tri = excluded.gia_tri\").run(process.argv[1])" tat
+  ```
+  (`tat` = luôn Vietsub, `bat` = luôn ưu tiên thuyết minh.)
+
+## Kiểm tra
+
+`bash kiem-tra-app.sh <cổng adb>` trên box: mở app → lướt → mở phim → phát → tua → dừng/phát → về →
+tìm kiếm, kèm lỗi JS/mạng, RAM, CPU và tốc độ tải đoạn video (1 luồng / 3 luồng tới nguồn).

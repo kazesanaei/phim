@@ -415,6 +415,7 @@ export default function Player({
   const [tiepTuc, datTiepTuc] = useState<number | null>(null)
   const [keoVao, datKeoVao] = useState(false)
   const [hienTapSau, datHienTapSau] = useState(false)
+  const taiTruocTapSauRef = useRef(false)
   /** Số giây còn lại trước khi tự sang tập kế; null = không đếm. */
   const [demNguoc, datDemNguoc] = useState<number | null>(null)
   const [src, datSrc] = useState<string | null>(null)
@@ -1858,6 +1859,14 @@ export default function Player({
           if (v.buffered.length) datDem(v.buffered.end(v.buffered.length - 1))
           if (tapSau && v.duration && v.duration - t < 30) datHienTapSau(true)
           else datHienTapSau(false)
+          /**
+           * Xem quá 80% thì tải trước trang tập sau: lúc hết tập (tự sang, bấm "Tập sau", N) trang đã có
+           * sẵn, khỏi chờ máy chủ phim dựng trang — trên TV box chậm nhất ở đúng khúc này. Mỗi tập một lần.
+           */
+          if (tapSau && v.duration && t > v.duration * 0.8 && !taiTruocTapSauRef.current) {
+            taiTruocTapSauRef.current = true
+            router.prefetch(tapSau.href)
+          }
 
           /**
            * Chỉ tự bỏ qua khi phim TỰ CHẠY tới chỗ đó. Bước nhảy giữa hai lần

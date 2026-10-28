@@ -1030,22 +1030,44 @@ main:has(.trang-xem) {
 }
 
 /* App Kho phim trên TV box (data-nhe, đặt trong lib/che-do.ts theo user agent "KhoPhimTV").
-   Đo trên Chromecast with Google TV 28/10/2026, 14 phím mũi tên: tính style 278 ms khi còn
-   transition, 15 ms khi tắt. Làm mờ nền (backdrop-filter) bắt chip đồ hoạ vẽ lại phần phía sau
-   mỗi khi trang cuộn — đầu trang dính và nhãn trên từng thẻ phim đều dùng nó.
-   Thẻ được chọn vẫn phóng to (dấu hiệu nhìn từ xa), chỉ là phóng ngay không trượt.
-   KHÔNG tắt animation chung: .tp-osd (âm lượng/tốc độ) tự mờ đi bằng animation, tắt là nó đứng
-   mãi trên màn; vòng xoay chờ tải cũng cần quay. Chỉ tắt ảnh nền banner phóng chậm 9 giây và
-   ảnh hiện dần (mỗi poster vừa tải là một lớp phóng + mờ dần — lướt hàng là hàng chục lớp cùng lúc). */
+   KHÔNG HIỆU ỨNG NÀO: người xem là bố mẹ, cần nhanh chứ không cần đẹp (yêu cầu 28/10/2026), và chip
+   đồ hoạ Chromecast không gánh nổi. Đo trên Chromecast, 14 phím mũi tên: tính style 278 ms khi còn
+   transition, 15 ms khi tắt. Làm mờ nền (backdrop-filter) bắt chip vẽ lại phần phía sau mỗi lần
+   trang cuộn; bóng đổ (box-shadow) to vẽ lại mỗi khi bảng/thẻ đổi.
+   KHÔNG đụng `filter`: trang Duyệt 18+ dùng nó làm mờ ảnh nhạy cảm. */
 [data-nhe] *,
 [data-nhe] *::before,
 [data-nhe] *::after {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   transition: none !important;
+  animation: none !important;
   scroll-behavior: auto !important;
+  box-shadow: none !important;
 }
-[data-nhe] .anh-troi,
-[data-nhe] .anh-hien {
-  animation: none;
+/* Thẻ được chọn: chỉ khung trắng dày (luật :focus-visible ở trên), không phóng to — phóng to là thêm
+   một lớp ghép hình mỗi lần bấm. */
+[data-nhe] .the-phim:focus-within {
+  transform: none;
+}
+/* Vài hiệu ứng làm nhiệm vụ chứ không để đẹp — giữ việc, bỏ chuyển động:
+   - vòng xoay chờ tải: còn quay thì người xem biết máy chưa đơ;
+   - phản hồi âm lượng/tốc độ (.tp-osd) và bong bóng tua (.tp-nhay) tự ẩn bằng animation: tắt hẳn
+     là chúng đứng mãi trên màn, nên cho hiện nguyên rồi tắt phụt đúng lúc, không mờ dần. */
+[data-nhe] .animate-spin {
+  animation: spin 1s linear infinite !important;
+}
+@keyframes anPhut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+[data-nhe] .tp-osd {
+  animation: anPhut 1.1s steps(1, end) both !important;
+}
+[data-nhe] .tp-nhay {
+  animation: anPhut 0.7s steps(1, end) both !important;
 }
