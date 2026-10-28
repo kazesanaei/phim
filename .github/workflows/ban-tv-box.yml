@@ -80,7 +80,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "tv-box-$GITHUB_RUN_NUMBER" \
-            ra/phim-tv-box.tar.gz ra/kho-phim.apk tv-box/cai-tren-box.sh tv-box/thiet-lap-box.sh \
+            ra/phim-tv-box.tar.gz ra/kho-phim.apk tv-box/cai-tren-box.sh tv-box/thiet-lap-box.sh tv-box/doc-goi.sh \
             --target "$GITHUB_SHA" --latest \
             --title "Ban TV box #$GITHUB_RUN_NUMBER" \
             --notes "Nhanh ${GITHUB_REF_NAME}, commit ${GITHUB_SHA::7}. Cach cai: tv-box/HUONG-DAN.md"

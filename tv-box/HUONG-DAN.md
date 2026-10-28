@@ -13,6 +13,7 @@ Box Xiaomi ở nhà mình vẫn dùng luồng laptop cũ trong repo `tvbox-phim`
 |---|---|
 | `dong-goi.sh` | Đóng gói bản gọn (~25 MB nén, ~125 MB giải nén). Actions chạy |
 | `cai-tren-box.sh` | Chạy trong Termux: cài lần đầu hoặc lên bản mới, giữ nguyên `du-lieu/` |
+| `doc-goi.sh` | Chạy trong Termux: CHỈ ĐỌC — liệt kê gói, Home, chủ Wi-Fi, RAM theo app để lập danh sách tắt |
 | `thiet-lap-box.sh` | Chạy trong Termux, một lần: adb vào chính box, tắt phantom process killer, cài app Kho phim, in bảng bộ nhớ |
 | `kho-phim-app/` | Mã app Kho phim (WebView toàn màn hình), chép từ repo `tvbox-phim` |
 
