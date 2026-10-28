@@ -18,7 +18,7 @@
  */
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { docCheDo } from '@/lib/che-do'
+import { docCheDo, laMayNhe } from '@/lib/che-do'
 
 const PHIM_LUI = new Set(['Escape', 'Backspace', 'GoBack', 'BrowserBack'])
 const MA_LUI = new Set([10009, 461])
@@ -55,9 +55,9 @@ function vungChon(): ParentNode {
   return ds.length ? ds[ds.length - 1] : document
 }
 
-function dsChonDuoc(): O[] {
+function dsChonDuoc(goc: ParentNode = vungChon()): O[] {
   const ra: O[] = []
-  for (const e of vungChon().querySelectorAll<HTMLElement>(CHON_DUOC)) {
+  for (const e of goc.querySelectorAll<HTMLElement>(CHON_DUOC)) {
     // Nút "+ Lưu vào Xem sau" đè ở góc thẻ phim: với remote nó là cái bẫy — mũi tên xuống từ đầu
     // trang rơi vào nó, bấm OK là lưu phim thay vì mở phim. Lưu vẫn làm được trong hộp thoại phim.
     if (e.classList.contains('nut-luu')) continue
@@ -167,9 +167,9 @@ export default function PhimRemote() {
       // Trong ô nhập: trái/phải để di con trỏ, chỉ lên/xuống mới rời ô.
       if (dangGo(dich) && (huong === 'trai' || huong === 'phai')) return
 
-      const ds = dsChonDuoc()
-      if (!ds.length) return
-
+      // App trên TV box: cuộn trượt (smooth) vừa chậm vừa giật trên chip yếu — nhảy thẳng tới ô mới.
+      // 'instant' chứ không 'auto': hàng phim có lớp scroll-smooth, 'auto' vẫn trượt theo CSS.
+      const cuon: ScrollIntoViewOptions = { block: 'center', inline: 'center', behavior: laMayNhe() ? 'instant' : 'smooth' }
       const dangChon = document.activeElement
       const vung = vungChon()
       // Ô đang trỏ nằm ngoài hộp thoại (thẻ phim phía sau) cũng tính là chưa chọn gì.
@@ -177,18 +177,32 @@ export default function PhimRemote() {
         dangChon instanceof HTMLElement && dangChon !== document.body && (vung === document || vung.contains(dangChon))
       // Chưa chọn gì thì mũi tên đầu tiên nhảy vào ô trên cùng bên trái.
       if (!laThat) {
+        const ds = dsChonDuoc()
+        if (!ds.length) return
         e.preventDefault()
         const dau = ds.slice().sort((a, b) => a.y - b.y || a.x - b.x)[0]
         dau.e.focus()
-        dau.e.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' })
+        dau.e.scrollIntoView(cuon)
         return
       }
 
-      const moi = timO(dangChon.getBoundingClientRect(), ds, huong)
+      const tu = dangChon.getBoundingClientRect()
+      /**
+       * Trái/phải trong một hàng phim: chỉ xét các ô của chính hàng đó. Quét cả trang là đo toạ độ
+       * hàng trăm ô (trang chủ ~270 thẻ) cho MỖI lần bấm — trên Chromecast đo được 500–800 ms JS cho 14
+       * phím (tv-box/do-muot.mjs, 28/10/2026). Hết ô trong hàng thì mới quét cả trang như cũ.
+       */
+      const hang = huong === 'trai' || huong === 'phai' ? dangChon.closest('.hang-phim, .cuon-ngang') : null
+      let moi = hang ? timO(tu, dsChonDuoc(hang), huong) : null
+      if (!moi) {
+        const ds = dsChonDuoc()
+        if (!ds.length) return
+        moi = timO(tu, ds, huong)
+      }
       if (!moi) return // hết ô theo hướng đó thì để trình duyệt cuộn trang như thường
       e.preventDefault()
       moi.focus()
-      moi.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' })
+      moi.scrollIntoView(cuon)
     }
 
     window.addEventListener('keydown', f)

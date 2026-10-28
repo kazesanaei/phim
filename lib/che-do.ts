@@ -18,18 +18,30 @@ export const KHOA_CHE_DO = 'che-do'
  * Đoạn script nhúng thẳng vào <head>. Phải là chuỗi vì cần chạy TRƯỚC React.
  * Giữ thật ngắn và tự bọc trong try/catch: chế độ riêng tư của trình duyệt làm
  * localStorage ném lỗi, mà script này hỏng là cả trang trắng.
+ *
+ * Kèm `data-nhe` khi trang chạy trong app Kho phim trên TV box (WebView thêm
+ * "KhoPhimTV" vào user agent — tvbox-phim/kho-phim-app, tv-box/kho-phim-app).
+ * Đo trên Chromecast with Google TV 28/10/2026 (tv-box/do-muot.mjs): mỗi lượt 14
+ * phím mũi tên tốn 278 ms tính style khi còn transition, 15 ms khi tắt — chip đồ
+ * hoạ box TV không gánh nổi làm mờ nền và chuyển động. Xem `[data-nhe]` trong globals.css.
  */
 export const SCRIPT_CHE_DO = `(function(){try{
 var d=document.documentElement,k=${JSON.stringify(KHOA_CHE_DO)},v=null;
 try{v=localStorage.getItem(k)}catch(e){}
 if(!v){var m=document.cookie.match(/(?:^|; )che-do=(tv|pc)/);if(m)v=m[1]}
 d.dataset.cheDo=v==='tv'?'tv':'pc';
+if(/KhoPhimTV/.test(navigator.userAgent))d.dataset.nhe='1';
 }catch(e){document.documentElement.dataset.cheDo='pc'}})()`
 
 /** Đọc chế độ hiện tại ở phía trình duyệt. */
 export function docCheDo(): CheDo {
   if (typeof document === 'undefined') return 'pc'
   return document.documentElement.dataset.cheDo === 'tv' ? 'tv' : 'pc'
+}
+
+/** Đang chạy trong app Kho phim trên TV box (máy yếu): bỏ hiệu ứng, cuộn không trượt. */
+export function laMayNhe(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.dataset.nhe === '1'
 }
 
 /**

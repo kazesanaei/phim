@@ -1028,3 +1028,22 @@ main:has(.trang-xem) {
 [data-che-do='tv'] .animate-pulse {
   animation: none;
 }
+
+/* App Kho phim trên TV box (data-nhe, đặt trong lib/che-do.ts theo user agent "KhoPhimTV").
+   Đo trên Chromecast with Google TV 28/10/2026, 14 phím mũi tên: tính style 278 ms khi còn
+   transition, 15 ms khi tắt. Làm mờ nền (backdrop-filter) bắt chip đồ hoạ vẽ lại phần phía sau
+   mỗi khi trang cuộn — đầu trang dính và nhãn trên từng thẻ phim đều dùng nó.
+   Thẻ được chọn vẫn phóng to (dấu hiệu nhìn từ xa), chỉ là phóng ngay không trượt.
+   KHÔNG tắt animation chung: .tp-osd (âm lượng/tốc độ) tự mờ đi bằng animation, tắt là nó đứng
+   mãi trên màn; vòng xoay chờ tải cũng cần quay. Chỉ tắt ảnh nền banner phóng chậm 9 giây. */
+[data-nhe] *,
+[data-nhe] *::before,
+[data-nhe] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+[data-nhe] .anh-troi {
+  animation: none;
+}
