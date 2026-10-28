@@ -29,6 +29,18 @@ concurrency:
   group: ban-tv-box
   cancel-in-progress: false
 
+# Ký app Kho phim và launcher bằng khoá cố định trong repo (tv-box/khoa/README.md). Bản tv-box-14 chép khoá vào
+# ~/.android/debug.keystore nhưng Gradle trên máy GitHub không đọc chỗ đó (APK vẫn ra khoá ngẫu nhiên) — nên chỉ
+# thẳng khoá cho Gradle bằng các thuộc tính android.injected.signing.* (cách Android Studio ký bản phát hành).
+env:
+  KY: >-
+    -Pandroid.injected.signing.store.file=${{ github.workspace }}/tv-box/khoa/debug.keystore
+    -Pandroid.injected.signing.store.password=android
+    -Pandroid.injected.signing.key.alias=androiddebugkey
+    -Pandroid.injected.signing.key.password=android
+  # Dấu vân tay SHA-256 của khoá đó: build xong so lại, sai thì dừng (đừng phát hành bản không cài đè được)
+  VAN_TAY: 8738ac706469e3bac60fd7d5e7ec3408de05958381d6b3c66b6a61e98c410eaa
+
 jobs:
   web:
     runs-on: ubuntu-latest
@@ -59,9 +71,12 @@ jobs:
         with:
           gradle-version: '8.9'
       # Khoá ký cố định (tv-box/khoa/README.md): bản sau cài đè được bản trước
-      - run: mkdir -p ~/.android && cp tv-box/khoa/debug.keystore ~/.android/debug.keystore
-      - run: gradle -p tv-box/kho-phim-app assembleRelease --no-daemon
+      - run: gradle -p tv-box/kho-phim-app assembleRelease --no-daemon $KY
       - run: cp tv-box/kho-phim-app/app/build/outputs/apk/release/app-release.apk kho-phim.apk
+      - run: |
+          ky=$("$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner" verify --print-certs kho-phim.apk)
+          echo "$ky"
+          grep -F "SHA-256 digest: $VAN_TAY" <<<"$ky"
       - uses: actions/upload-artifact@v4
         with:
           name: apk
@@ -85,9 +100,12 @@ jobs:
           git -C cleanyourtv fetch -q --depth 1 https://github.com/Gathin23/cleanyourtv "$CLEANYOURTV"
           git -C cleanyourtv checkout -q FETCH_HEAD
           python3 -I tv-box/launcher/cau-hinh.py cleanyourtv
-          mkdir -p ~/.android && cp tv-box/khoa/debug.keystore ~/.android/debug.keystore
-      - run: cd cleanyourtv/launcher && chmod +x gradlew && ./gradlew assembleRelease -q --console=plain --no-daemon
+      - run: cd cleanyourtv/launcher && chmod +x gradlew && ./gradlew assembleRelease -q --console=plain --no-daemon $KY
       - run: cp cleanyourtv/launcher/app/build/outputs/apk/release/app-release.apk launcher.apk
+      - run: |
+          ky=$("$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner" verify --print-certs launcher.apk)
+          echo "$ky"
+          grep -F "SHA-256 digest: $VAN_TAY" <<<"$ky"
       - uses: actions/upload-artifact@v4
         with:
           name: launcher
