@@ -4,26 +4,33 @@
 #   2. cho Termux khỏi bị Android cho ngủ
 #   3. cài app Kho phim (tv-box/kho-phim-app)
 #   4. in bảng app chiếm bộ nhớ để quyết định dọn gì (chỉ đọc, không xoá gì)
-# Cần: Tuỳ chọn nhà phát triển → bật Gỡ lỗi USB. Chạy trong Termux:
-#   curl -fLO https://github.com/kazesanaei/phim/releases/latest/download/thiet-lap-box.sh && bash thiet-lap-box.sh
+# Chạy trong Termux:
+#   curl -fLO https://github.com/kazesanaei/phim/releases/latest/download/thiet-lap-box.sh && bash thiet-lap-box.sh [cổng]
+#
+# Hai kiểu adb, tuỳ box:
+#  - Box mở adb cổng 5555 khi bật Gỡ lỗi USB (Xiaomi): không truyền cổng, TV hỏi "Cho phép gỡ lỗi".
+#  - Chromecast with Google TV (Android 14) KHÔNG mở 5555 (thử 28/10/2026: không có hộp thoại nào).
+#    Phải dùng Gỡ lỗi không dây: Tuỳ chọn nhà phát triển → Gỡ lỗi không dây → bật → "Ghép nối thiết bị
+#    bằng mã" → trong Termux: `adb pair 127.0.0.1:<cổng ghép nối> <mã 6 số>` (một lần), rồi chạy script với
+#    <cổng> là cổng ở màn Gỡ lỗi không dây (khác cổng ghép nối, đổi sau mỗi lần khởi động lại box).
 set -euo pipefail
 NGUON=${NGUON:-https://github.com/kazesanaei/phim/releases/latest/download}
-T=127.0.0.1:5555
+T=127.0.0.1:${1:-5555}
 A="adb -s $T"
 
 command -v adb >/dev/null || pkg install -y android-tools
 
 adb connect "$T" || true
 echo
-echo ">>> Nhìn lên TV: tick 'Luôn cho phép từ máy tính này' rồi bấm 'Cho phép'."
+[ -z "${1:-}" ] && echo ">>> Nhìn lên TV: tick 'Luôn cho phép từ máy tính này' rồi bấm 'Cho phép'."
 for _ in $(seq 1 30); do
   [ "$($A get-state 2>/dev/null)" = device ] && break
   sleep 2
   adb connect "$T" >/dev/null 2>&1 || true
 done
 if [ "$($A get-state 2>/dev/null)" != device ]; then
-  echo "Chưa nối được adb vào $T. Kiểm: Gỡ lỗi USB đã bật chưa; trên TV có hộp thoại nào chưa bấm không."
-  echo "Rồi chạy lại script này."
+  echo "Chưa nối được adb vào $T."
+  echo "Box không hỏi 'Cho phép gỡ lỗi' thì dùng Gỡ lỗi không dây: xem hướng dẫn ở đầu tệp này (head -20 thiet-lap-box.sh)."
   exit 1
 fi
 echo "Đã nối adb: $($A shell getprop ro.product.model | tr -d '\r'), Android $($A shell getprop ro.build.version.release | tr -d '\r')"

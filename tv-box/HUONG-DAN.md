@@ -30,7 +30,16 @@ Box Xiaomi ở nhà mình vẫn dùng luồng laptop cũ trong repo `tvbox-phim`
    curl -fLO https://github.com/kazesanaei/phim/releases/latest/download/thiet-lap-box.sh && bash thiet-lap-box.sh
    curl -fLO https://github.com/kazesanaei/phim/releases/latest/download/cai-tren-box.sh && bash cai-tren-box.sh
    ```
-   Lúc chạy cái đầu, trên TV hiện hộp thoại gỡ lỗi: tick "Luôn cho phép" rồi bấm Cho phép.
+   Box mở adb cổng 5555 (Xiaomi) thì lúc chạy cái đầu TV hỏi "Cho phép gỡ lỗi": tick "Luôn cho phép" rồi bấm.
+   **Chromecast with Google TV không hỏi** (không mở 5555). Dùng Gỡ lỗi không dây:
+   Tuỳ chọn nhà phát triển → **Gỡ lỗi không dây** → bật → **Ghép nối thiết bị bằng mã ghép nối**, để nguyên
+   màn hình đó rồi qua SSH:
+   ```
+   pkg install -y android-tools
+   adb pair 127.0.0.1:<cổng ghép nối> <mã 6 số>
+   bash thiet-lap-box.sh <cổng ở màn Gỡ lỗi không dây>
+   ```
+   Cổng ghép nối và cổng kết nối là hai số khác nhau; cổng kết nối đổi sau mỗi lần khởi động lại box.
 
 ## Lên bản mới
 
