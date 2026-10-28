@@ -44,12 +44,23 @@ DA_TAT=$(sh_ pm list packages -d | sed 's/^package://')
 # Sau mỗi nhóm: Home vẫn về launcher Google TV, còn mạng, máy chủ phim còn sống
 kiem() {
   local loi=0
+  # Lần chạy nhóm 1 đầu tiên (28/10/2026) báo lỗi Home dù chỉ tắt 2 gói phản hồi: cách đọc cũ chỉ lấy
+  # dòng "ResumedActivity" ĐẦU TIÊN, mà Android 14 in nhiều dòng như vậy. Nay xem mọi dòng và ô đang
+  # nhận phím, thử lại vài lần (launcher vẽ chậm), lỗi thì in ra đang có gì trên màn hình.
+  local home tren=""
+  home=$(sh_ cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -1)
   sh_ input keyevent KEYCODE_HOME
-  sleep 4
-  if sh_ dumpsys activity activities | grep -m1 'mResumedActivity\|topResumedActivity' | grep -q "$LAUNCHER"; then
+  for _ in 1 2 3 4 5; do
+    sleep 3
+    tren=$( { sh_ dumpsys activity activities | grep -E 'ResumedActivity'; sh_ dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'; } )
+    grep -q "$LAUNCHER" <<<"$tren" && break
+  done
+  if grep -q "$LAUNCHER" <<<"$tren"; then
     echo "  [OK] Màn hình chính Google TV"
   else
-    echo "  [LỖI] Bấm Home không về màn hình chính Google TV"; loi=1
+    echo "  [LỖI] Bấm Home không thấy màn hình chính Google TV. Home đăng ký: $home"
+    echo "        Đang trên màn hình:"; sed 's/^ */          /' <<<"$tren" | head -6
+    loi=1
   fi
   if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 https://www.google.com/generate_204)" = 204 ]; then
     echo "  [OK] Có mạng"
