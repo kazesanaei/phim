@@ -1038,8 +1038,9 @@ main:has(.trang-xem) {
 [data-nhe] *,
 [data-nhe] *::before,
 [data-nhe] *::after {
+  /* CHỈ dòng chuẩn, không kèm -webkit-backdrop-filter: bộ nén CSS lúc build coi hai dòng là một, giữ
+     bản -webkit- và bỏ bản chuẩn — trên box làm mờ vẫn chạy nguyên (thấy 28/10/2026 khi đọc CSS đã build). */
   backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
   transition: none !important;
   animation: none !important;
   scroll-behavior: auto !important;
@@ -1070,4 +1071,28 @@ main:has(.trang-xem) {
 }
 [data-nhe] .tp-nhay {
   animation: anPhut 0.7s steps(1, end) both !important;
+}
+
+/* Chữ to hơn ~1,25 lần cho người xem lớn tuổi (cỡ gốc chế độ TV ở trên: clamp(15px, 1.55vw, 26px)).
+   Vẫn tính theo vw như bản gốc, nên cùng một cỡ trên mọi khung 960/1280/1920. */
+[data-nhe] {
+  font-size: clamp(18px, 1.95vw, 32px);
+}
+
+/* Mục không dùng được trên Chromecast, hoặc bấm nhầm thì hỏng việc — giấu khỏi app TV:
+   - Tải về: cần ffmpeg, box không có;
+   - Kho của tôi: box không có phim trong máy;
+   - Ghép điện thoại: máy chủ phim trên box chỉ nghe 127.0.0.1, điện thoại không vào được;
+   - Quản trị (cả Duyệt 18+): có nút "Xoá kho" — bấm nhầm là mất kho 18.710 phim. Vẫn vào được bằng
+     đường dẫn /quan-tri khi cần sửa. */
+[data-nhe] a[href^='/tai-ve'],
+[data-nhe] a[href^='/quan-tri'],
+[data-nhe] a[href^='/ghep-dien-thoai'],
+[data-nhe] a[href='/duyet?nguon=local'],
+[data-nhe] .nut-tai-ve,
+/* Tìm bằng giọng nói cần Trợ lý Google — đã tắt trên box (tv-box/tat-goi.sh nhóm 2). Nút đổi chế độ
+   PC/TV: bấm nhầm là cả giao diện đổi sang kiểu máy tính. */
+[data-nhe] button[aria-label='Tìm bằng giọng nói'],
+[data-nhe] [aria-label='Chế độ hiển thị'] {
+  display: none !important;
 }

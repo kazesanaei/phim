@@ -23,7 +23,8 @@ import type Hls from 'hls.js'
 import { srtSangVtt, doiThoiGian } from '@/lib/phu-de'
 import { SU_KIEN_TRANG_THAI } from '@/components/NhanDieuKhien'
 import { urlAnh } from '@/components/Anh'
-import { docCheDo } from '@/lib/che-do'
+import { docCheDo, laMayNhe } from '@/lib/che-do'
+import { laThuyetMinh } from '@/lib/thuyet-minh'
 import { laCham, donLichSu, type LanCho, type DangCho } from '@/lib/do-cham'
 import type { MocAniSkip } from '@/lib/aniskip-khop'
 import { MOC_CREDIT_RONG, boAfter, chuanHoa, nhanNut, nutAfterCredit, themAfter, type MocCredit } from '@/lib/after-credit'
@@ -219,26 +220,34 @@ const MAC_DINH: CaiDat = {
   tuSangTap: true,
 }
 
+/**
+ * App Kho phim trên TV box: người xem là bố mẹ (28/10/2026) — bật sẵn "Tăng âm lượng" và "Rõ lời thoại"
+ * (nén dải động + nhấn dải giọng nói, xem damBaoDoThi: lời thoại +10 dB mà tiếng nổ không vỡ), phụ đề to
+ * hơn một nấc cho lúc máy chủ không có thuyết minh. Chỉ là mặc định: chỉnh trong Cài đặt thì giữ theo đó.
+ */
+const MAC_DINH_TV: CaiDat = { ...MAC_DINH, tangAm: true, roLoi: true, coChu: 130 }
+
 function docCaiDat(): CaiDat {
   if (typeof window === 'undefined') return MAC_DINH
+  const md = laMayNhe() ? MAC_DINH_TV : MAC_DINH
   try {
     const l = JSON.parse(localStorage.getItem(KHOA_CAI_DAT) || '{}')
-    const tangAm = l.tangAm === true
+    const tangAm = typeof l.tangAm === 'boolean' ? l.tangAm : md.tangAm
     // Ép kiểu tường minh: coChu/nenPhuDe được nội suy vào <style> inline, không
     // để giá trị lạ trong localStorage lọt vào chuỗi CSS.
     const am = Number(l.amLuong)
     return {
-      amLuong: Math.min(tangAm ? TRAN_TANG_AM : 1, Math.max(0, Number.isFinite(am) ? am : MAC_DINH.amLuong)),
-      tocDo: TOC_DO.includes(Number(l.tocDo)) ? Number(l.tocDo) : MAC_DINH.tocDo,
-      coChu: Math.min(300, Math.max(50, Number(l.coChu) || MAC_DINH.coChu)),
-      nenPhuDe: typeof l.nenPhuDe === 'boolean' ? l.nenPhuDe : MAC_DINH.nenPhuDe,
+      amLuong: Math.min(tangAm ? TRAN_TANG_AM : 1, Math.max(0, Number.isFinite(am) ? am : md.amLuong)),
+      tocDo: TOC_DO.includes(Number(l.tocDo)) ? Number(l.tocDo) : md.tocDo,
+      coChu: Math.min(300, Math.max(50, Number(l.coChu) || md.coChu)),
+      nenPhuDe: typeof l.nenPhuDe === 'boolean' ? l.nenPhuDe : md.nenPhuDe,
       tangAm,
-      roLoi: l.roLoi === true,
+      roLoi: typeof l.roLoi === 'boolean' ? l.roLoi : md.roLoi,
       tuBoIntro: l.tuBoIntro !== false,
       tuSangTap: l.tuSangTap !== false,
     }
   } catch {
-    return MAC_DINH
+    return md
   }
 }
 
@@ -1703,7 +1712,9 @@ export default function Player({
     const daLoi = new Set([...docMayChuLoi(khoaMayChuLoi), mayChuDang?.nhan])
     const viTri = mayChu.findIndex((m) => m.dang)
     const xoay = [...mayChu.slice(viTri + 1), ...mayChu.slice(0, Math.max(0, viTri))]
-    return xoay.find((m) => !daLoi.has(m.nhan)) ?? null
+    // App TV: máy chủ thuyết minh/lồng tiếng còn lại được thử trước (bố mẹ khó đọc phụ đề)
+    const thu = laMayNhe() ? [...xoay.filter((m) => laThuyetMinh(m.nhan)), ...xoay.filter((m) => !laThuyetMinh(m.nhan))] : xoay
+    return thu.find((m) => !daLoi.has(m.nhan)) ?? null
   }, [loi, cham, mayChu, mayChuDang, khoaMayChuLoi])
   const mayChuKe = loi ? mayChuChuaThu : null
 
@@ -1818,9 +1829,12 @@ export default function Player({
           datDangPhat(true)
           datDaPhatLanNao(true)
           danhThuc()
-          // Cú bấm phát là thao tác của người xem: lúc dựng đồ thị tăng âm an toàn
+          // Cú bấm phát là thao tác của người xem: lúc dựng đồ thị tăng âm an toàn.
+          // Phim TỰ phát mà trang chưa từng có thao tác nào (userActivation) thì chưa dựng: đồ thị dựng lúc
+          // đó nằm 'suspended' và nuốt hết tiếng — app TV bật sẵn Rõ lời thoại nên phải chặn chỗ này.
           const vuot = amLuong > 1 && tangAm
-          if (vuot || (roLoi && coWebAudio)) {
+          const daThaoTac = (navigator as { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive ?? true
+          if ((vuot || (roLoi && coWebAudio)) && daThaoTac) {
             const dt = damBaoDoThi()
             if (dt) {
               dt.gain.gain.value = vuot ? amLuong : 1

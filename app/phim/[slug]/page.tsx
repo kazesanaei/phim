@@ -15,6 +15,8 @@ import { tachPhan } from '@/lib/ten-phan'
 import GoiYPhim from '@/components/GoiYPhim'
 import TabTrang from '@/components/TabTrang'
 import { layMau } from '@/lib/mau-phim'
+import { laThuyetMinh } from '@/lib/thuyet-minh'
+import { uuTienThuyetMinh } from '@/lib/uu-tien-tieng'
 import { ghiLichTap, uocLichTap, truocDay } from '@/lib/lich-tap'
 
 export const revalidate = 300
@@ -73,6 +75,8 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
   const capNhatLuc = dangChieu ? truocDay(ct.capNhat) : null
 
   const duongXem = tapTiep ? `/xem/${slug}?tap=${tapTiep.slug}` : `/xem/${slug}`
+  const uuTienTM = await uuTienThuyetMinh()
+  const dsMayChu = ct.mayChu.map((m, i) => ({ m, i }))
 
   /**
    * Tự nhận intro/đoạn kết TRƯỚC cho tập sắp xem, để lúc bấm phát mốc đã có sẵn
@@ -287,7 +291,9 @@ export default async function TrangPhim({ params }: PageProps<'/phim/[slug]'>) {
 
         <div className="mt-2" />
 
-        {ct.mayChu.map((m, i) => (
+        {/* App TV (lib/uu-tien-tieng.ts): danh sách tập của máy chủ thuyết minh/lồng tiếng lên đầu —
+            bố mẹ bấm vào danh sách đầu tiên thấy là có giọng đọc. Giữ chỉ số gốc cho ?server=. */}
+        {(uuTienTM ? [...dsMayChu.filter((x) => laThuyetMinh(x.m.ten)), ...dsMayChu.filter((x) => !laThuyetMinh(x.m.ten))] : dsMayChu).map(({ m, i }) => (
           <div key={i} className="mb-6">
             <h2 className="mb-2 text-sm font-semibold text-white/70">
               {m.ten} · {m.tap.length} tập

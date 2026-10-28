@@ -129,7 +129,7 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
           </Link>
         </div>
 
-        {ds.length > 1 && (
+        {ds.length > 1 && !nhe && (
           /* Chấm chuyển banner: bấm bằng remote thì phải lách qua từng chấm rất
              phiền, mà banner vốn tự đổi. Ở chế độ TV ẩn đi (data-nut-chuot). */
           <div data-nut-chuot="1" className="mt-4 flex gap-2">

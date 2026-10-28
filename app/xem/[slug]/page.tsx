@@ -4,8 +4,9 @@ import { notFound } from 'next/navigation'
 import { type Tap } from '@/lib/vsmov'
 import { layChiTiet, kieuNguonPhat } from '@/lib/nguon'
 import { layHangPhim, tapCuaPhim, phuDeCuaTap } from '@/lib/thu-vien'
-import { headers } from 'next/headers'
-import { db, layCaiDat } from '@/lib/db'
+import { db } from '@/lib/db'
+import { laThuyetMinh } from '@/lib/thuyet-minh'
+import { uuTienThuyetMinh } from '@/lib/uu-tien-tieng'
 import { layMocIntro, layMocCredit } from '@/lib/theo-doi'
 import { nhanNgonNgu } from '@/lib/phu-de'
 import Player, { type NguonPhat, type PhuDeMuc, type TrackAm } from '@/components/Player'
@@ -52,24 +53,6 @@ function viTriTap(ds: Tap[], slugTap: string): number {
   if (i >= 0 || !slugTap) return i
   const so = soTap(slugTap)
   return so === null ? -1 : ds.findIndex((t) => soTap(t.slug) === so || soTap(t.ten) === so)
-}
-
-/** "Thuyết Minh #1", "Lồng Tiếng" — có giọng đọc tiếng Việt, không phải đọc phụ đề. */
-function laThuyetMinh(ten: string): boolean {
-  const k = ten.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase()
-  return /thuyet\s*minh|long\s*tieng/.test(k)
-}
-
-/**
- * Mở phim mà không chỉ rõ máy chủ thì có chọn máy chủ thuyết minh/lồng tiếng trước không.
- * Cài đặt `uu_tien_thuyet_minh`: 'bat' | 'tat' | '' (mặc định: bật cho app Kho phim trên TV box —
- * người xem ở đó là bố mẹ, khó đọc phụ đề; tắt trên laptop). Đổi trên box: xem tv-box/HUONG-DAN.md.
- */
-async function uuTienThuyetMinh(): Promise<boolean> {
-  const c = layCaiDat('uu_tien_thuyet_minh')
-  if (c === 'bat') return true
-  if (c === 'tat') return false
-  return (await headers()).get('user-agent')?.includes('KhoPhimTV') ?? false
 }
 
 export default async function TrangXem({ params, searchParams }: PageProps<'/xem/[slug]'>) {

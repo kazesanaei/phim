@@ -45,7 +45,7 @@ export default function NutTaiVe({
   }
 
   return (
-    <div className="relative">
+    <div className="nut-tai-ve relative">
       <button
         disabled={dangChay}
         onClick={() => (nhieuTap ? datMo((m) => !m) : gui(tap))}
