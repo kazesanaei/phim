@@ -58,6 +58,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      # Khoá ký cố định (tv-box/khoa/README.md): bản sau cài đè được bản trước
+      - run: mkdir -p ~/.android && cp tv-box/khoa/debug.keystore ~/.android/debug.keystore
       - run: gradle -p tv-box/kho-phim-app assembleRelease --no-daemon
       - run: cp tv-box/kho-phim-app/app/build/outputs/apk/release/app-release.apk kho-phim.apk
       - uses: actions/upload-artifact@v4
@@ -66,8 +68,34 @@ jobs:
           path: kho-phim.apk
           retention-days: 3
 
+  # Launcher nhẹ cleanyourtv (github.com/Gathin23/cleanyourtv) cấu hình cho Chromecast nhà bố mẹ — tv-box/doi-launcher.sh.
+  # Ghim đúng commit đã đọc và cấu hình theo (28/10/2026); muốn lên bản mới thì đổi số này và đọc lại config.xml.
+  launcher:
+    runs-on: ubuntu-latest
+    env:
+      CLEANYOURTV: 095b71ad93d99ea28d94d97b06385709d354b795
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: |
+          git init -q cleanyourtv
+          git -C cleanyourtv fetch -q --depth 1 https://github.com/Gathin23/cleanyourtv "$CLEANYOURTV"
+          git -C cleanyourtv checkout -q FETCH_HEAD
+          python3 -I tv-box/launcher/cau-hinh.py cleanyourtv
+          mkdir -p ~/.android && cp tv-box/khoa/debug.keystore ~/.android/debug.keystore
+      - run: cd cleanyourtv/launcher && chmod +x gradlew && ./gradlew assembleRelease -q --console=plain --no-daemon
+      - run: cp cleanyourtv/launcher/app/build/outputs/apk/release/app-release.apk launcher.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: launcher
+          path: launcher.apk
+          retention-days: 3
+
   release:
-    needs: [web, apk]
+    needs: [web, apk, launcher]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -82,7 +110,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "tv-box-$GITHUB_RUN_NUMBER" \
-            ra/phim-tv-box.tar.gz ra/kho-phim.apk tv-box/cai-tren-box.sh tv-box/thiet-lap-box.sh tv-box/doc-goi.sh tv-box/tat-goi.sh \
+            ra/phim-tv-box.tar.gz ra/kho-phim.apk ra/launcher.apk \
+            tv-box/cai-tren-box.sh tv-box/thiet-lap-box.sh tv-box/doc-goi.sh tv-box/tat-goi.sh tv-box/doi-launcher.sh \
+            tv-box/kiem-tra-app.sh tv-box/kiem-tra-app.mjs \
             --target "$GITHUB_SHA" --latest \
             --title "Ban TV box #$GITHUB_RUN_NUMBER" \
             --notes "Nhanh ${GITHUB_REF_NAME}, commit ${GITHUB_SHA::7}. Cach cai: tv-box/HUONG-DAN.md"

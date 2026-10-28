@@ -1,18 +1,18 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Dọn Chromecast with Google TV cho mượt: TẮT (pm disable-user, không gỡ) từng nhóm gói, kiểm tra sau mỗi nhóm.
-#   bash tat-goi.sh <cổng adb> <số nhóm>      tắt một nhóm (xem DANH_SACH bên dưới)
-#   bash tat-goi.sh <cổng adb> xem            chỉ in nhóm nào có gói nào trên box, không đổi gì
-#   bash tat-goi.sh <cổng adb> khoi-phuc      bật lại MỌI gói trong danh sách, trả cài đặt về như cũ
-# Cổng adb: màn Gỡ lỗi không dây (đổi sau mỗi lần khởi động lại box).
+#   bash tat-goi.sh <số nhóm> [cổng adb]      tắt một nhóm (xem DANH_SACH bên dưới)
+#   bash tat-goi.sh xem [cổng adb]            chỉ in nhóm nào có gói nào trên box, không đổi gì
+#   bash tat-goi.sh khoi-phuc [cổng adb]      bật lại MỌI gói trong danh sách, trả cài đặt về như cũ
+# Không cần cổng: tự tìm (xem noi_adb). Kiểu cũ `bash tat-goi.sh <cổng> <nhóm>` vẫn chạy.
 #
 # Lựa chọn của nhà mình (28/10/2026): không dùng mic remote, không cast, không dùng nút YouTube/Netflix.
-# GIỮ: launcher Google TV (launcherx), setupwraith (giữ Wi-Fi), CH Play, GMS, cập nhật hệ thống, remote,
-# VTVgo, TV360, SmartTube, Kho phim, Termux. Không thay launcher: nhà bố mẹ không có máy để cứu nếu treo logo.
+# GIỮ: setupwraith (giữ Wi-Fi — chỉ doi-launcher.sh mới đụng tới), CH Play, GMS, cập nhật hệ thống, remote,
+# VTVgo, TV360, SmartTube, Kho phim, Termux. Thay launcher là việc riêng của tv-box/doi-launcher.sh.
+# Nhóm 5 theo examples/google-chromecast-gtv-4k/debloat.txt của cleanyourtv (đúng mẫu sabrina, đúng bản
+# UTTC.250917.004 của box nhà mình, đã chạy ổn trên máy của họ).
 set -uo pipefail
-T=127.0.0.1:${1:?thiếu cổng adb}
-VIEC=${2:?thiếu số nhóm, xem hoặc khoi-phuc}
-A="adb -s $T"
-LAUNCHER=com.google.android.apps.tv.launcherx
+if [[ "${1:-}" =~ ^[0-9]{4,5}$ ]]; then CONG=$1; VIEC=${2:-}; else VIEC=${1:-}; CONG=${2:-}; fi
+[ -n "$VIEC" ] || { echo "Dùng: bash tat-goi.sh <số nhóm 1-5 | xem | khoi-phuc> [cổng adb]"; exit 1; }
 
 DANH_SACH='
 # Nhóm 1 — gửi phản hồi, thống kê
@@ -31,17 +31,41 @@ DANH_SACH='
 3 com.google.android.marvin.talkback
 # Nhóm 4 — màn hình chờ Ambient (tải ảnh qua mạng, chạy ngầm)
 4 com.google.android.apps.tv.dreamx
+# Nhóm 5 — chạy ngầm còn lại: ghi log remote, chẩn đoán mạng, quảng cáo / cá nhân hoá (Privacy Sandbox,
+# federated learning), ảnh nền màn hình chờ. Thêm: hiệu ứng chuyển cảnh của hệ thống về 0 (tắt hẳn).
+5 com.google.android.tv.remotecontrol.logging
+5 com.google.android.apps.tv.netoscope
+5 com.google.android.federatedcompute
+5 com.google.android.ondevicepersonalization.services
+5 com.google.android.adservices.api
+5 com.google.android.ext.adservices.api
+5 com.google.android.backdrop
 '
 
-adb connect "$T" >/dev/null 2>&1
-[ "$($A get-state 2>/dev/null)" = device ] || { echo "Chưa nối adb $T. Xem cổng ở màn Gỡ lỗi không dây."; exit 1; }
+# Nối adb vào CHÍNH box. Không truyền cổng thì tự tìm: Chromecast đổi cổng Gỡ lỗi không dây sau mỗi lần khởi
+# động lại, `adb mdns services` liệt kê các cổng đang mở trong mạng — thử lần lượt trên 127.0.0.1 (máy khác
+# trong nhà cũng bật gỡ lỗi thì cổng của nó không mở ở 127.0.0.1, tự bị loại). Box mở 5555 (Xiaomi) thì dùng 5555.
+noi_adb() {
+  command -v adb >/dev/null || pkg install -y android-tools
+  local ds=${1:-}
+  [ -n "$ds" ] || ds="$(adb mdns services 2>/dev/null | awk '/_adb-tls-connect/ { n = split($NF, a, ":"); print a[n] }' | sort -u) 5555"
+  for c in $ds; do
+    adb connect "127.0.0.1:$c" >/dev/null 2>&1 || true
+    if [ "$(adb -s "127.0.0.1:$c" get-state 2>/dev/null)" = device ]; then T=127.0.0.1:$c; A="adb -s $T"; return 0; fi
+  done
+  echo "Chưa nối được adb. Trên TV: Cài đặt → Hệ thống → Tuỳ chọn cho nhà phát triển → bật Gỡ lỗi không dây"
+  echo "(tự tắt mỗi lần khởi động lại box)."
+  exit 1
+}
+noi_adb "$CONG"
 sh_() { $A shell "$@" | tr -d '\r'; }
 
 goi_nhom() { sed -n "s/^$1 \([a-z0-9_.]*\)$/\1/p" <<<"$DANH_SACH"; }
 CO=$(sh_ pm list packages | sed 's/^package://')
 DA_TAT=$(sh_ pm list packages -d | sed 's/^package://')
 
-# Sau mỗi nhóm: Home vẫn về launcher Google TV, còn mạng, máy chủ phim còn sống
+# Sau mỗi nhóm: Home vẫn về màn hình chính (Google TV, hoặc launcher mới sau doi-launcher.sh), còn mạng,
+# máy chủ phim còn sống
 kiem() {
   local loi=0
   # Lần chạy nhóm 1 đầu tiên (28/10/2026) báo lỗi Home dù chỉ tắt 2 gói phản hồi: cách đọc cũ chỉ lấy
@@ -49,6 +73,8 @@ kiem() {
   # nhận phím, thử lại vài lần (launcher vẽ chậm), lỗi thì in ra đang có gì trên màn hình.
   local home tren=""
   home=$(sh_ cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -1)
+  local LAUNCHER=${home%%/*}
+  case "$LAUNCHER" in com.google.android.apps.tv.launcherx|com.gathin.tvhome) ;; *) LAUNCHER=com.google.android.apps.tv.launcherx ;; esac
   sh_ input keyevent KEYCODE_HOME
   for _ in 1 2 3 4 5; do
     sleep 3
@@ -56,9 +82,9 @@ kiem() {
     grep -q "$LAUNCHER" <<<"$tren" && break
   done
   if grep -q "$LAUNCHER" <<<"$tren"; then
-    echo "  [OK] Màn hình chính Google TV"
+    echo "  [OK] Màn hình chính ($LAUNCHER)"
   else
-    echo "  [LỖI] Bấm Home không thấy màn hình chính Google TV. Home đăng ký: $home"
+    echo "  [LỖI] Bấm Home không thấy màn hình chính ($LAUNCHER). Home đăng ký: $home"
     echo "        Đang trên màn hình:"; sed 's/^ */          /' <<<"$tren" | head -6
     loi=1
   fi
@@ -77,7 +103,7 @@ kiem() {
 
 case "$VIEC" in
   xem)
-    for n in 1 2 3 4; do
+    for n in 1 2 3 4 5; do
       echo "Nhóm $n:"
       for p in $(goi_nhom $n); do
         if ! grep -qx "$p" <<<"$CO"; then echo "  -- $p (không có trên box)"
@@ -98,7 +124,7 @@ case "$VIEC" in
     sh_ settings put global animator_duration_scale 1
     kiem
     ;;
-  [1-4])
+  [1-5])
     # Sao lưu một lần: gói nào đã tắt TRƯỚC khi dọn (khôi phục không bật nhầm những gói này)
     [ -f "$HOME/sao-luu-goi-da-tat.txt" ] || { echo "$DA_TAT" > "$HOME/sao-luu-goi-da-tat.txt"; echo "Đã sao lưu danh sách gói đang tắt: ~/sao-luu-goi-da-tat.txt"; }
     echo "Nhóm $VIEC:"
@@ -106,12 +132,13 @@ case "$VIEC" in
       grep -qx "$p" <<<"$CO" || { echo "  -- $p (không có trên box, bỏ qua)"; continue; }
       echo "  $(sh_ pm disable-user --user 0 "$p")"
     done
-    if [ "$VIEC" = 4 ]; then
-      # Hiệu ứng chuyển cảnh nhanh gấp đôi: box 2 GB thấy mượt hẳn, đặt lại về 1 là như cũ
-      sh_ settings put global window_animation_scale 0.5
-      sh_ settings put global transition_animation_scale 0.5
-      sh_ settings put global animator_duration_scale 0.5
-      echo "  Hiệu ứng chuyển cảnh: 0.5x"
+    if [ "$VIEC" = 4 ] || [ "$VIEC" = 5 ]; then
+      # Hiệu ứng chuyển cảnh: nhóm 4 nhanh gấp đôi (0.5), nhóm 5 tắt hẳn (0). Đặt lại về 1 là như cũ.
+      tl=$([ "$VIEC" = 5 ] && echo 0 || echo 0.5)
+      sh_ settings put global window_animation_scale "$tl"
+      sh_ settings put global transition_animation_scale "$tl"
+      sh_ settings put global animator_duration_scale "$tl"
+      echo "  Hiệu ứng chuyển cảnh: ${tl}x"
     fi
     if ! kiem; then
       echo
@@ -120,5 +147,5 @@ case "$VIEC" in
       exit 1
     fi
     ;;
-  *) echo "Không hiểu '$VIEC'. Dùng: <số nhóm 1-4> | xem | khoi-phuc"; exit 1 ;;
+  *) echo "Không hiểu '$VIEC'. Dùng: <số nhóm 1-5> | xem | khoi-phuc"; exit 1 ;;
 esac

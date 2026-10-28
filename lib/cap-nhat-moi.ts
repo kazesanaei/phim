@@ -29,8 +29,12 @@ const KHOA_TRANG_THAI = 'cap_nhat_moi'
 /** Bật/tắt tự cập nhật. Mặc định bật. */
 const KHOA_BAT = 'cap_nhat_moi_bat'
 
-/** Khoảng cách tối thiểu giữa hai lần tự chạy. */
-const CACH_PHUT = 30
+/**
+ * Khoảng cách tối thiểu giữa hai lần tự chạy. Trên TV box (KHO_PHIM_BOX=1, đặt trong script tự chạy của
+ * tv-box/cai-tren-box.sh) 6 giờ: mỗi lượt là vài chục lệnh gọi nguồn + ghi SQLite, chạy giữa lúc bố mẹ
+ * đang xem là tranh CPU với trình phát trên chip 4 nhân yếu. Phim mới chậm vài giờ mới vào kho thì không sao.
+ */
+const CACH_PHUT = process.env.KHO_PHIM_BOX === '1' ? 360 : 30
 /**
  * Lần đầu chưa có mốc nào — hoặc máy tắt lâu quá NGAY_DI_SAU ngày — thì đi sâu
  * hơn để vét phim của vài tuần gần đây, khỏi hụt phim ra trong lúc máy tắt.

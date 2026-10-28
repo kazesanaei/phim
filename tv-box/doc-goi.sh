@@ -1,12 +1,24 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # CHỈ ĐỌC: liệt kê gói, Home, chủ Wi-Fi, RAM theo app — để lập danh sách tắt cho đúng box. Không đổi gì.
-#   curl -fLO https://github.com/kazesanaei/phim/releases/latest/download/doc-goi.sh && bash doc-goi.sh <cổng adb>
+#   curl -fLO https://github.com/kazesanaei/phim/releases/latest/download/doc-goi.sh && bash doc-goi.sh [cổng adb]
 # Kết quả in gọn (gói nối nhau trên một dòng cho ít trang chụp màn hình) và lưu ở ~/goi-box.txt.
 set -uo pipefail
-T=127.0.0.1:${1:-5555}
-A="adb -s $T"
-adb connect "$T" >/dev/null 2>&1
-[ "$($A get-state 2>/dev/null)" = device ] || { echo "Chưa nối adb $T. Xem cổng ở màn Gỡ lỗi không dây."; exit 1; }
+# Nối adb vào CHÍNH box. Không truyền cổng thì tự tìm: Chromecast đổi cổng Gỡ lỗi không dây sau mỗi lần khởi
+# động lại, `adb mdns services` liệt kê các cổng đang mở trong mạng — thử lần lượt trên 127.0.0.1 (máy khác
+# trong nhà cũng bật gỡ lỗi thì cổng của nó không mở ở 127.0.0.1, tự bị loại). Box mở 5555 (Xiaomi) thì dùng 5555.
+noi_adb() {
+  command -v adb >/dev/null || pkg install -y android-tools
+  local ds=${1:-}
+  [ -n "$ds" ] || ds="$(adb mdns services 2>/dev/null | awk '/_adb-tls-connect/ { n = split($NF, a, ":"); print a[n] }' | sort -u) 5555"
+  for c in $ds; do
+    adb connect "127.0.0.1:$c" >/dev/null 2>&1 || true
+    if [ "$(adb -s "127.0.0.1:$c" get-state 2>/dev/null)" = device ]; then T=127.0.0.1:$c; A="adb -s $T"; return 0; fi
+  done
+  echo "Chưa nối được adb. Trên TV: Cài đặt → Hệ thống → Tuỳ chọn cho nhà phát triển → bật Gỡ lỗi không dây"
+  echo "(tự tắt mỗi lần khởi động lại box)."
+  exit 1
+}
+noi_adb "${1:-}"
 
 sh_() { $A shell "$@" | tr -d '\r'; }
 gon() { sed 's/^package://' | sort | tr '\n' ' '; echo; }

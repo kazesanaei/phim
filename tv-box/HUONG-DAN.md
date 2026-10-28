@@ -16,7 +16,12 @@ Box Xiaomi ở nhà mình vẫn dùng luồng laptop cũ trong repo `tvbox-phim`
 | `doc-goi.sh` | Chạy trong Termux: CHỈ ĐỌC — liệt kê gói, Home, chủ Wi-Fi, RAM theo app để lập danh sách tắt |
 | `tat-goi.sh` | Chạy trong Termux: tắt từng nhóm gói (không gỡ), kiểm Home + mạng + máy chủ phim sau mỗi nhóm; `xem` chỉ đọc, `khoi-phuc` bật lại hết |
 | `thiet-lap-box.sh` | Chạy trong Termux, một lần: adb vào chính box, tắt phantom process killer, cài app Kho phim, in bảng bộ nhớ |
+| `doi-launcher.sh` | Chạy trong Termux: thay màn hình chính Google TV bằng launcher nhẹ cleanyourtv; `kiem` chỉ đọc, `khoi-phuc` trả như cũ |
+| `kiem-tra-app.sh` | Chạy trong Termux: tự bấm thử app Kho phim từ đầu tới cuối, đo tốc độ (xem mục Kiểm tra) |
 | `kho-phim-app/` | Mã app Kho phim (WebView toàn màn hình), chép từ repo `tvbox-phim` |
+| `launcher/` | `cau-hinh.py`: chỉnh sẵn cleanyourtv cho nhà bố mẹ (4 app ngoài màn hình, nút remote, tắt hiệu ứng). Actions build |
+| `khoa/` | Khoá ký APK cố định cho app Kho phim + launcher, để lần sau cài đè được (xem `khoa/README.md`) |
+| `VIEC-TOI-MAI.md` | Các bước tối ưu thêm trên Chromecast (mức 1–3), làm theo thứ tự |
 
 ## Cài box mới
 
@@ -45,7 +50,8 @@ Box Xiaomi ở nhà mình vẫn dùng luồng laptop cũ trong repo `tvbox-phim`
 
 ## Lên bản mới
 
-Đẩy code lên `main` (hoặc bấm Run workflow ở tab Actions) → đợi Actions xong (~5 phút) → trên box:
+Đẩy code lên nhánh `claude/tv-box-chromecast` (workflow chỉ chạy ở nhánh này, hoặc bấm Run workflow ở tab
+Actions) → đợi Actions xong (~10 phút) → trên box:
 `bash cai-tren-box.sh` (tải lại tệp này trước nếu chính nó đổi). Lịch sử xem, yêu thích, duyệt 18+ giữ nguyên;
 bản cũ để ở `~/phim.cu`, script hỏi rồi mới xoá.
 
@@ -54,8 +60,14 @@ bản cũ để ở `~/phim.cu`, script hỏi rồi mới xoá.
 - Chỉ nghe `127.0.0.1`: không bật chế độ LAN, không mật khẩu. Điện thoại trong nhà không vào được, đúng ý.
 - Không có ffmpeg (8 GB không đủ chỗ): mất tải phim về, chuyển mã `.mkv`, ảnh xem trước khi tua.
   Phim trực tuyến xem bình thường.
-- Không thay launcher, không tắt app hệ thống: nhà bố mẹ không có máy để cứu nếu treo logo.
-  Bớt quảng cáo bằng "Chế độ chỉ dùng ứng dụng" trong cài đặt tài khoản Google.
+- Tắt app hệ thống theo từng nhóm, có kiểm sau mỗi nhóm (`tat-goi.sh`); thay launcher là bước riêng, có
+  kiểm trước/sau và tự trả lại nếu hỏng (`doi-launcher.sh`). Rủi ro còn lại: launcher hỏng ngay lúc khởi
+  động (Gỡ lỗi không dây đã tự tắt) thì chỉ còn khôi phục cài đặt gốc — nên thử kỹ trước khi khởi động lại.
+- Máy chủ phim chạy với `KHO_PHIM_BOX=1` (đặt trong `~/.termux/boot/kho-phim`): cập nhật kho 6 giờ/lần
+  thay vì 30 phút, quét 18+ chỉ lúc 1–5 giờ sáng — đỡ giành CPU lúc đang xem.
+- App Kho phim 1.1 tự dựng lại WebView khi nó chết (thiếu RAM), và chờ máy chủ quá lâu thì nhờ Termux
+  chạy lại `~/.termux/boot/kho-phim` (RUN_COMMAND; `allow-external-apps = true` trong `~/.termux/termux.properties`,
+  quyền cấp ở `thiet-lap-box.sh`). Script tự chạy có chốt pid nên gọi thừa cũng không chạy hai máy chủ.
 
 ## Gỡ hết
 
@@ -84,8 +96,12 @@ Trang nhận ra app Kho phim trên TV nhờ user agent có chữ "KhoPhimTV" (`d
   cd ~/phim && node -e "const {DatabaseSync}=require('node:sqlite');new DatabaseSync('du-lieu/phim.db').prepare(\"insert into cai_dat (khoa, gia_tri) values ('uu_tien_thuyet_minh', ?) on conflict(khoa) do update set gia_tri = excluded.gia_tri\").run(process.argv[1])" tat
   ```
   (`tat` = luôn Vietsub, `bat` = luôn ưu tiên thuyết minh.)
+- **Đọc trước đoạn video** (`lib/doc-truoc.ts`, cài đặt `doc_truoc_doan`, mặc định TẮT): khi trình phát lấy
+  một đoạn, máy chủ phim tải sẵn 3 đoạn kế tiếp song song, giữ trong RAM 3 phút (tối đa 8 đoạn). Có ích khi
+  mạng tới nguồn chậm theo từng kết nối — `kiem-tra-app.sh` in "3 luồng" lớn hơn hẳn "1 luồng". Bật bằng
+  lệnh trên, thay `uu_tien_thuyet_minh` → `doc_truoc_doan` và `tat` → `bat`. Không cần khởi động lại.
 
 ## Kiểm tra
 
-`bash kiem-tra-app.sh <cổng adb>` trên box: mở app → lướt → mở phim → phát → tua → dừng/phát → về →
+`bash kiem-tra-app.sh [cổng adb]` trên box: mở app → lướt → mở phim → phát → tua → dừng/phát → về →
 tìm kiếm, kèm lỗi JS/mạng, RAM, CPU và tốc độ tải đoạn video (1 luồng / 3 luồng tới nguồn).

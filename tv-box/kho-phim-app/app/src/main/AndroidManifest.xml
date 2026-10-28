@@ -4,6 +4,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Nhờ Termux chạy lại máy chủ phim khi nó chết (MainActivity.goiTermux). Quyền nguy hiểm: cấp bằng adb
+         (tv-box/thiet-lap-box.sh). -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+
+    <!-- Android 11+: phải khai báo thì mới gọi được dịch vụ của app khác -->
+    <queries>
+        <package android:name="com.termux" />
+    </queries>
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />

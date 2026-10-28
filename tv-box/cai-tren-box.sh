@@ -61,10 +61,20 @@ if [ ! -f "$PHIM/du-lieu/phim.db" ]; then
 fi
 
 # 6. Tự chạy khi bật box. Vòng lặp: máy chủ chết (hết RAM khi đang xem VTVgo...) thì 5 giây sau tự dậy.
+#    Script này còn được app Kho phim gọi lại qua Termux (RUN_COMMAND) khi chờ máy chủ quá lâu — nên tự thoát nếu
+#    đã có một vòng lặp đang chạy (tệp pid), không thì hai vòng lặp tranh nhau cổng 3000.
+#    KHO_PHIM_BOX=1: máy chủ giãn việc nền (cập nhật kho 6 giờ/lần, quét 18+ lúc 1–5 giờ sáng — lib/cap-nhat-moi.ts,
+#    lib/quet-18.ts). TZ lấy theo giờ của box để "1–5 giờ sáng" đúng giờ Việt Nam.
 mkdir -p "$(dirname "$BOOT")"
 cat > "$BOOT" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/sh
+PID="$HOME/.kho-phim.pid"
+if [ -f "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; then exit 0; fi
+echo $$ > "$PID"
 termux-wake-lock
+export KHO_PHIM_BOX=1
+TZ=$(getprop persist.sys.timezone)
+[ -n "$TZ" ] && export TZ
 cd "$HOME/phim" || exit 1
 while true; do
   echo "=== $(date '+%F %T') khoi dong" >> server.log
@@ -76,6 +86,18 @@ while true; do
 done
 EOF
 chmod 700 "$BOOT"
+
+# SSH tự bật khi khởi động box: để sửa từ điện thoại mà khỏi ra TV gõ `sshd` (vẫn cần mật khẩu, chỉ trong mạng nhà)
+if command -v sshd >/dev/null; then
+  printf '#!/data/data/com.termux/files/usr/bin/sh\ntermux-wake-lock\nsshd\n' > "$HOME/.termux/boot/ssh"
+  chmod 700 "$HOME/.termux/boot/ssh"
+fi
+
+# Cho app Kho phim nhờ Termux chạy lại máy chủ (RUN_COMMAND). Quyền phía app cấp bằng adb trong thiet-lap-box.sh.
+TP=$HOME/.termux/termux.properties
+grep -q '^allow-external-apps *= *true' "$TP" 2>/dev/null || echo 'allow-external-apps = true' >> "$TP"
+command -v termux-reload-settings >/dev/null && { termux-reload-settings 2>/dev/null || true; }
+
 nohup "$BOOT" >/dev/null 2>&1 &
 
 echo "Đang chờ máy chủ lên..."

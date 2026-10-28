@@ -15,6 +15,7 @@ import { Readable } from 'node:stream'
 import { urlChoPhep, duongDanChoPhep, chanCheoTrang, traLoiLoi, LoiChan } from '@/lib/an-toan'
 import { UA, luongChuyenMa } from '@/lib/ffmpeg'
 import { srtSangVtt } from '@/lib/phu-de'
+import { docTruocBat, ghiThuTu, layDoan } from '@/lib/doc-truoc'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -70,6 +71,12 @@ const HEADER_CHUYEN_TIEP = [
 async function tuXa(req: Request, raw: string, conLai = 3): Promise<Response> {
   const u = urlChoPhep(raw)
   const range = req.headers.get('range')
+  // Đoạn video đã được đọc trước vào RAM (lib/doc-truoc.ts, chỉ khi bật) thì trả luôn
+  const docTruoc = !range && !u.pathname.endsWith('.m3u8') && docTruocBat()
+  if (docTruoc) {
+    const co = await layDoan(u.href, UA)
+    if (co) return co
+  }
   const r = await fetch(u, {
     headers: {
       'user-agent': UA,
@@ -94,6 +101,15 @@ async function tuXa(req: Request, raw: string, conLai = 3): Promise<Response> {
   const laPlaylist = u.pathname.endsWith('.m3u8') || ct.includes('mpegurl')
   if (laPlaylist) {
     const chu = await r.text()
+    if (docTruocBat()) {
+      const doan = chu
+        .split(/\r?\n/)
+        .map((d) => d.trim())
+        .filter((d) => d && !d.startsWith('#'))
+        .map((d) => new URL(d, u).href)
+        .filter((d) => !new URL(d).pathname.endsWith('.m3u8'))
+      ghiThuTu(u.href, doan)
+    }
     return new Response(vietLaiPlaylist(chu, u), {
       status: r.status,
       headers: {

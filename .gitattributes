@@ -13,3 +13,4 @@
 *.zip binary
 *.mp4 binary
 *.mkv binary
+*.keystore binary

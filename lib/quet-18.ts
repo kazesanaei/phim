@@ -199,6 +199,10 @@ export function batDauQuet18(toanBo = false): boolean {
 /** Tới lúc tự quét chưa: lần trước xong quá CACH_GIO giờ, hoặc lỗi quá THU_LAI_GIO giờ. */
 function denLucTuQuet(): boolean {
   if (!tuQuet18Bat() || dangQuet()) return false
+  // TV box (KHO_PHIM_BOX=1): chỉ quét lúc 1–5 giờ sáng, không tranh CPU với giờ xem phim. Kho dựng sẵn đã có
+  // sổ đen 18+, lượt quét chỉ thêm phim mới ra nên chậm một đêm không sao.
+  const gio = new Date().getHours()
+  if (process.env.KHO_PHIM_BOX === '1' && (gio < 1 || gio >= 5)) return false
   const { batDauLuc, xongLuc, loi } = docKetQua()
   const moc = loi ? batDauLuc : xongLuc
   if (!moc) return true
