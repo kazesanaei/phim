@@ -1,0 +1,39 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Kiểm tra trọn đường xem phim trong app Kho phim trên box: mở app (từ trạng thái tắt hẳn), lướt, mở phim,
+# phát, tua, dừng/phát, về trang chủ, tìm kiếm — kèm bộ nhớ, CPU, tốc độ máy chủ. Chỉ đo, không sửa gì.
+#   bash kiem-tra-app.sh <cổng adb>
+# Trong lúc chạy (~2 phút) TV tự bấm, tự phát phim: đừng cầm remote. Bản đủ: ~/bao-cao-app.json
+set -uo pipefail
+NGUON=${NGUON:-https://raw.githubusercontent.com/kazesanaei/phim/claude/tv-box-chromecast/tv-box}
+T=127.0.0.1:${1:?thiếu cổng adb}
+A="adb -s $T"
+APP=vn.khophim.tv
+adb connect "$T" >/dev/null 2>&1
+[ "$($A get-state 2>/dev/null)" = device ] || { echo "Chưa nối adb $T. Xem cổng ở màn Gỡ lỗi không dây."; exit 1; }
+curl -fsSL -o "$HOME/kiem-tra-app.mjs" "$NGUON/kiem-tra-app.mjs?v=$(date +%s)" || { echo "Không tải được kiem-tra-app.mjs"; exit 1; }
+
+ms() { curl -s -o /dev/null -w '%{time_starttransfer}' --max-time 60 "http://127.0.0.1:3000$1" | awk '{ printf "%d", $1 * 1000 }'; }
+[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 http://127.0.0.1:3000/)" = 200 ] || { echo "Máy chủ phim không trả lời ở cổng 3000"; exit 1; }
+echo "0. MÁY CHỦ: trang chủ $(ms /) ms, lần nữa $(ms /) ms | bản $(cat "$HOME/phim/.next/BUILD_ID" 2>/dev/null)"
+
+# Mở app từ trạng thái tắt hẳn, như bố bấm vào biểu tượng
+$A shell am force-stop $APP
+sleep 1
+moc=$(date +%s%3N)
+$A shell am start -n $APP/.MainActivity >/dev/null
+pid=""
+for _ in $(seq 1 40); do pid=$($A shell pidof $APP | tr -d '\r'); [ -n "$pid" ] && break; sleep 0.25; done
+[ -n "$pid" ] || { echo "App không mở"; exit 1; }
+for _ in $(seq 1 60); do $A shell cat /proc/net/unix | grep -q "webview_devtools_remote_$pid" && break; sleep 0.25; done
+$A forward tcp:9222 "localabstract:webview_devtools_remote_$pid" >/dev/null
+node "$HOME/kiem-tra-app.mjs" 9222 "$moc"
+$A forward --remove tcp:9222 >/dev/null 2>&1
+
+echo
+pss() { $A shell dumpsys meminfo 2>/dev/null | tr -d '\r' | sed -n '/^Total PSS by process:/,/^$/p' | grep -E "$1" | head -3 \
+  | sed -E 's/^ *([0-9,]+)K: ([^ ]+).*/\2 \1/' | awk '{ gsub(",", "", $2); printf "%s %d MB; ", $1, $2 / 1024 }'; }
+echo "BỘ NHỚ: app+trình duyệt: $(pss 'khophim|sandboxed_process')"
+echo "        máy chủ phim (node): $(ps -eo rss,args | awk '/node server.mjs/ && !/awk/ { printf "%d MB", $1 / 1024; exit }')"
+echo "        RAM còn trống: $(awk '/MemAvailable/ { printf "%d MB", $2 / 1024 }' /proc/meminfo) | bộ nhớ trong còn: $(df -Pk "$HOME" | awk 'NR==2 { printf "%d MB", $4 / 1024 }')"
+echo "CPU (5 tiến trình nặng nhất lúc này):"
+$A shell top -b -n 1 -m 5 -o %CPU,RES,NAME 2>/dev/null | tr -d '\r' | tail -n 5 | sed 's/^/   /'
