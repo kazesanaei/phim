@@ -1535,6 +1535,12 @@ export default function Player({
           danhThuc()
           if (dangAn || t === tuaRef.current) {
             nhay(e.key === 'ArrowRight' ? 10 : -10)
+            /**
+             * Thanh vừa hiện ra vì lần tua này: đặt ô trỏ lên thanh tua để bấm tiếp vẫn là tua, OK là
+             * dừng/phát. Trước đây ô trỏ không nằm trên thanh tua nên từ lần bấm thứ hai, Phải/Trái
+             * lại đi giữa các nút và OK bấm nhầm nút (kiem-tra-app 28/10/2026: bấm Phải 3 lần chỉ tua được 10s).
+             */
+            if (dangAn) tuaRef.current?.focus({ preventScroll: true })
             return true
           }
           return false
@@ -1542,6 +1548,17 @@ export default function Player({
         case 'ArrowDown':
           if (!trongTp) return false
           danhThuc()
+          /**
+           * Xuống ở hàng nút dưới cùng (không phải thanh tua): mở danh sách tập, phim lẻ thì danh sách
+           * máy chủ — kiểu bấm xuống ra danh sách tập của Netflix trên TV. Trước đây phím này rơi xuống
+           * PhimRemote, không còn ô nào bên dưới nên trình duyệt cuộn trang (người dùng 28/10/2026:
+           * "không xuống được chỗ chuyển máy chủ và chọn tập, màn hình bị lệch").
+           */
+          if (e.key === 'ArrowDown' && !dangAn && !bang && t && t !== tuaRef.current && t.closest('.tp-duoi')) {
+            if (dsTap.length > 1) datBang('tap')
+            else if (mayChu.length > 1) datBang('may-chu')
+            return true
+          }
           if (!dangAn && !laNen) return false
           // Hiện thanh; ô trỏ đang ở trong thanh dưới thì giữ, không thì về nút Phát/Dừng
           if (!hop.querySelector('.tp-duoi')?.contains(t)) hop.querySelector<HTMLElement>('.tp-duoi button')?.focus({ preventScroll: true })
@@ -1600,6 +1617,8 @@ export default function Player({
     tocDo,
     datToc,
     tat,
+    dsTap.length,
+    mayChu.length,
   ])
 
   // ---- tự ẩn thanh điều khiển -------------------------------------------
@@ -2464,6 +2483,13 @@ export default function Player({
             {dsTap.length > 1 && (
               <NutDk nhan="Danh sách tập" onClick={() => datBang((b) => (b === 'tap' ? null : 'tap'))} sang={bang === 'tap'}>
                 <Bieu ten="ds-tap" />
+              </NutDk>
+            )}
+            {/* Đổi máy chủ ra hẳn thanh dưới: trước chỉ nằm trong Cài đặt → Máy chủ, người lớn tuổi
+                xem trên TV không tìm ra khi phim khựng. */}
+            {mayChu.length > 1 && (
+              <NutDk nhan="Đổi máy chủ" onClick={() => datBang((b) => (b === 'may-chu' ? null : 'may-chu'))} sang={bang === 'may-chu'}>
+                <Bieu ten="may-chu" />
               </NutDk>
             )}
             <NutDk nhan={chiSoPhuDe >= 0 ? 'Tắt phụ đề (C)' : 'Bật phụ đề (C)'} onClick={doiPhuDe} gachDuoi={chiSoPhuDe >= 0}>

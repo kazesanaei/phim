@@ -17,7 +17,8 @@ async function timTrang() {
   for (let i = 0; i < 40; i++) {
     try {
       const ds = await (await fetch(`http://127.0.0.1:${CONG}/json`)).json()
-      const t = ds.find((x) => x.type === 'page' && x.url.startsWith('http://127.0.0.1:3000'))
+      const t = ds.find((x) => x.type === 'page' && x.url.startsWith('http://127.0.0.1:3000')) ||
+        (process.env.KT_TAI_LAI && ds.find((x) => x.type === 'page'))
       if (t) return t
     } catch {}
     await nghi(500)
@@ -81,6 +82,14 @@ nghe.push((m, p) => {
 await goi('Runtime.enable')
 await goi('Network.enable')
 await goi('Performance.enable')
+// Thử trên máy tính: KT_CHAM=6 bóp CPU trình duyệt cho chậm ngang box, KT_TAI_LAI=1 tải lại trang để đo bước mở app.
+// Trên box không đặt hai biến này (WebView chạy đúng tốc độ thật, app vừa được mở mới).
+if (process.env.KT_CHAM) await goi('Emulation.setCPUThrottlingRate', { rate: Number(process.env.KT_CHAM) })
+if (process.env.KT_TAI_LAI) {
+  await goi('Page.enable')
+  await chay(`(() => { location.replace('${GOC}/'); return true })()`).catch(() => {})
+  await nghi(500)
+}
 
 const PHIM = { ArrowRight: 39, ArrowLeft: 37, ArrowDown: 40, ArrowUp: 38, Enter: 13, Escape: 27 }
 async function bam(key) {
@@ -185,6 +194,17 @@ if (phat != null) {
     return [q.totalVideoFrames, q.droppedVideoFrames, v.videoWidth + 'x' + v.videoHeight, v.buffered.length ? Math.round(v.buffered.end(v.buffered.length - 1) - v.currentTime) : 0] })()`)
   bc.buoc.dangXem = { ...xem, khungVideo: q1[0] - q0[0], rot: q1[1] - q0[1], coPhim: q1[2], demTruocGiay: q1[3] }
   dong(`   10 giây xem: video ${q1[2]}, ${q1[0] - q0[0]} khung, rớt ${q1[1] - q0[1]} | đệm trước ${q1[3]} giây | giao diện: fps ${xem.fps}, giật ${xem.giat}`)
+  // Tốc độ tải từng đoạn video qua máy chủ phim (/api/tep) — phim khựng vì mạng hay vì máy
+  const doan = await chay(`(() => performance.getEntriesByType('resource')
+    .filter((r) => r.name.includes('/api/tep?u=') && !/m3u8/i.test(decodeURIComponent(r.name)))
+    .map((r) => ({ kb: Math.round((r.encodedBodySize || r.transferSize || 0) / 1024), ms: Math.round(r.duration),
+      u: decodeURIComponent(r.name.split('u=')[1] || '') })))()`)
+  const coSo = doan.filter((d) => d.kb > 50)
+  if (coSo.length) {
+    const kb = coSo.reduce((a, d) => a + d.kb, 0), ms = coSo.reduce((a, d) => a + d.ms, 0)
+    bc.buoc.doanVideo = { so: coSo.length, kbTB: Math.round(kb / coSo.length), kbs: Math.round(kb / (ms / 1000)), url: coSo.slice(-3).map((d) => d.u) }
+    dong(`   đoạn video: ${coSo.length} đoạn, TB ${bc.buoc.doanVideo.kbTB} KB/đoạn, tải ${bc.buoc.doanVideo.kbs} KB/s (một luồng qua máy chủ phim)`)
+  }
 
   // 5. Tua tới 10 giây ×3 bằng mũi tên phải
   buocHienTai = 'tua'

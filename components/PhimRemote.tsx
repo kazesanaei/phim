@@ -169,9 +169,15 @@ export default function PhimRemote() {
 
       // App trên TV box: cuộn trượt (smooth) vừa chậm vừa giật trên chip yếu — nhảy thẳng tới ô mới.
       // 'instant' chứ không 'auto': hàng phim có lớp scroll-smooth, 'auto' vẫn trượt theo CSS.
-      const cuon: ScrollIntoViewOptions = { block: 'center', inline: 'center', behavior: laMayNhe() ? 'instant' : 'smooth' }
       const dangChon = document.activeElement
       const vung = vungChon()
+      /**
+       * Trong vùng giữ ô trỏ (trình phát, hộp thoại) chỉ cuộn 'nearest': 'center' kéo luôn cả trang phía
+       * sau cho ô vào giữa màn — trên TV trình phát chiếm trọn màn, chọn một dòng trong bảng máy chủ là
+       * trang trượt lên 100px, đầu khung phim hụt khỏi màn (thử 28/10/2026 bằng tv-box/kiem-tra-app).
+       */
+      const giua = vung === document ? 'center' : 'nearest'
+      const cuon: ScrollIntoViewOptions = { block: giua, inline: giua, behavior: laMayNhe() ? 'instant' : 'smooth' }
       // Ô đang trỏ nằm ngoài hộp thoại (thẻ phim phía sau) cũng tính là chưa chọn gì.
       const laThat =
         dangChon instanceof HTMLElement && dangChon !== document.body && (vung === document || vung.contains(dangChon))
@@ -199,14 +205,42 @@ export default function PhimRemote() {
         if (!ds.length) return
         moi = timO(tu, ds, huong)
       }
-      if (!moi) return // hết ô theo hướng đó thì để trình duyệt cuộn trang như thường
+      if (!moi) {
+        /**
+         * Hết ô theo hướng đó. Cả trang thì để trình duyệt cuộn như thường. Trong vùng giữ ô trỏ
+         * (trình phát, hộp thoại) thì CHẶN: trình duyệt cuộn trang phía sau đi mất — trang xem trên TV
+         * bị đẩy lệch lên, trình phát hụt khỏi màn (người dùng gặp 28/10/2026 khi bấm Xuống ở thanh
+         * điều khiển để tìm chỗ đổi máy chủ).
+         */
+        if (vung !== document) e.preventDefault()
+        return
+      }
       e.preventDefault()
       moi.focus()
       moi.scrollIntoView(cuon)
+      if (laMayNhe()) henTaiTruoc(moi)
+    }
+
+    /**
+     * App TV box tắt tải trước theo khung nhìn (lib/che-do.ts taiTruoc) — bù lại bằng tải trước đúng
+     * phim đang được chọn khi ô trỏ dừng ở đó 0,6 giây: lướt nhanh qua thì không tốn gì, dừng lại
+     * xem thì bấm OK đã có sẵn dữ liệu.
+     */
+    let hen: ReturnType<typeof setTimeout> | undefined
+    function henTaiTruoc(o: HTMLElement) {
+      clearTimeout(hen)
+      const href = o.getAttribute('href')
+      if (!href || !href.startsWith('/') || !/^\/(phim|xem)\//.test(href)) return
+      hen = setTimeout(() => {
+        if (document.activeElement === o) router.prefetch(href)
+      }, 600)
     }
 
     window.addEventListener('keydown', f)
-    return () => window.removeEventListener('keydown', f)
+    return () => {
+      clearTimeout(hen)
+      window.removeEventListener('keydown', f)
+    }
   }, [router, duong])
 
   return null

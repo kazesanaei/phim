@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { taiTruoc } from '@/lib/che-do'
 import { useRef } from 'react'
 
 /**
@@ -29,6 +30,7 @@ export default function HangPhim({
         <h2 className="text-[17px] font-semibold tracking-tight md:text-lg">{tieuDe}</h2>
         {xemThem && (
           <Link
+            prefetch={taiTruoc()}
             href={xemThem}
             className="xem-tat-ca inline-flex items-center gap-0.5 text-[13px] font-medium text-white/60 transition hover:text-white"
           >

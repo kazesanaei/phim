@@ -1035,7 +1035,8 @@ main:has(.trang-xem) {
    mỗi khi trang cuộn — đầu trang dính và nhãn trên từng thẻ phim đều dùng nó.
    Thẻ được chọn vẫn phóng to (dấu hiệu nhìn từ xa), chỉ là phóng ngay không trượt.
    KHÔNG tắt animation chung: .tp-osd (âm lượng/tốc độ) tự mờ đi bằng animation, tắt là nó đứng
-   mãi trên màn; vòng xoay chờ tải cũng cần quay. Chỉ tắt ảnh nền banner phóng chậm 9 giây. */
+   mãi trên màn; vòng xoay chờ tải cũng cần quay. Chỉ tắt ảnh nền banner phóng chậm 9 giây và
+   ảnh hiện dần (mỗi poster vừa tải là một lớp phóng + mờ dần — lướt hàng là hàng chục lớp cùng lúc). */
 [data-nhe] *,
 [data-nhe] *::before,
 [data-nhe] *::after {
@@ -1044,6 +1045,7 @@ main:has(.trang-xem) {
   transition: none !important;
   scroll-behavior: auto !important;
 }
-[data-nhe] .anh-troi {
+[data-nhe] .anh-troi,
+[data-nhe] .anh-hien {
   animation: none;
 }

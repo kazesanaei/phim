@@ -1,4 +1,5 @@
 import { connection } from 'next/server'
+import { headers } from 'next/headers'
 import HeroXoay, { type MucHero } from '@/components/HeroXoay'
 import { layMau } from '@/lib/mau-phim'
 import HangPhim from '@/components/HangPhim'
@@ -91,6 +92,13 @@ export default async function TrangChu() {
   // Ranh giới prerender: mọi fetch vsmov phía trên được cache; SQLite phía dưới
   // đọc tại request-time nên "Tiếp tục xem" phản ánh ngay lần xem gần nhất.
   await connection()
+  /**
+   * App Kho phim trên TV box (user agent "KhoPhimTV", xem lib/che-do.ts): mỗi hàng chỉ 15 phim.
+   * Đo trên Chromecast 28/10/2026: trang chủ 4.723 phần tử, 785 ô bấm, mở app 6 giây, mỗi lần bấm
+   * mũi tên tính lại bố cục cả trang. Hàng nào cũng có "Xem tất cả" để đi tiếp.
+   */
+  const laAppTv = (await headers()).get('user-agent')?.includes('KhoPhimTV') ?? false
+  const hang = <T,>(ds: T[]): T[] => (laAppTv ? ds.slice(0, 15) : ds)
   const tiepTuc = danhSachTiepTuc(20)
   const local = layPhimLocalMoi(20)
   const xemLai = danhSachXemLai(20)
@@ -201,7 +209,7 @@ export default async function TrangChu() {
 
         {tiepTuc.length > 0 && (
           <HangPhim tieuDe="Tiếp tục xem" xemThem="/bo-suu-tap">
-            {tiepTuc.map((x) => {
+            {hang(tiepTuc).map((x) => {
               const phim: PhimTom = {
                 slug: x.slug,
                 ten: x.ten || x.slug,
@@ -228,7 +236,7 @@ export default async function TrangChu() {
 
         {tapMoi.length > 0 && (
           <HangPhim tieuDe="Tập mới cho bạn" xemThem="/bo-suu-tap">
-            {tapMoi.map((t) => (
+            {hang(tapMoi).map((t) => (
               <Cuon key={t.slug}>
                 <TheePhim
                   phim={{
@@ -262,7 +270,7 @@ export default async function TrangChu() {
         )}
 
         <HangPhim tieuDe="Mới cập nhật" xemThem="/duyet?danh-sach=phim-moi-cap-nhat">
-          {gomPhan(moi.items).map((n) => (
+          {hang(gomPhan(moi.items)).map((n) => (
             <Cuon key={n.daiDien.slug}>
               <TheePhim phim={n.daiDien} tenHienThi={n.ten} soPhan={n.soPhan} />
             </Cuon>
@@ -271,7 +279,7 @@ export default async function TrangChu() {
 
         {local.length > 0 && (
           <HangPhim tieuDe="Kho phim của tôi" xemThem="/duyet?nguon=local">
-            {local.map((p) => (
+            {hang(local).map((p) => (
               <Cuon key={p.slug}>
                 <TheePhim phim={p} huyHieu="Trong máy" />
               </Cuon>
@@ -280,7 +288,7 @@ export default async function TrangChu() {
         )}
 
         <HangPhim tieuDe="Phim lẻ" xemThem="/duyet?danh-sach=phim-le">
-          {gomPhan(le.items).map((n) => (
+          {hang(gomPhan(le.items)).map((n) => (
             <Cuon key={n.daiDien.slug}>
               <TheePhim phim={n.daiDien} tenHienThi={n.ten} soPhan={n.soPhan} />
             </Cuon>
@@ -288,7 +296,7 @@ export default async function TrangChu() {
         </HangPhim>
 
         <HangPhim tieuDe="Phim bộ" xemThem="/duyet?danh-sach=phim-bo">
-          {gomPhan(bo.items).map((n) => (
+          {hang(gomPhan(bo.items)).map((n) => (
             <Cuon key={n.daiDien.slug}>
               <TheePhim phim={n.daiDien} tenHienThi={n.ten} soPhan={n.soPhan} />
             </Cuon>
@@ -297,7 +305,7 @@ export default async function TrangChu() {
 
         {THE_LOAI_NOI_BAT.map((t, i) => (
           <HangPhim key={t.slug} tieuDe={t.ten} xemThem={`/duyet?the-loai=${t.slug}`}>
-            {gomPhan(theLoai[i].items).map((n) => (
+            {hang(gomPhan(theLoai[i].items)).map((n) => (
               <Cuon key={n.daiDien.slug}>
                 <TheePhim phim={n.daiDien} tenHienThi={n.ten} soPhan={n.soPhan} />
               </Cuon>
@@ -310,7 +318,7 @@ export default async function TrangChu() {
         {theoPhimDaXem.map((g) =>
           g.items.length >= 4 ? (
             <HangPhim key={'dx-' + g.slug} tieuDe={`Vì bạn đã xem ${g.ten}`} xemThem={`/phim/${g.slug}`}>
-              {g.items.map((p) => (
+              {hang(g.items).map((p) => (
                 <Cuon key={p.slug}>
                   <TheePhim phim={p} tenHienThi={tachPhan(p.ten).goc} />
                 </Cuon>
@@ -321,7 +329,7 @@ export default async function TrangChu() {
 
         {cacGoiY.map((g) => (
           <HangPhim key={g.theLoai} tieuDe={`Vì bạn hay xem ${g.tenTheLoai}`} xemThem={`/duyet?the-loai=${g.theLoai}`}>
-            {gomPhan(g.items).map((n) => (
+            {hang(gomPhan(g.items)).map((n) => (
               <Cuon key={n.daiDien.slug}>
                 <TheePhim phim={n.daiDien} tenHienThi={n.ten} soPhan={n.soPhan} />
               </Cuon>
@@ -336,7 +344,7 @@ export default async function TrangChu() {
             không nhảy tới chỗ cũ — nó bỏ qua tiến độ nằm trong 20 giây cuối. */}
         {xemLai.length > 0 && (
           <HangPhim tieuDe="Xem lại" xemThem="/bo-suu-tap">
-            {xemLai.map((x) => (
+            {hang(xemLai).map((x) => (
               <Cuon key={x.khoa}>
                 <TheePhim
                   phim={{

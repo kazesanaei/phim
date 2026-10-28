@@ -17,7 +17,7 @@ import { createPortal } from 'react-dom'
 import Anh from '@/components/Anh'
 import type { PhimTom } from '@/lib/vsmov'
 import { dungCheDo } from '@/components/dung-che-do'
-import { docCheDo } from '@/lib/che-do'
+import { docCheDo, taiTruoc } from '@/lib/che-do'
 import NutLuuNhanh from '@/components/NutLuuNhanh'
 
 export type TienDoThe = { phanTram: number; nhan?: string }
@@ -132,7 +132,7 @@ export default function TheePhim({
       {/* Đặt NGOÀI <Link> để bấm lưu không kích hoạt link mở phim */}
       <NutLuuNhanh phim={phim} ten={ten} />
 
-      <Link href={dich} title={ten} aria-label={ten} onClick={(e) => !laTv && ghiTheVuaBam(e.currentTarget)} className="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+      <Link prefetch={taiTruoc()} href={dich} title={ten} aria-label={ten} onClick={(e) => !laTv && ghiTheVuaBam(e.currentTarget)} className="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
         <ChoLink />
         {thuHang !== undefined && (
           /**
@@ -235,7 +235,7 @@ export default function TheePhim({
             onMouseEnter={huyHen}
             onMouseLeave={dongBang}
           >
-            <Link href={dich} className="block">
+            <Link prefetch={taiTruoc()} href={dich} className="block">
               <div className="relative aspect-video w-full bg-black">
                 <Anh src={phim.anhNgang || phim.poster} rong={400} anAnToan className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-noi via-transparent to-transparent" />
@@ -245,6 +245,7 @@ export default function TheePhim({
             <div className="p-3">
               <div className="flex items-center gap-2">
                 <Link
+                  prefetch={taiTruoc()}
                   href={`/xem/${phim.slug}`}
                   aria-label={'Xem ' + ten}
                   className="grid h-9 w-9 place-items-center rounded-full bg-white text-black transition hover:bg-white/85"
@@ -267,6 +268,7 @@ export default function TheePhim({
                   </button>
                 ) : (
                   <Link
+                    prefetch={taiTruoc()}
                     href={dich}
                     title="Xem thông tin"
                     aria-label="Xem thông tin"

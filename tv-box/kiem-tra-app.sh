@@ -29,6 +29,17 @@ $A forward tcp:9222 "localabstract:webview_devtools_remote_$pid" >/dev/null
 node "$HOME/kiem-tra-app.mjs" 9222 "$moc"
 $A forward --remove tcp:9222 >/dev/null 2>&1
 
+# Nguồn có bóp tốc độ từng kết nối không: tải thẳng (không qua máy chủ phim) 1 đoạn, rồi 3 đoạn cùng lúc
+mapfile -t DOAN < <(node -e 'try { const b = require(process.env.HOME + "/bao-cao-app.json"); for (const u of (b.buoc.doanVideo || {}).url || []) console.log(u) } catch {}')
+if [ "${#DOAN[@]}" -ge 3 ]; then
+  tai() { curl -s -o /dev/null --max-time 40 -A 'Mozilla/5.0' -e "$(echo "$1" | sed -E 's#^(https?://[^/]+).*#\1/#')" -w '%{size_download} %{time_total}\n' "$1"; }
+  mot=$(tai "${DOAN[0]}" | awk '{ printf "%d", $1 / 1024 / $2 }')
+  bd=$(date +%s%3N)
+  tong=$( { tai "${DOAN[0]}" & tai "${DOAN[1]}" & tai "${DOAN[2]}" & wait; } | awk '{ s += $1 } END { printf "%d", s / 1024 }')
+  ba=$(( tong * 1000 / ( $(date +%s%3N) - bd ) ))
+  echo "MẠNG TỚI NGUỒN: 1 luồng ${mot} KB/s | 3 luồng cùng lúc ${ba} KB/s tổng"
+fi
+
 echo
 pss() { $A shell dumpsys meminfo 2>/dev/null | tr -d '\r' | sed -n '/^Total PSS by process:/,/^$/p' | grep -E "$1" | head -3 \
   | sed -E 's/^ *([0-9,]+)K: ([^ ]+).*/\2 \1/' | awk '{ gsub(",", "", $2); printf "%s %d MB; ", $1, $2 / 1024 }'; }

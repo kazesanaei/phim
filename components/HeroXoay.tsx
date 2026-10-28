@@ -6,6 +6,7 @@
  * trong cùng khoảng màn hình.
  */
 import Link from 'next/link'
+import { laMayNhe, taiTruoc } from '@/lib/che-do'
 import { useEffect, useRef, useState } from 'react'
 import { urlAnh } from '@/components/Anh'
 import { ChoLink } from '@/components/ThanhTai'
@@ -34,6 +35,19 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
     if (mq.matches) datDungLai(true)
   }, [])
 
+  /**
+   * App TV box: một ảnh, đứng yên. Box không có ffmpeg nên ảnh banner về nguyên cỡ nguồn (~1920px,
+   * ~900 KB mỗi tấm — đo trên Chromecast 28/10/2026); 5 tấm xếp chồng và 8 giây đổi một lần là giải
+   * mã, ghép lớp liên tục đúng lúc người xem đang bấm remote. Đặt sau khi gắn (không đọc lúc dựng)
+   * để HTML máy chủ và lần vẽ đầu ở trình duyệt khớp nhau.
+   */
+  const [nhe, datNhe] = useState(false)
+  useEffect(() => {
+    if (!laMayNhe()) return
+    datNhe(true)
+    datDungLai(true)
+  }, [])
+
   if (!ds.length) return null
   const { phim, moTa, mau } = ds[i]
   const anh = phim.anhNgang || phim.poster
@@ -49,6 +63,7 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
     >
       {ds.map((m, k) => {
         const a = m.phim.anhNgang || m.phim.poster
+        if (nhe && k !== i) return null
         return (
           a && (
             // Xếp chồng và mờ dần thay vì tháo/lắp thẻ img — đỡ chớp trắng khi đổi.
@@ -91,6 +106,7 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
 
         <div className="mt-2 flex flex-wrap gap-3">
           <Link
+            prefetch={taiTruoc()}
             href={`/xem/${phim.slug}`}
             className="flex items-center gap-2 rounded bg-white px-6 py-2.5 text-sm font-semibold text-black transition hover:bg-white/85"
           >
@@ -101,6 +117,7 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
             <ChoLink />
           </Link>
           <Link
+            prefetch={taiTruoc()}
             href={`/phim/${phim.slug}`}
             className="flex items-center gap-2 rounded bg-white/20 px-6 py-2.5 text-sm font-semibold backdrop-blur transition hover:bg-white/30"
           >

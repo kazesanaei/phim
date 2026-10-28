@@ -45,6 +45,19 @@ export function laMayNhe(): boolean {
 }
 
 /**
+ * Giá trị `prefetch` cho <Link> của thẻ phim / banner: app TV box thì KHÔNG tải trước.
+ *
+ * Mặc định Next tải trước dữ liệu mọi liên kết lọt vào khung nhìn. Trên Chromecast (đo 28/10/2026,
+ * hồ sơ CPU khi bấm mũi tên) phần lớn thời gian JS là fetch + đọc luồng RSC của các trang phim vừa
+ * cuộn tới — và mỗi lần như vậy máy chủ phim trên chính box cũng phải dựng một trang. PhimRemote
+ * tải trước đúng phim đang được chọn khi ô trỏ dừng ở đó một nhịp, nên bấm OK vẫn mở nhanh.
+ * Không có thuộc tính nào ra HTML nên máy chủ (luôn undefined) và trình duyệt lệch nhau cũng không sao.
+ */
+export function taiTruoc(): false | undefined {
+  return laMayNhe() ? false : undefined
+}
+
+/**
  * Đổi chế độ. Ghi cả hai chỗ rồi đặt lại thuộc tính — CSS đổi ngay, không tải lại trang.
  * Bắn sự kiện để các thành phần đang mở biết mà vẽ lại phần khác nhau về cấu trúc.
  */
