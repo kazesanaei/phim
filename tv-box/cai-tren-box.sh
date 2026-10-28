@@ -13,7 +13,9 @@ CU=$HOME/phim.cu
 MOI=$HOME/phim.moi
 BOOT=$HOME/.termux/boot/kho-phim
 
-hoi() { local tl=""; read -r -p "$1 [c/k] " tl </dev/tty 2>/dev/null || return 1; [ "$tl" = c ]; }
+# In câu hỏi bằng printf ra /dev/tty: `read -p` không hiện câu hỏi qua SSH (Termius) — đã gặp 28/10/2026,
+# người dùng chỉ thấy con trỏ nhấp nháy, tưởng script treo.
+hoi() { local tl=""; printf '\n>>> %s [c/k] ' "$1" >/dev/tty 2>/dev/null || return 1; read -r tl </dev/tty || return 1; [ "$tl" = c ]; }
 
 # 1. Node (cần 22+ vì node:sqlite) và unzip (giải nén kho đệm)
 command -v node >/dev/null || pkg install -y nodejs-lts

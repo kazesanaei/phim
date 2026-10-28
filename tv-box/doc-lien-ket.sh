@@ -35,5 +35,5 @@ doc | grep -a -o -i -E "[A-Za-z0-9_./:-]{0,30}(deep_?link|/channel|/live|channel
   | sort -u | head -60
 
 echo
-read -r -p "Xoá bản sao APK tạm $BAN ($(du -h "$BAN" | cut -f1))? [c/k] " tl </dev/tty || tl=k
+printf '>>> Xoá bản sao APK tạm %s (%s)? [c/k] ' "$BAN" "$(du -h "$BAN" | cut -f1)" >/dev/tty; read -r tl </dev/tty || tl=k
 if [ "$tl" = c ]; then rm -f "$BAN" && echo "Đã xoá bản sao."; else echo "Giữ lại: $BAN"; fi
