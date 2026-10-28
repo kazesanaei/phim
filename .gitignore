@@ -57,3 +57,9 @@ goi-phim-len-drive/
 # trong Quản trị. Để trong dự án thì Turbopack đi băm từng tệp .mp4 và build chết
 # "os error 1450"; loại trừ bằng outputFileTracingExcludes không đủ chắc.
 # Đừng đăng ký lại thư mục phim vào bên trong thư mục này.
+
+# Build app Kho phim (tv-box/kho-phim-app) — Actions build, không commit
+/tv-box/kho-phim-app/.gradle/
+/tv-box/kho-phim-app/build/
+/tv-box/kho-phim-app/app/build/
+/tv-box/kho-phim-app/local.properties

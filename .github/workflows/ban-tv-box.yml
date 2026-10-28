@@ -1,0 +1,86 @@
+# Bản cho TV box, build trên GitHub thay cho laptop (xem tv-box/HUONG-DAN.md).
+# Mỗi lần chạy tạo một Release mới "tv-box-<số>" và đánh dấu latest, nên box luôn tải ở:
+#   https://github.com/kazesanaei/phim/releases/latest/download/<tệp>
+name: Ban TV box
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, claude/tv-box-chromecast]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'public/**'
+      - 'scripts/**'
+      - 'types/**'
+      - 'kho-dem/**'
+      - 'server.mjs'
+      - 'proxy.ts'
+      - 'instrumentation.ts'
+      - 'next.config.ts'
+      - 'package-lock.json'
+      - 'tv-box/**'
+      - '.github/workflows/ban-tv-box.yml'
+
+concurrency:
+  group: ban-tv-box
+  cancel-in-progress: false
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: bash tv-box/dong-goi.sh "$RUNNER_TEMP/ra"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: ${{ runner.temp }}/ra/phim-tv-box.tar.gz
+          retention-days: 3
+
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - run: gradle -p tv-box/kho-phim-app assembleRelease --no-daemon
+      - run: cp tv-box/kho-phim-app/app/build/outputs/apk/release/app-release.apk kho-phim.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: kho-phim.apk
+          retention-days: 3
+
+  release:
+    needs: [web, apk]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: ra
+          merge-multiple: true
+      - name: Tao release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "tv-box-$GITHUB_RUN_NUMBER" \
+            ra/phim-tv-box.tar.gz ra/kho-phim.apk tv-box/cai-tren-box.sh tv-box/thiet-lap-box.sh \
+            --target "$GITHUB_SHA" --latest \
+            --title "Ban TV box #$GITHUB_RUN_NUMBER" \
+            --notes "Nhanh ${GITHUB_REF_NAME}, commit ${GITHUB_SHA::7}. Cach cai: tv-box/HUONG-DAN.md"
