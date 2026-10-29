@@ -186,9 +186,18 @@ export default function PhimRemote() {
       // Ô đang trỏ nằm ngoài hộp thoại (thẻ phim phía sau) cũng tính là chưa chọn gì.
       const laThat =
         dangChon instanceof HTMLElement && dangChon !== document.body && (vung === document || vung.contains(dangChon))
-      // Chưa chọn gì thì mũi tên đầu tiên nhảy vào ô trên cùng bên trái.
+      /**
+       * Chưa chọn gì thì mũi tên đầu tiên nhảy vào ô trên cùng bên trái — của PHẦN NỘI DUNG (<main>), không
+       * phải thanh đầu trang; ưu tiên đường dẫn (thẻ phim, "Xem ngay") hơn nút (trang thể loại: nút "Xoá lọc"
+       * đứng trên lưới phim), không bao giờ là ô nhập chữ. Trước đây xét cả trang: ô tìm kiếm và nút menu
+       * gần như cùng độ cao, trên Chromecast chữ Android lệch vài điểm ảnh là ô tìm kiếm thành "cao nhất" —
+       * mở trang nào bấm phím đầu tiên cũng rơi vào ô tìm, bật bàn phím (người dùng gặp 29/10/2026).
+       */
       if (!laThat) {
-        const ds = dsChonDuoc()
+        const main = vung === document ? document.querySelector('main') : null
+        const trongMain = dsChonDuoc(main ?? vung).filter((o) => !dangGo(o.e) && o.e.tagName !== 'SELECT')
+        const lienKet = trongMain.filter((o) => o.e.tagName === 'A')
+        const ds = lienKet.length ? lienKet : trongMain.length ? trongMain : dsChonDuoc(vung)
         if (!ds.length) return
         e.preventDefault()
         const dau = ds.slice().sort((a, b) => a.y - b.y || a.x - b.x)[0]
