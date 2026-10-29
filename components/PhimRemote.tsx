@@ -63,8 +63,16 @@ function dsChonDuoc(goc: ParentNode = vungChon()): O[] {
     if (e.classList.contains('nut-luu')) continue
     const r = e.getBoundingClientRect()
     if (r.width === 0 || r.height === 0) continue
-    const cs = getComputedStyle(e)
-    if (cs.visibility === 'hidden' || cs.display === 'none') continue
+    /**
+     * Nút trong <details> đang đóng ("Lọc nhiều thể loại" ở trang thể loại) VẪN có toạ độ nhưng focus() không ăn:
+     * mũi tên chọn nó, gọi focus() hụt, ô trỏ đứng yên mà phím đã bị chặn — trên Chromecast kẹt luôn ở hàng
+     * phim đầu (đo bằng tv-box/theo-doi-remote.sh, 29/10/2026). checkVisibility() tính cả tổ tiên bị giấu.
+     */
+    if (
+      e.checkVisibility ? !e.checkVisibility({ visibilityProperty: true }) : getComputedStyle(e).visibility === 'hidden'
+    )
+      continue
+    if (e.closest('[inert]')) continue
     ra.push({ e, x: r.left + r.width / 2, y: r.top + r.height / 2, r })
   }
   return ra
