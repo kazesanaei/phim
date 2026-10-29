@@ -105,13 +105,15 @@ export default async function TrangDuyet({ searchParams }: PageProps<'/duyet'>) 
             {dungKho && ' · lọc từ kho đệm trong máy'}
           </p>
         </div>
+        {/* TV: không bộ lọc — vào thể loại/quốc gia từ menu là chọn phim luôn, khỏi đi qua hàng hộp chọn (người
+            dùng muốn vậy 29/10/2026). Đổi thể loại/quốc gia thì mở lại menu. */}
         <Suspense fallback={null}>
           <ThanhLoc theLoai={dm.theLoai} quocGia={dm.quocGia} nam={dm.nam} coKho={soKho > 0} />
         </Suspense>
       </div>
 
       {!laLocal && soKho === 0 && (
-        <p className="mb-4 rounded border border-[var(--color-vien)] bg-[var(--color-nen-2)] px-4 py-2.5 text-xs text-white/50">
+        <p className="an-tren-tv mb-4 rounded border border-[var(--color-vien)] bg-[var(--color-nen-2)] px-4 py-2.5 text-xs text-white/50">
           Muốn <strong className="text-white/75">sắp xếp theo điểm/năm</strong> hoặc{' '}
           <strong className="text-white/75">lọc nhiều thể loại cùng lúc</strong>? Nguồn không hỗ trợ hai việc này — vào{' '}
           <a href="/quan-tri" className="underline underline-offset-2 hover:text-white">

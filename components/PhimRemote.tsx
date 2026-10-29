@@ -61,6 +61,9 @@ function dsChonDuoc(goc: ParentNode = vungChon()): O[] {
     // Nút "+ Lưu vào Xem sau" đè ở góc thẻ phim: với remote nó là cái bẫy — mũi tên xuống từ đầu
     // trang rơi vào nó, bấm OK là lưu phim thay vì mở phim. Lưu vẫn làm được trong hộp thoại phim.
     if (e.classList.contains('nut-luu')) continue
+    // tabindex="-1": trang cố ý không cho bàn phím/remote vào (nền phủ đóng menu) — selector trên chỉ loại được
+    // [tabindex] chung chung, còn button/a có tabindex -1 vẫn khớp nên lọc ở đây.
+    if (e.getAttribute('tabindex') === '-1') continue
     const r = e.getBoundingClientRect()
     if (r.width === 0 || r.height === 0) continue
     /**

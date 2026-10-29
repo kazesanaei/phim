@@ -72,8 +72,12 @@ export default function MenuTv({ du, dong }: { du: DuMenu | null; dong: () => vo
 
   return (
     <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label="Menu" data-lop-phu-mo="1">
+      {/* tabIndex -1: nền phủ kín màn hình, remote không được đi vào. Trước đây nó lọt vào danh sách ô "cùng
+          hàng" của mọi mục bên cột trái, che mất cột phải — ở Quốc gia/Năm (danh sách ngắn, không với tới độ cao
+          của mục đó) bấm Phải đứng im (người dùng gặp 29/10/2026). Bấm Back vẫn đóng menu. */}
       <button
         aria-label="Đóng menu"
+        tabIndex={-1}
         onClick={dong}
         className="mo-man absolute inset-0 h-full w-full cursor-default bg-black/75 backdrop-blur-sm"
       />

@@ -50,7 +50,7 @@ export default function ThanhLoc({ theLoai, quocGia, nam, coKho }: Props) {
   const coLoc = ['the-loai', 'quoc-gia', 'nam', 'danh-sach', 'sap-xep'].some((k) => sp.get(k))
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="an-tren-tv flex flex-col items-end gap-2">
       <div className="flex flex-wrap items-center justify-end gap-2">
         <O nhan="Nguồn" giaTri={nguonLocal ? 'local' : ''} onDoi={(v) => doi('nguon', v)}>
           <option value="">Từ vsmov</option>
