@@ -14,13 +14,14 @@
  *   1. Ảnh đi qua chính máy chủ này (same-origin) → trình duyệt không đập
  *      thẳng vào CDN nữa.
  *   2. Ra CDN tối đa LUONG_RA kết nối, xếp hàng phần còn lại, rớt thì thử lại.
- *   3. Thu nhỏ đúng bề rộng cần dùng bằng ffmpeg (có thì dùng, không thì thôi).
+ *   3. Thu nhỏ đúng bề rộng cần dùng bằng ffmpeg (có thì dùng, không thì thôi);
+ *      không có ffmpeg mà có djpeg/cjpeg (TV box) thì thu nhỏ JPEG bằng chúng.
  *   4. Ghi xuống đĩa; lần sau đọc đĩa, không gọi mạng nữa.
  */
 import { createHash } from 'node:crypto'
 import { mkdirSync, existsSync } from 'node:fs'
 import { readFile, writeFile, rename } from 'node:fs/promises'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { timLenh } from './ffmpeg'
 
@@ -148,7 +149,83 @@ async function ghiDem(u: string, rong: BeRong | undefined, than: Buffer, kieu: s
  * dùng ảnh gốc, vì thiếu ffmpeg là chuyện bình thường (xem CAI-DAT.md).
  */
 async function thuNho(goc: Buffer, rong: BeRong): Promise<Buffer | null> {
-  return quaFfmpeg(goc, ['-vf', `scale='min(iw,${rong})':-2:flags=lanczos`, '-q:v', '4', '-f', 'mjpeg'])
+  return (
+    (await quaFfmpeg(goc, ['-vf', `scale='min(iw,${rong})':-2:flags=lanczos`, '-q:v', '4', '-f', 'mjpeg'])) ??
+    (await thuNhoJpeg(goc, rong))
+  )
+}
+
+/**
+ * Thu nhỏ JPEG không cần ffmpeg — cho TV box: Termux không đủ chỗ cài ffmpeg, mà thiếu nó thì thẻ phim
+ * 400px nhận nguyên ảnh gốc. Đo 29/10/2026: ảnh ngang của nguồn là 1920×1080, ~1 MB; trang thể loại 24
+ * thẻ là ~200 MB ảnh giải nén trên Chromecast 2 GB RAM — bấm Xuống cuộn sang hàng mới là giật.
+ *
+ * djpeg giải mã thẳng ở cỡ M/8 (co ngay trong miền DCT, nhẹ hơn hẳn giải mã đủ cỡ rồi mới co), cjpeg
+ * nén lại. Hai lệnh thuộc gói Termux `libjpeg-turbo-progs` (vài trăm KB) — tv-box/cai-tren-box.sh tự cài.
+ * Chỉ co về bội số 1/8 nên ảnh ra rộng hơn `rong` một chút, không sao: trình duyệt co nốt.
+ */
+let coBoJpeg: boolean | undefined
+function coDjpeg(): boolean {
+  coBoJpeg ??= !spawnSync('djpeg', ['-version']).error && !spawnSync('cjpeg', ['-version']).error
+  return coBoJpeg
+}
+
+/** Bề rộng ảnh JPEG đọc từ phần đầu tệp (khung SOF). 0 nếu không phải JPEG hoặc không đọc được. */
+export function rongJpeg(b: Buffer): number {
+  if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return 0
+  let i = 2
+  while (i + 9 < b.length) {
+    if (b[i] !== 0xff) return 0
+    const m = b[i + 1]
+    // SOF0–SOF15, trừ DHT (C4), JPG (C8), DAC (CC)
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return b.readUInt16BE(i + 7)
+    i += 2 + b.readUInt16BE(i + 2)
+  }
+  return 0
+}
+
+async function thuNhoJpeg(goc: Buffer, rong: BeRong): Promise<Buffer | null> {
+  const w = rongJpeg(goc)
+  if (!w || w <= rong || !coDjpeg()) return null
+  const m = Math.max(1, Math.min(8, Math.ceil((rong * 8) / w)))
+
+  return new Promise((giaiQuyet) => {
+    const giai = spawn('djpeg', ['-scale', `${m}/8`])
+    const nen = spawn('cjpeg', ['-quality', '82', '-optimize'])
+    const manh: Buffer[] = []
+    let xong = false
+    let conCho = 2
+    let loi = false
+    const ketThuc = (kq: Buffer | null) => {
+      if (xong) return
+      xong = true
+      clearTimeout(hen)
+      giaiQuyet(kq)
+    }
+    const hen = setTimeout(() => {
+      giai.kill('SIGKILL')
+      nen.kill('SIGKILL')
+      ketThuc(null)
+    }, HET_GIO_FFMPEG_MS)
+    const dong = (ma: number | null) => {
+      if (ma !== 0) loi = true
+      if (--conCho > 0) return
+      const ra = Buffer.concat(manh)
+      ketThuc(!loi && ra.length > 0 ? ra : null)
+    }
+
+    giai.stdout.pipe(nen.stdin)
+    nen.stdout.on('data', (d) => manh.push(d))
+    for (const p of [giai, nen]) {
+      p.stderr.resume()
+      p.on('error', () => ketThuc(null))
+      p.on('close', dong)
+      // EPIPE khi một bên chết sớm — nuốt, nhánh 'close' lo kết quả.
+      p.stdin.on('error', () => {})
+      p.stdout.on('error', () => {})
+    }
+    giai.stdin.end(goc)
+  })
 }
 
 /** Đưa ảnh qua ffmpeg bằng ống vào/ra. `ra` là các cờ đầu ra (bộ lọc, định dạng). */
@@ -251,7 +328,18 @@ async function taiThat(u: string, rong: BeRong | undefined): Promise<KetQuaAnh |
  */
 export async function layAnh(u: string, rong?: BeRong): Promise<KetQuaAnh | null> {
   const dem = await docDem(u, rong)
-  if (dem) return dem
+  if (dem) {
+    // Ô bề rộng này đang chứa ảnh gốc to (đệm từ hồi chưa có công cụ thu nhỏ — box cài djpeg sau):
+    // thu nhỏ từ chính tệp trên đĩa rồi ghi đè, không cần ra mạng lại.
+    if (rong && dem.kieu === 'image/jpeg' && rongJpeg(dem.than) > rong * 1.5) {
+      const nho = await thuNhoJpeg(dem.than, rong)
+      if (nho) {
+        await ghiDem(u, rong, nho, 'image/jpeg')
+        return { than: nho, kieu: 'image/jpeg', tuDia: true }
+      }
+    }
+    return dem
+  }
 
   const khoa = (rong ?? 'goc') + '|' + u
   const dang = trangThai.dangTai.get(khoa)

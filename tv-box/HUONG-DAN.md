@@ -60,6 +60,9 @@ bản cũ để ở `~/phim.cu`, script hỏi rồi mới xoá.
 - Chỉ nghe `127.0.0.1`: không bật chế độ LAN, không mật khẩu. Điện thoại trong nhà không vào được, đúng ý.
 - Không có ffmpeg (8 GB không đủ chỗ): mất tải phim về, chuyển mã `.mkv`, ảnh xem trước khi tua.
   Phim trực tuyến xem bình thường.
+  Ảnh poster thu nhỏ bằng `djpeg`/`cjpeg` (gói `libjpeg-turbo-progs`, `cai-tren-box.sh` tự cài) thay cho
+  ffmpeg. Thiếu nó thì thẻ phim nhận ảnh gốc 1920×1080: đo 29/10/2026 trang chủ ngốn ~595 MB RAM chỉ cho
+  ảnh (có nó: ~39 MB), trang thể loại bấm Xuống là giật.
 - Tắt app hệ thống theo từng nhóm, có kiểm sau mỗi nhóm (`tat-goi.sh`); thay launcher là bước riêng, có
   kiểm trước/sau và tự trả lại nếu hỏng (`doi-launcher.sh`). Rủi ro còn lại: launcher hỏng ngay lúc khởi
   động (Gỡ lỗi không dây đã tự tắt) thì chỉ còn khôi phục cài đặt gốc — nên thử kỹ trước khi khởi động lại.

@@ -21,6 +21,9 @@ hoi() { local tl=""; printf '\n>>> %s [c/k] ' "$1" >/dev/tty 2>/dev/null || retu
 command -v node >/dev/null || pkg install -y nodejs-lts
 command -v unzip >/dev/null || pkg install -y unzip
 command -v pkill >/dev/null || pkg install -y procps
+# djpeg/cjpeg: máy chủ phim thu nhỏ ảnh poster về cỡ thẻ (lib/anh.ts thuNhoJpeg). Thiếu thì thẻ nhận ảnh gốc
+# 1920×1080 ~1 MB, Chromecast giật khi cuộn danh sách phim. Gói vài trăm KB; cài hỏng thì vẫn chạy, chỉ ảnh to.
+command -v djpeg >/dev/null || pkg install -y libjpeg-turbo-progs || echo "Chưa cài được libjpeg-turbo-progs — ảnh poster sẽ không được thu nhỏ."
 node -e 'require("node:sqlite")' 2>/dev/null || { echo "Node $(node -v) thiếu node:sqlite, cần bản 22 trở lên"; exit 1; }
 
 # 2. Chỗ trống: bản gọn ~130 MB, kho đệm ~11 MB và lớn dần. Dưới ~500 MB là Android báo đầy.
