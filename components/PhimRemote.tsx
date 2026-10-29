@@ -77,7 +77,12 @@ function dsChonDuoc(goc: ParentNode = vungChon()): O[] {
  * phần lệch để mũi tên xuống rơi vào ô NGAY DƯỚI chứ không nhảy chéo sang cột
  * bên cạnh chỉ vì ô đó nhích gần hơn vài pixel.
  */
-function timO(tu: DOMRect, ds: O[], huong: 'len' | 'xuong' | 'trai' | 'phai'): HTMLElement | null {
+function timO(tu: DOMRect, tatCa: O[], huong: 'len' | 'xuong' | 'trai' | 'phai', tuO: Element): HTMLElement | null {
+  /**
+   * Bỏ chính ô đang đứng. Không bỏ thì nó luôn "cùng cột" với mình, lọt vào nhóm ưu tiên bên dưới và che
+   * hết các ô khác — ô tìm kiếm ở góc phải trên TV bấm Xuống đứng im, không vào được bàn phím (29/10/2026).
+   */
+  const ds = tatCa.filter((o) => o.e !== tuO)
   const gx = tu.left + tu.width / 2
   const gy = tu.top + tu.height / 2
   const doc = huong === 'trai' || huong === 'phai'
@@ -199,11 +204,11 @@ export default function PhimRemote() {
        * phím (tv-box/do-muot.mjs, 28/10/2026). Hết ô trong hàng thì mới quét cả trang như cũ.
        */
       const hang = huong === 'trai' || huong === 'phai' ? dangChon.closest('.hang-phim, .cuon-ngang') : null
-      let moi = hang ? timO(tu, dsChonDuoc(hang), huong) : null
+      let moi = hang ? timO(tu, dsChonDuoc(hang), huong, dangChon) : null
       if (!moi) {
         const ds = dsChonDuoc()
         if (!ds.length) return
-        moi = timO(tu, ds, huong)
+        moi = timO(tu, ds, huong, dangChon)
       }
       if (!moi) {
         /**

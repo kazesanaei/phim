@@ -12,15 +12,23 @@
  * không có cách nào giành lại. Nút ở đây bấm bằng con trỏ, dùng Web Speech API
  * nên nghe xong là điền thẳng vào ô, không rời trang. Trình duyệt nào không có
  * API đó thì nút tự ẩn.
+ *
+ * TRÊN TV (29/10/2026, Chromecast — màn chỉ ~960×540 điểm ảnh CSS, chữ to 1,25 lần): bảng xếp dọc
+ * gợi ý + bàn phím cao hơn màn hình, nút Tìm khuất dưới đáy, bấm chữ nào ô trỏ cũng nhảy về ô nhập,
+ * Back không đóng được bảng — người dùng kẹt. Nay trên TV: bàn phím bên trái, gợi ý bên phải (vừa
+ * một màn), ô trỏ ở yên trên phím vừa bấm, mũi tên không lọt ra trang phía sau (data-giu-tro),
+ * Back đóng bảng.
  */
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as SuKienPhim } from 'react'
 import { dungCheDo } from '@/components/dung-che-do'
 
 type GoiY = {
   phim: { slug: string; ten: string; nam?: number; poster?: string }[]
   nguoi: { ten: string; loai: string; soPhim: number }[]
 }
+
+const PHIM_LUI = new Set(['Escape', 'GoBack', 'BrowserBack'])
 
 const HANG_PHIM = [
   ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
@@ -158,13 +166,76 @@ export default function OTimKiem() {
   function goPhim(c: string) {
     datQ((v) => v + c)
     datMo(true)
-    oRef.current?.focus()
+    // Trên TV giữ ô trỏ ở phím vừa bấm để gõ tiếp; kéo về ô nhập là mỗi chữ phải đi lại cả quãng
+    if (!laTv) oRef.current?.focus()
+  }
+
+  /**
+   * Back của remote (app Kho phim gửi Escape, xem MainActivity.dispatchKeyEvent): bảng đang mở thì đóng
+   * bảng, ô trỏ về ô nhập; bảng đã đóng mà ô trỏ còn trong ô nhập thì rời ô nhập. preventDefault để app
+   * không thoát và PhimRemote không lùi trang. Backspace không tính: trong ô nhập nó là xoá chữ.
+   */
+  function veBack(e: SuKienPhim) {
+    if (!laTv || !(PHIM_LUI.has(e.key) || e.keyCode === 10009 || e.keyCode === 461)) return
+    if (mo) {
+      e.preventDefault()
+      // Đưa ô trỏ về ô nhập TRƯỚC rồi mới đóng: focus() gọi onFocus, mà onFocus mở lại bảng
+      oRef.current?.focus()
+      datMo(false)
+    } else if (document.activeElement === oRef.current) {
+      e.preventDefault()
+      oRef.current?.blur()
+    }
   }
 
   const coGoiY = !!goiY && (goiY.phim.length > 0 || goiY.nguoi.length > 0)
 
+  const khoiGoiY = (
+    <>
+      {!!goiY?.nguoi.length && (
+        <div className="border-b border-[var(--color-vien)] p-2">
+          <p className="px-1 pb-1 text-[11px] uppercase tracking-wide text-white/35">Diễn viên · đạo diễn</p>
+          {goiY.nguoi.map((n) => (
+            <button
+              key={n.loai + n.ten}
+              onClick={() => guiDi(n.ten)}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:outline-none"
+            >
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-[10px] font-bold">
+                {n.ten.charAt(0).toUpperCase()}
+              </span>
+              <span className="flex-1 truncate">{n.ten}</span>
+              <span className="shrink-0 text-[11px] text-white/35">
+                {n.loai === 'dd' ? 'đạo diễn' : ''} {n.soPhim} phim
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!!goiY?.phim.length && (
+        <div className="p-2">
+          <p className="px-1 pb-1 text-[11px] uppercase tracking-wide text-white/35">Phim</p>
+          {goiY.phim.map((p) => (
+            <button
+              key={p.slug}
+              onClick={() => {
+                datMo(false)
+                router.push('/phim/' + p.slug)
+              }}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:outline-none"
+            >
+              <span className="flex-1 truncate">{p.ten}</span>
+              {p.nam && <span className="shrink-0 text-[11px] text-white/35">{p.nam}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  )
+
   return (
-    <div ref={boRef} className="relative">
+    <div ref={boRef} className="relative" onKeyDown={veBack} data-giu-tro={laTv && mo ? '' : undefined}>
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -207,10 +278,16 @@ export default function OTimKiem() {
       </form>
 
       {mo && (coGoiY || laTv || loiMic || dangNghe) && (
-        <div className="buong-xuong absolute right-0 top-full z-[70] mt-2 w-[min(92vw,26rem)] overflow-hidden rounded-lg border border-[var(--color-vien)] bg-noi shadow-[0_18px_50px_rgba(0,0,0,.75)]">
+        <div
+          className={`buong-xuong absolute right-0 top-full z-[70] mt-2 overflow-hidden rounded-lg border border-[var(--color-vien)] bg-noi shadow-[0_18px_50px_rgba(0,0,0,.75)] ${
+            laTv
+              ? 'grid max-h-[calc(100dvh-5rem)] w-[min(92vw,54rem)] grid-cols-2 overflow-y-auto'
+              : 'w-[min(92vw,26rem)]'
+          }`}
+        >
           {(dangNghe || loiMic) && (
             <p
-              className={`border-b border-[var(--color-vien)] px-3 py-2 text-xs ${
+              className={`col-span-2 border-b border-[var(--color-vien)] px-3 py-2 text-xs ${
                 dangNghe ? 'text-[var(--color-nhan)]' : 'text-white/50'
               }`}
             >
@@ -218,48 +295,10 @@ export default function OTimKiem() {
             </p>
           )}
 
-          {!!goiY?.nguoi.length && (
-            <div className="border-b border-[var(--color-vien)] p-2">
-              <p className="px-1 pb-1 text-[11px] uppercase tracking-wide text-white/35">Diễn viên · đạo diễn</p>
-              {goiY.nguoi.map((n) => (
-                <button
-                  key={n.loai + n.ten}
-                  onClick={() => guiDi(n.ten)}
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:outline-none"
-                >
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-[10px] font-bold">
-                    {n.ten.charAt(0).toUpperCase()}
-                  </span>
-                  <span className="flex-1 truncate">{n.ten}</span>
-                  <span className="shrink-0 text-[11px] text-white/35">
-                    {n.loai === 'dd' ? 'đạo diễn' : ''} {n.soPhim} phim
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {!!goiY?.phim.length && (
-            <div className="p-2">
-              <p className="px-1 pb-1 text-[11px] uppercase tracking-wide text-white/35">Phim</p>
-              {goiY.phim.map((p) => (
-                <button
-                  key={p.slug}
-                  onClick={() => {
-                    datMo(false)
-                    router.push('/phim/' + p.slug)
-                  }}
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:outline-none"
-                >
-                  <span className="flex-1 truncate">{p.ten}</span>
-                  {p.nam && <span className="shrink-0 text-[11px] text-white/35">{p.nam}</span>}
-                </button>
-              ))}
-            </div>
-          )}
+          {!laTv && khoiGoiY}
 
           {laTv && (
-            <div className="border-t border-[var(--color-vien)] p-2">
+            <div className="border-r border-[var(--color-vien)] p-2">
               <p className="px-1 pb-1.5 text-[11px] uppercase tracking-wide text-white/35">
                 Bàn phím — gõ không dấu vẫn ra đúng phim
               </p>
@@ -292,6 +331,19 @@ export default function OTimKiem() {
                   Tìm
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* TV: gợi ý ở cột phải, cạnh bàn phím — gõ tới đâu thấy tới đó, Phải từ bàn phím là sang chọn phim */}
+          {laTv && (
+            <div className="min-w-0">
+              {coGoiY ? (
+                khoiGoiY
+              ) : (
+                <p className="p-3 text-sm text-white/45">
+                  {q.trim().length < 2 ? 'Gõ từ 2 chữ trở lên, gợi ý hiện ở đây.' : 'Chưa thấy phim nào khớp.'}
+                </p>
+              )}
             </div>
           )}
         </div>
