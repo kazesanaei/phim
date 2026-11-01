@@ -87,7 +87,7 @@ Trang nhận ra app Kho phim trên TV nhờ user agent có chữ "KhoPhimTV" (`d
   Ghép điện thoại (máy chủ chỉ nghe 127.0.0.1), Quản trị (có nút Xoá kho — vẫn vào được bằng /quan-tri),
   nút tìm bằng giọng nói (Trợ lý Google đã tắt), nút đổi chế độ PC/TV.
 - Trang chủ: mỗi hàng 15 phim (có "Xem tất cả"), banner một ảnh đứng yên.
-- Trình phát bật sẵn "Tăng âm lượng" + "Rõ lời thoại", phụ đề to hơn một nấc (chỉnh trong Cài đặt thì giữ theo đó).
+- Trình phát: phụ đề to hơn một nấc. "Tăng âm lượng" và "Rõ lời thoại" TẮT (01/11/2026: bật sẵn làm loa TV rè); cần thì bật trong Cài đặt của trình phát, lựa chọn được giữ.
 - Không tải trước trang của mọi phim lướt qua; chỉ tải trước phim mà ô chọn dừng lại 0,6 giây,
   và trang tập sau khi tập đang xem đã quá 80%.
 - Trình phát: Xuống ở hàng nút dưới cùng mở danh sách tập (phim bộ) / máy chủ (phim lẻ); có nút

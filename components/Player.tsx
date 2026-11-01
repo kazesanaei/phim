@@ -221,15 +221,37 @@ const MAC_DINH: CaiDat = {
 }
 
 /**
- * App Kho phim trên TV box: người xem là bố mẹ (28/10/2026) — bật sẵn "Tăng âm lượng" và "Rõ lời thoại"
- * (nén dải động + nhấn dải giọng nói, xem damBaoDoThi: lời thoại +10 dB mà tiếng nổ không vỡ), phụ đề to
- * hơn một nấc cho lúc máy chủ không có thuyết minh. Chỉ là mặc định: chỉnh trong Cài đặt thì giữ theo đó.
+ * App Kho phim trên TV box (người xem là bố mẹ): phụ đề to hơn một nấc cho lúc máy chủ không có thuyết minh.
+ * 28/10/2026 từng bật sẵn cả "Tăng âm lượng" + "Rõ lời thoại" — 01/11/2026 người dùng báo tiếng rè quá
+ * trên loa TV, nên bỏ: mặc định như bản laptop, ai cần thì bật trong Cài đặt.
  */
-const MAC_DINH_TV: CaiDat = { ...MAC_DINH, tangAm: true, roLoi: true, coChu: 130 }
+const MAC_DINH_TV: CaiDat = { ...MAC_DINH, coChu: 130 }
+
+/**
+ * Tắt MỘT LẦN hai mục đó trên TV box: ghiCaiDat lưu cả bộ cài đặt mỗi lần chỉnh gì đó (âm lượng...), nên
+ * máy đã dùng bản cũ có sẵn tangAm/roLoi = true trong localStorage — đổi mặc định thôi là không đủ. Âm lượng
+ * đang vượt 100% (chỉ có được khi bật Tăng âm lượng) cũng về 100%. Đánh dấu xong thì tôn trọng lựa chọn sau đó.
+ */
+const KHOA_TAT_TANG_AM = 'kp-tv-tat-tang-am-1'
+function tatTangAmMotLan() {
+  if (!laMayNhe()) return
+  try {
+    if (localStorage.getItem(KHOA_TAT_TANG_AM)) return
+    const l = JSON.parse(localStorage.getItem(KHOA_CAI_DAT) || '{}')
+    l.tangAm = false
+    l.roLoi = false
+    if (Number(l.amLuong) > 1) l.amLuong = 1
+    localStorage.setItem(KHOA_CAI_DAT, JSON.stringify(l))
+    localStorage.setItem(KHOA_TAT_TANG_AM, '1')
+  } catch {
+    // localStorage bị chặn: không có gì đã lưu để sửa
+  }
+}
 
 function docCaiDat(): CaiDat {
   if (typeof window === 'undefined') return MAC_DINH
   const md = laMayNhe() ? MAC_DINH_TV : MAC_DINH
+  tatTangAmMotLan()
   try {
     const l = JSON.parse(localStorage.getItem(KHOA_CAI_DAT) || '{}')
     const tangAm = typeof l.tangAm === 'boolean' ? l.tangAm : md.tangAm
