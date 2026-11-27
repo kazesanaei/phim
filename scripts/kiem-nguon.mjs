@@ -26,7 +26,7 @@ import { xetTen18, mucTheoTheLoai } from '../lib/ten-18.ts'
 import { chuanHoa, themAfter, nutAfterCredit, nhanNut } from '../lib/after-credit.ts'
 import { laCham } from '../lib/do-cham.ts'
 import { chonMal, docAniSkip, laAnime } from '../lib/aniskip-khop.ts'
-import { mienTrongPlaylist } from '../lib/mien-phat.ts'
+import { mienTrongPlaylist, docTrangLoiNguon, giaiThichLoiMang } from '../lib/mien-phat.ts'
 
 const GOC = 'https://vsmov.com/api'
 const APP = process.env.APP || 'http://127.0.0.1:3000'
@@ -273,7 +273,7 @@ await phep('Lọc 18+ hai mức: chặn phim tình dục, chỉ gắn mác phim 
   return '3 ca chặn, 2 ca gắn mác, 3 ca không bắt oan, 5 ca theo thể loại'
 })
 
-await phep('Học CDN từ playlist: mảnh video và khoá ở máy chủ khác cũng được nhận', async () => {
+await phep('Học CDN từ playlist, và nói rõ vì sao nguồn không trả video', async () => {
   const goc = new URL('https://a.kvp726.com/20261127/abc/index.m3u8')
   const pl = [
     '#EXTM3U',
@@ -285,7 +285,16 @@ await phep('Học CDN từ playlist: mảnh video và khoá ở máy chủ khác
     '/1080/index.m3u8',
   ].join('\n')
   assert.deepEqual(mienTrongPlaylist(pl, goc).sort(), ['khoa.cdn-x.net', 's3.cdn-x.net'])
-  return 'đọc đúng 2 tên miền CDN, bỏ qua mảnh cùng máy chủ'
+  // Trang chặn IP nước ngoài thật của a.kvp726.com (đo 27/11/2026 từ máy ở Mỹ)
+  const chan = docTrangLoiNguon('<h1>404</h1><p>Page Not Found</p><div class="vn">Vui lòng sử dụng mạng trong nước để truy cập trang này.</div><div>DEBUG: IP 160.79.106.144  country  166  name:美国</div>')
+  assert.deepEqual(chan, { chanNuocNgoai: true, ip: '160.79.106.144', nuoc: 'Mỹ' })
+  assert.equal(docTrangLoiNguon('<h1>502 Bad Gateway</h1>').chanNuocNgoai, false)
+  // Lỗi mạng công ty nói đúng tên
+  const loiMang = (code) => giaiThichLoiMang(Object.assign(new TypeError('fetch failed'), { cause: { code } }), 'a.kvp726.com')
+  assert.match(loiMang('SELF_SIGNED_CERT_IN_CHAIN'), /soi HTTPS/)
+  assert.match(loiMang('ECONNRESET'), /bộ lọc web/)
+  assert.match(loiMang('ENOTFOUND'), /chặn tên miền/)
+  return 'đọc đúng 2 tên miền CDN; nhận ra trang chặn IP nước ngoài; gọi đúng tên 3 kiểu mạng công ty chặn'
 })
 
 await phep('After credit: nút hiện đúng lúc, xem xong cảnh 1 mới mời sang cảnh 2', async () => {

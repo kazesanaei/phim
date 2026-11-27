@@ -374,6 +374,8 @@ export default function Player({
 
   const [dangTai, datDangTai] = useState(true)
   const [loi, datLoi] = useState<string | null>(null)
+  /** Lý do cụ thể (proxy báo, hoặc mã lỗi kỹ thuật) — để biết nên làm gì, không chỉ biết là hỏng. */
+  const [lyDoLoi, datLyDoLoi] = useState<string | null>(null)
   /** Số giây còn lại trước khi tự đổi máy chủ; null = không đếm. */
   const [demDoi, datDemDoi] = useState<number | null>(null)
   const [huyDoi, datHuyDoi] = useState(false)
@@ -499,6 +501,7 @@ export default function Player({
   useEffect(() => {
     let huy = false
     datLoi(null)
+    datLyDoLoi(null)
     datDangTai(true)
     datSrc(null)
 
@@ -603,9 +606,26 @@ export default function Player({
          * ở vòng xoay tải mãi mãi, không bao giờ hiện lỗi hay nút đổi máy chủ.
          */
         const ma = (d as { response?: { code?: number } }).response?.code ?? 0
-        if (thuLaiRef.current >= 3 || (ma >= 400 && ma < 500)) {
+        const baoLoi = () => {
           datLoi('Máy chủ này không phát được tập này.')
           datDangTai(false)
+          datLyDoLoi(`Chi tiết: ${d.details}${ma ? ', mã ' + ma : ''}`)
+          /**
+           * /api/tep trả JSON {loi} khi chính nó biết vì sao (nguồn chặn IP nước ngoài, tên miền
+           * bị chặn, nguồn trả trang web). Hỏi lại đúng URL hỏng để lấy câu đó hiện cho người xem.
+           */
+          const tho = (d as { url?: string }).url || d.frag?.url || (d as { context?: { url?: string } }).context?.url || src
+          // hls.js giữ nguyên dạng đường dẫn đã nạp — thường là tương đối "/api/tep?..."
+          const urlHong = new URL(tho, location.href)
+          if (ma >= 400 && urlHong.origin === location.origin && urlHong.pathname === '/api/tep') {
+            fetch(urlHong)
+              .then((r) => (r.headers.get('content-type')?.includes('json') ? r.json() : null))
+              .then((j) => j?.loi && datLyDoLoi(String(j.loi)))
+              .catch(() => {})
+          }
+        }
+        if (thuLaiRef.current >= 3 || (ma >= 400 && ma < 500)) {
+          baoLoi()
           return
         }
         thuLaiRef.current += 1
@@ -616,10 +636,7 @@ export default function Player({
         if (loiPlaylist) hls.loadSource(src)
         else if (d.type === HlsCtor.ErrorTypes.NETWORK_ERROR) hls.startLoad()
         else if (d.type === HlsCtor.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError()
-        else {
-          datLoi('Máy chủ này không phát được tập này.')
-          datDangTai(false)
-        }
+        else baoLoi()
       })
     })
 
@@ -2002,6 +2019,7 @@ export default function Player({
           <div className="tp-the max-w-sm">
             <Bieu ten="loi" className="mx-auto h-10 w-10 text-white/60" />
             <p className="mt-3 text-base font-semibold">{loi}</p>
+            {lyDoLoi && <p className="mt-2 text-sm leading-relaxed text-amber-200/90">{lyDoLoi}</p>}
             <p className="mt-1 text-sm text-white/60" role="status">
               {demDoi !== null && mayChuKe
                 ? `Tự đổi sang ${mayChuKe.nhan} sau ${demDoi} giây...`
@@ -2039,6 +2057,7 @@ export default function Player({
                     type="button"
                     onClick={() => {
                       datLoi(null)
+                      datLyDoLoi(null)
                       datDangTai(true)
                       if (src) datSrc(src + '&t=' + Date.now())
                     }}

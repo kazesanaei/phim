@@ -13,7 +13,7 @@ import { stat, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { urlChoPhep, duongDanChoPhep, chanCheoTrang, traLoiLoi, LoiChan, hocMienPhat } from '@/lib/an-toan'
-import { mienTrongPlaylist } from '@/lib/mien-phat'
+import { mienTrongPlaylist, docTrangLoiNguon, giaiThichLoiMang } from '@/lib/mien-phat'
 import { UA, luongChuyenMa } from '@/lib/ffmpeg'
 import { srtSangVtt } from '@/lib/phu-de'
 
@@ -68,21 +68,42 @@ const HEADER_CHUYEN_TIEP = [
   'last-modified',
 ]
 
+function traPlaylist(chu: string, u: URL, r: Response): Response {
+  // Playlist tải từ tên miền đã được phép: mảnh video và playlist con nằm ở
+  // CDN khác thì học luôn, không thì mảnh đầu tiên đã dính 403.
+  if (r.ok) for (const h of mienTrongPlaylist(chu, u)) hocMienPhat('https://' + h + '/', 'playlist ' + u.hostname)
+  return new Response(vietLaiPlaylist(chu, u), {
+    status: r.status,
+    headers: {
+      'content-type': 'application/vnd.apple.mpegurl; charset=utf-8',
+      'cache-control': 'no-store',
+    },
+  })
+}
+
 async function tuXa(req: Request, raw: string, conLai = 3): Promise<Response> {
   const u = urlChoPhep(raw)
   const range = req.headers.get('range')
-  const r = await fetch(u, {
-    headers: {
-      'user-agent': UA,
-      referer: u.origin + '/',
-      ...(range ? { range } : {}),
-    },
-    cache: 'no-store',
-    // Chặn redirect. allowlist chỉ kiểm URL ban đầu; nếu để fetch tự đi theo,
-    // một Location trỏ về nội mạng (127.0.0.1, 192.168.x, router) sẽ lách qua
-    // allowlist và biến proxy thành lỗ SSRF. Nguồn HLS không cần redirect.
-    redirect: 'manual',
-  })
+  let r: Response
+  try {
+    r = await fetch(u, {
+      headers: {
+        'user-agent': UA,
+        referer: u.origin + '/',
+        ...(range ? { range } : {}),
+      },
+      cache: 'no-store',
+      // Chặn redirect. allowlist chỉ kiểm URL ban đầu; nếu để fetch tự đi theo,
+      // một Location trỏ về nội mạng (127.0.0.1, 192.168.x, router) sẽ lách qua
+      // allowlist và biến proxy thành lỗ SSRF. Nguồn HLS không cần redirect.
+      redirect: 'manual',
+    })
+  } catch (e) {
+    // Không để rơi xuống "Có lỗi máy chủ" chung chung: nói rõ mạng chặn kiểu gì
+    const loi = giaiThichLoiMang(e, u.hostname)
+    console.warn('[phim]', loi)
+    return Response.json({ loi }, { status: 502, headers: { 'cache-control': 'no-store' } })
+  }
   if (r.status >= 300 && r.status < 400) {
     const dich = r.headers.get('location')
     if (!dich) throw new LoiChan('Redirect không có đích')
@@ -93,19 +114,31 @@ async function tuXa(req: Request, raw: string, conLai = 3): Promise<Response> {
 
   const ct = r.headers.get('content-type') || ''
   const laPlaylist = u.pathname.endsWith('.m3u8') || ct.includes('mpegurl')
-  if (laPlaylist) {
+  /**
+   * Nguồn trả TRANG WEB thay vì video: đọc xem vì sao rồi báo rõ, đừng để trình phát chỉ thấy
+   * "404". Chỉ xét playlist và phản hồi lỗi — mảnh video thì nguồn hay nguỵ trang kiểu ảnh.
+   */
+  if (ct.includes('text/html') && (laPlaylist || !r.ok)) {
     const chu = await r.text()
-    // Playlist tải từ tên miền đã được phép: mảnh video và playlist con nằm ở
-    // CDN khác thì học luôn, không thì mảnh đầu tiên đã dính 403.
-    if (r.ok) for (const h of mienTrongPlaylist(chu, u)) hocMienPhat('https://' + h + '/', 'playlist ' + u.hostname)
-    return new Response(vietLaiPlaylist(chu, u), {
-      status: r.status,
-      headers: {
-        'content-type': 'application/vnd.apple.mpegurl; charset=utf-8',
-        'cache-control': 'no-store',
-      },
-    })
+    if (!chu.trimStart().startsWith('#EXTM3U')) {
+      const t = docTrangLoiNguon(chu)
+      if (t.chanNuocNgoai) {
+        const loi =
+          `Máy chủ ${u.hostname} chỉ cho mạng Việt Nam truy cập, mà mạng của máy này đang đi ra nước ngoài` +
+          (t.nuoc || t.ip ? ` (${[t.nuoc, t.ip].filter(Boolean).join(', ')})` : '') +
+          '. Tắt VPN / proxy của công ty, hoặc dùng mạng khác như 4G phát từ điện thoại.'
+        console.warn('[phim] nguồn chặn IP nước ngoài:', u.hostname, t.ip ?? '', t.nuoc ?? '')
+        return Response.json({ loi, ip: t.ip, nuoc: t.nuoc }, { status: 451, headers: { 'cache-control': 'no-store' } })
+      }
+      console.warn(`[phim] nguồn trả trang web thay vì video: ${u.hostname} mã ${r.status}`)
+      return Response.json(
+        { loi: `Máy chủ ${u.hostname} trả trang web thay vì video (mã ${r.status}).` },
+        { status: r.ok ? 502 : r.status, headers: { 'cache-control': 'no-store' } },
+      )
+    }
+    return traPlaylist(chu, u, r)
   }
+  if (laPlaylist) return traPlaylist(await r.text(), u, r)
 
   const h = new Headers()
   for (const k of HEADER_CHUYEN_TIEP) {

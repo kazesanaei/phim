@@ -444,6 +444,12 @@ tên miền này không có trong danh sách cho phép nên `/api/tep` trả 403
   ...` — lần sau nguồn đổi gì, nhìn đây là biết.
 - `a.kvp726.com` **chặn IP nước ngoài** ("Vui lòng sử dụng mạng trong nước"): mạng công ty đi
   qua VPN / proxy đặt ở nước ngoài thì vẫn không phát được, trình phát sẽ tự đổi máy chủ khác.
+- **Màn hình lỗi nói rõ lý do** (dòng chữ vàng dưới "Máy chủ này không phát được tập này"):
+  `/api/tep` nhận ra trang chặn IP nước ngoài (trả 451 kèm IP và nước đang ra mạng), trang web
+  thay cho video, và lỗi mạng công ty (`ECONNRESET` = bộ lọc web, `ENOTFOUND` = chặn tên miền,
+  lỗi chứng chỉ = soi HTTPS). Lỗi khác thì hiện `Chi tiết: <loại lỗi hls.js>, mã <số>`.
+- **`npm run chan-doan -- <link trang xem>`**: chạy trên máy đang xem, đi lần lượt API nguồn →
+  playlist → mảnh video đầu → qua `/api/tep` của app, in từng bước và kết luận.
 
 ### Quét và duyệt 18+ (19/10)
 

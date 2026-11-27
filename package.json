@@ -10,7 +10,8 @@
     "chay": "next build && next start -H 127.0.0.1",
     "tv": "next build && node server.mjs --lan",
     "mat-khau": "node scripts/dat-mat-khau.mjs",
-    "chung-chi": "node scripts/tao-chung-chi.mjs"
+    "chung-chi": "node scripts/tao-chung-chi.mjs",
+    "chan-doan": "node scripts/chan-doan.mjs"
   },
   "dependencies": {
     "hls.js": "^1.7.1",
