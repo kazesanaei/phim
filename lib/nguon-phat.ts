@@ -5,6 +5,7 @@
 import { urlChoPhep, LoiChan } from './an-toan'
 import { UA } from './ffmpeg'
 import { nhanNgonNgu } from './phu-de'
+import { linkKyTrongEmbed } from './link-ky'
 
 export type PhuDeNguon = { ma: string; nhan: string; url: string }
 export type KetQuaNguon = { m3u8: string; phuDe: PhuDeNguon[] }
@@ -91,7 +92,8 @@ export async function giaiMaEmbed(embed: string): Promise<KetQuaNguon> {
   const html = await r.text()
 
   return {
-    m3u8: u.origin + '/stream/' + hash + '/master.m3u8',
+    // Máy chủ đòi chữ ký thì trang nhúng có sẵn link đã ký — xem lib/link-ky.ts
+    m3u8: linkKyTrongEmbed(html, u, hash) ?? u.origin + '/stream/' + hash + '/master.m3u8',
     phuDe: docPhuDe(html, u.origin),
   }
 }

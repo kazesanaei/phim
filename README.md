@@ -445,6 +445,21 @@ tên miền này không có trong danh sách cho phép nên `/api/tep` trả 403
 - `a.kvp726.com` **chặn IP nước ngoài** ("Vui lòng sử dụng mạng trong nước"): mạng công ty đi
   qua VPN / proxy đặt ở nước ngoài thì vẫn không phát được, trình phát sẽ tự đổi máy chủ khác.
 
+### vsmov đòi chữ ký cho playlist (27/11)
+
+Triệu chứng giống hệt mục trên ("Máy chủ này không phát được tập này") nhưng nguyên nhân khác:
+máy chủ `v1.streamvsmov.com` (gặp ở phim *Mật Vụ Thư Ký*) giờ trả **403
+`{"error":"Thiếu signature"}`** cho `/stream/<mã>/master.m3u8` tự ghép. Trang nhúng có sẵn link
+đúng ở biến `signedMasterUrl` (`?expires=…&signature=…`, hạn ~1 giờ). Các máy chủ vsmov khác
+chưa đòi, trang nhúng của chúng không có biến này.
+
+- `giaiMaEmbed()` dùng link đã ký nếu có (`lib/link-ky.ts`), không thì ghép như cũ. Link chỉ được
+  nhận khi cùng máy chủ với trang nhúng, `https`, đúng đường `/stream/<mã của tập>/master.m3u8`.
+- Hạn 1 giờ không sao: mỗi lần bấm xem / tải / dò intro đều gọi `giaiMaEmbed()` lấy link mới, và
+  mảnh video (`p25.streamvsmov.com/...png`) không ký.
+- Chẩn đoán lần sau: `curl` thẳng link m3u8 tự ghép — ra 403 kèm chữ "signature" là đúng bệnh này.
+- Bộ kiểm có phép 5b: 4 ca link lạ bị bỏ + thử thật link đã ký của phim trên.
+
 ### Quét và duyệt 18+ (19/10)
 
 - **Quét chạy nền** (`lib/quet-18.ts`): ~20 trang danh sách + một lượt gọi chi tiết mỗi phim,

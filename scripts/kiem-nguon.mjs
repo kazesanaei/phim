@@ -27,6 +27,7 @@ import { chuanHoa, themAfter, nutAfterCredit, nhanNut } from '../lib/after-credi
 import { laCham } from '../lib/do-cham.ts'
 import { chonMal, docAniSkip, laAnime } from '../lib/aniskip-khop.ts'
 import { mienTrongPlaylist } from '../lib/mien-phat.ts'
+import { linkKyTrongEmbed } from '../lib/link-ky.ts'
 
 const GOC = 'https://vsmov.com/api'
 const APP = process.env.APP || 'http://127.0.0.1:3000'
@@ -149,7 +150,9 @@ await phep('Phim bộ có link_embed, suy ra m3u8 tải được, segment đầu
 
   const u = new URL(embedMau)
   const hash = u.pathname.split('/').filter(Boolean).pop()
-  m3u8Mau = u.origin + '/stream/' + hash + '/master.m3u8'
+  // giống app: trang nhúng có link đã ký thì dùng nó (lib/link-ky.ts), không thì tự ghép
+  const htmlEmbed = await (await fetch(embedMau, { headers: { 'user-agent': UA, referer: 'https://vsmov.com/' } })).text()
+  m3u8Mau = linkKyTrongEmbed(htmlEmbed, u, hash) ?? u.origin + '/stream/' + hash + '/master.m3u8'
 
   const r = await fetch(m3u8Mau, { headers: { 'user-agent': UA } })
   assert.equal(r.status, 200, 'm3u8 trả HTTP ' + r.status)
@@ -181,6 +184,36 @@ await phep('Trang embed cho ra ít nhất một track .vtt tải được', asyn
   assert.equal(rv.status, 200, 'vtt trả HTTP ' + rv.status)
   assert.ok((rv.headers.get('content-type') || '').includes('text/vtt'), 'content-type không phải text/vtt')
   return ds.map((s) => s.code).join(', ')
+})
+
+// 5b — máy chủ vsmov đòi chữ ký (27/11/2026): link tự ghép bị 403 "Thiếu signature"
+await phep('Máy chủ đòi chữ ký: lấy link đã ký trong trang nhúng, link lạ thì bỏ', async () => {
+  const nhung = new URL('https://v1.streamvsmov.com/video/abc12345-6789')
+  const ky = 'https://v1.streamvsmov.com/stream/abc12345-6789/master.m3u8?expires=1&signature=ff'
+  assert.equal(linkKyTrongEmbed(`x = { signedMasterUrl: "${ky}" }`, nhung, 'abc12345-6789'), ky)
+  assert.equal(linkKyTrongEmbed(`signedMasterUrl:'${ky.replace(/\//g, '\\/')}'`, nhung, 'abc12345-6789'), ky, 'không gỡ được \\/')
+  assert.equal(linkKyTrongEmbed('không có biến', nhung, 'abc12345-6789'), null)
+  const la = [
+    ky.replace('v1.streamvsmov.com', 'v2.streamvsmov.com'), // máy chủ khác
+    ky.replace('abc12345-6789', 'zzz99999-0000'), // tập khác
+    ky.replace('https:', 'http:'),
+    'https://v1.streamvsmov.com/stream/abc12345-6789/../../admin?x=1',
+  ]
+  for (const l of la) assert.equal(linkKyTrongEmbed(`signedMasterUrl: "${l}"`, nhung, 'abc12345-6789'), null, 'nhận nhầm ' + l)
+
+  // Thật: phim đã gặp lỗi (Mật Vụ Thư Ký). Nguồn thôi đòi chữ ký thì bỏ qua phần này.
+  const j = await json(GOC + '/phim/mat-vu-thu-ky')
+  const embed = j.episodes?.[0]?.server_data?.[1]?.link_embed
+  if (!embed) return '4 ca lạ bị bỏ; phim thật không còn trên nguồn'
+  const u = new URL(embed)
+  const hash = u.pathname.split('/').filter(Boolean).pop()
+  const html = await (await fetch(embed, { headers: { 'user-agent': UA, referer: 'https://vsmov.com/' } })).text()
+  const link = linkKyTrongEmbed(html, u, hash)
+  if (!link) return '4 ca lạ bị bỏ; máy chủ ' + u.host + ' hiện không đòi chữ ký'
+  const r = await fetch(link, { headers: { 'user-agent': UA, referer: u.origin + '/' } })
+  assert.equal(r.status, 200, 'link đã ký trả HTTP ' + r.status)
+  assert.ok((await r.text()).includes('#EXTINF'), 'playlist đã ký không có EXTINF')
+  return '4 ca lạ bị bỏ; link đã ký của ' + u.host + ' phát được'
 })
 
 // 6 — chuẩn hoá phụ đề: nguồn gắn nhãn WEBVTT nhưng mốc thời gian dùng dấu phẩy
