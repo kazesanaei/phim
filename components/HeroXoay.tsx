@@ -8,9 +8,10 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { urlAnh } from '@/components/Anh'
+import { ChoLink } from '@/components/ThanhTai'
 import type { PhimTom } from '@/lib/vsmov'
 
-export type MucHero = { phim: PhimTom; moTa?: string }
+export type MucHero = { phim: PhimTom; moTa?: string; mau?: string | null }
 
 const NHIP = 8000
 
@@ -34,7 +35,7 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
   }, [])
 
   if (!ds.length) return null
-  const { phim, moTa } = ds[i]
+  const { phim, moTa, mau } = ds[i]
   const anh = phim.anhNgang || phim.poster
 
   return (
@@ -55,6 +56,8 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
             <img
               key={m.phim.slug}
               src={urlAnh(a, 1280)}
+              srcSet={`${urlAnh(a, 1280)} 1280w, ${urlAnh(a, 1920)} 1920w`}
+              sizes="100vw"
               alt=""
               aria-hidden
               loading={k === 0 ? 'eager' : 'lazy'}
@@ -68,9 +71,15 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
       {!anh && <div className="absolute inset-0 bg-[var(--color-nen-2)]" />}
 
       <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-nen)] via-[var(--color-nen)]/80 to-transparent" />
+      {/* Ánh màu của phim đang chiếu loang dưới chữ. */}
+      <div
+        aria-hidden
+        className="absolute inset-0"
+        style={{ background: mau ? `radial-gradient(80% 90% at 0% 100%, color-mix(in srgb, ${mau} 70%, transparent), transparent 70%)` : undefined }}
+      />
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[var(--color-nen)] to-transparent" />
 
-      <div className="noi-dung-banner relative flex min-h-[52vh] max-w-2xl flex-col justify-end gap-3 px-4 pb-14 pt-24 md:min-h-[60vh] md:px-8">
+      <div key={phim.slug} className="noi-dung-banner vao-tang relative flex min-h-[52vh] max-w-2xl flex-col justify-end gap-3 px-4 pb-14 pt-24 md:min-h-[60vh] md:px-8">
         <h1 className="text-3xl font-black leading-tight drop-shadow-lg md:text-5xl">{phim.ten}</h1>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/70">
           {phim.diem && <span className="font-semibold text-emerald-400">{phim.diem} điểm</span>}
@@ -89,6 +98,7 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
               <path d="M8 5v14l11-7z" />
             </svg>
             Xem ngay
+            <ChoLink />
           </Link>
           <Link
             href={`/phim/${phim.slug}`}
@@ -98,6 +108,7 @@ export default function HeroXoay({ ds }: { ds: MucHero[] }) {
               <path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" />
             </svg>
             Thông tin
+            <ChoLink />
           </Link>
         </div>
 

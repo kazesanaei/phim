@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { db, thuMucNguon } from './db'
-import { laMienCongKhai, mienCuaUrl } from './mien-phat'
+import { laMienCongKhai } from './mien-hoc'
+import { mienCuaUrl } from './mien-phat'
 
 /** Lỗi do đầu vào bị chặn — route bắt lỗi này và trả 403. */
 export class LoiChan extends Error {}
@@ -17,7 +18,7 @@ const MIEN_CHO_PHEP = ['vsmov.com', 'streamvsmov.com', 'phimapi.com', 'kkphim.co
 const MAU_MIEN = [/^(?:[a-z0-9-]+\.)?kkphimplayer\d{1,2}\.com$/, /^(?:[a-z0-9-]+\.)?kvp\d{2,4}\.com$/]
 
 /**
- * Tên miền phát HỌC ĐƯỢC từ chính API nguồn (xem lib/mien-phat.ts vì sao cần).
+ * Tên miền phát HỌC ĐƯỢC từ chính API nguồn (xem lib/mien-hoc.ts vì sao cần).
  *
  * Tin những gì nguồn chỉ tới cũng là mức tin app vốn có: app đã phát mọi thứ
  * nguồn đưa. Cái KHÔNG tin là tham số `u` người gọi /api/tep gửi lên — nên chỉ
@@ -91,6 +92,7 @@ export function urlChoPhep(raw: string): URL {
   const ok =
     MIEN_CHO_PHEP.some((m) => host === m || host.endsWith('.' + m)) ||
     MAU_MIEN.some((r) => r.test(host)) ||
+    // Host phát mà API nguồn tự trả về (KKPhim đổi tên miền liên tục) — xem lib/mien-hoc.ts
     (laMienCongKhai(host) && daHoc(host))
   if (!ok) throw new LoiChan('Miền không được phép: ' + host)
   return u

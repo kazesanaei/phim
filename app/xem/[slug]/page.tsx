@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import { layMocIntro, layMocCredit } from '@/lib/theo-doi'
 import { nhanNgonNgu } from '@/lib/phu-de'
 import Player, { type NguonPhat, type PhuDeMuc, type TrackAm } from '@/components/Player'
+import AnhSangVideo from '@/components/AnhSangVideo'
 import DanhSachTap from '@/components/DanhSachTap'
 import TimPhuDe from '@/components/TimPhuDe'
 import CanhBao18 from '@/components/CanhBao18'
@@ -150,7 +151,10 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
   const nhieuTap = dsTap.length > 1
   const tenMayChuDang = tenMayChu[soMayChu]?.ten
 
+  // AnhSangVideo là anh em chứ không bọc ngoài: CSS chế độ TV bám vào .trang-xem > .trinh-phat.
   const trinhPhat = (
+    <>
+    <AnhSangVideo />
     <Player
       key={slug + ':' + khoaTap}
       nguon={nguon}
@@ -182,7 +186,9 @@ export default async function TrangXem({ params, searchParams }: PageProps<'/xem
       tapId={tapId}
       tuGiay={tuGiay}
       maTapChung={maTap}
+      soMayChu={soMayChu}
     />
+    </>
   )
 
   return (

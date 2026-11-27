@@ -15,6 +15,7 @@
  * đỡ được một nhịp bấm.
  */
 import Link from 'next/link'
+import Logo from '@/components/Logo'
 import { useEffect, useRef, useState } from 'react'
 
 type Muc = { ten: string; slug: string }
@@ -33,6 +34,7 @@ const CHINH = [
   { href: '/duyet?danh-sach=phim-bo', nhan: 'Phim bộ' },
   { href: '/duyet?nguon=local', nhan: 'Kho của tôi' },
   { href: '/bo-suu-tap', nhan: 'Bộ sưu tập' },
+  { href: '/lich', nhan: 'Lịch tuần' },
   { href: '/tai-ve', nhan: 'Tải về' },
 ]
 
@@ -50,7 +52,12 @@ export default function MenuTv({ du, dong }: { du: DuMenu | null; dong: () => vo
   const oNgan = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const f = (e: KeyboardEvent) => e.key === 'Escape' && dong()
+    // preventDefault: app Kho phim trên TV hỏi trang "có xử lý Back không" — không báo là app thoát luôn.
+    const f = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      dong()
+    }
     window.addEventListener('keydown', f)
     // Đưa tiêu điểm vào ngăn để trình duyệt nào có gửi phím thì đi lại được ngay.
     oNgan.current?.querySelector('a,button')?.dispatchEvent(new Event('focus'))
@@ -77,7 +84,7 @@ export default function MenuTv({ du, dong }: { du: DuMenu | null; dong: () => vo
       >
         {/* ---- Cột trái: lối đi chính + tên nhóm ---- */}
         <nav className="flex w-[15rem] shrink-0 flex-col overflow-y-auto py-3">
-          <p className="px-4 pb-2 text-lg font-extrabold tracking-tight text-[var(--color-nhan)]">KHO PHIM</p>
+          <p className="px-4 pb-2"><Logo /></p>
 
           {/* Việc một-bấm-là-xong, để trên cùng: trên TV đây là thứ hay dùng nhất
               và nó vốn nằm ở đầu trang, giờ đầu trang đã rút gọn nên phải có chỗ.
@@ -106,6 +113,10 @@ export default function MenuTv({ du, dong }: { du: DuMenu | null; dong: () => vo
           ))}
 
           <div className="my-2 border-t border-[var(--color-vien)]" />
+
+          <Link href="/ghep-dien-thoai" onClick={dong} onMouseEnter={() => datNhom(null)} className="muc-tv px-4 py-1.5 text-white/80 transition hover:bg-white/12 hover:text-white">
+            Điện thoại làm remote
+          </Link>
 
           {(['the-loai', 'quoc-gia', 'nam', 'tiep-tuc'] as Nhom[]).map((n) => (
             <button

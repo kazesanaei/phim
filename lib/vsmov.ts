@@ -234,7 +234,7 @@ export async function layChiTiet(slug: string, dungDem = true): Promise<ChiTiet 
         .filter((e) => e.embed),
     }))
     .filter((s) => s.tap.length)
-  // Nguồn đổi máy chủ phát thì app tự theo — xem lib/mien-phat.ts
+  // Nguồn đổi máy chủ phát thì app tự theo — xem lib/mien-hoc.ts
   for (const s of mayChu) for (const t of s.tap.slice(0, 3)) hocMienPhat(t.embed, 'vsmov')
 
   return {

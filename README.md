@@ -434,10 +434,11 @@ nhân: KKPhim chuyển gần hết phim mới sang `a.kvp726.com` (đo 27/11: 11
 tên miền này không có trong danh sách cho phép nên `/api/tep` trả 403. Trước đó nguồn cũng đã
 đổi kkphimplayer6 → kkphimplayer7.
 
-- App giờ **tự học** tên miền phát từ chính API nguồn (`link_m3u8` của KKPhim, `link_embed`
-  của vsmov) và từ playlist tải về từ tên miền đã được phép (CDN mảnh video riêng). Lưu ở bảng
+- App **tự học** tên miền phát từ chính API nguồn (`link_m3u8` của KKPhim — bản 22/10 đã có,
+  nay thêm `link_embed` của vsmov) và từ playlist tải về từ tên miền đã được phép (CDN mảnh
+  video riêng, `lib/mien-phat.ts`). Bản 22/10 chỉ nhớ trong bộ nhớ; nay lưu ở bảng
   `mien_phat`, khởi động lại vẫn nhớ. Không bao giờ học từ tham số `u` người gọi gửi lên.
-- Chốt chặn vẫn giữ: chỉ nhận tên miền công khai dạng chữ (`lib/mien-phat.ts`), địa chỉ IP,
+- Chốt chặn vẫn giữ: chỉ nhận tên miền công khai dạng chữ (`lib/mien-hoc.ts`), địa chỉ IP,
   `localhost`, `.lan`, `.local`, `.internal`... luôn bị chặn.
 - Cửa sổ máy chủ ghi `[phim] học tên miền phát mới...` và `[phim] chặn: Miền không được phép:
   ...` — lần sau nguồn đổi gì, nhìn đây là biết.

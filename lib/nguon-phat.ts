@@ -61,14 +61,33 @@ function docPhuDe(html: string, goc: string): PhuDeNguon[] {
     .filter((x): x is PhuDeNguon => x !== null)
 }
 
+/** Lỗi do NGUỒN phim (máy chủ của họ chết/chậm). Thông báo an toàn để hiện cho người xem. */
+export class LoiNguon extends Error {}
+
+/**
+ * Trang nhúng còn sống trả lời trong ~0,5 giây (đo trên TV Box). Máy chủ gốc của nguồn chết thì
+ * Cloudflare giữ kết nối ~20 giây rồi mới trả 522 — không đặt giới hạn là người xem nhìn vòng
+ * quay 20 giây rồi mới biết (đo thật 22/10/2026, s1.streamvsmov.com).
+ */
+const HET_GIO_EMBED_MS = 8000
+
 export async function giaiMaEmbed(embed: string): Promise<KetQuaNguon> {
   const u = urlChoPhep(embed)
   const doan = u.pathname.split('/').filter(Boolean)
   const hash = doan[doan.length - 1] || ''
   if (!/^[A-Za-z0-9_-]{8,}$/.test(hash)) throw new LoiChan('Mã video không hợp lệ')
 
-  const r = await fetch(u, { headers: { 'user-agent': UA, referer: 'https://vsmov.com/' }, cache: 'no-store' })
-  if (!r.ok) throw new Error('Không mở được trang phát (' + r.status + ')')
+  let r: Response
+  try {
+    r = await fetch(u, {
+      headers: { 'user-agent': UA, referer: 'https://vsmov.com/' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(HET_GIO_EMBED_MS),
+    })
+  } catch {
+    throw new LoiNguon('Máy chủ phát của nguồn không trả lời — có thể đang hỏng. Thử máy chủ khác hoặc quay lại sau.')
+  }
+  if (!r.ok) throw new LoiNguon('Máy chủ phát của nguồn đang lỗi (mã ' + r.status + '). Thử máy chủ khác hoặc quay lại sau.')
   const html = await r.text()
 
   return {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { thongBao } from '@/components/ThongBao'
 
 type Props = {
   khoa: string
@@ -21,20 +22,23 @@ export default function NutDanhDau({ khoa, loai, banDau, ten, poster, nam, nguon
   const [bat, datBat] = useState(banDau)
   const [dangChay, batDau] = useTransition()
 
+  const doi = (baoLai: boolean) =>
+    batDau(async () => {
+      const r = await fetch('/api/xem', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ viec: 'danh-dau', khoa, loai, ten, poster, nam, nguon }),
+      })
+      const j = await r.json()
+      if (typeof j.bat !== 'boolean') return
+      datBat(j.bat)
+      if (baoLai) thongBao((j.bat ? 'Đã thêm vào ' : 'Đã bỏ khỏi ') + (loai === 'thich' ? 'Yêu thích' : 'Xem sau'), { hoanTac: () => doi(false) })
+    })
+
   return (
     <button
       disabled={dangChay}
-      onClick={() =>
-        batDau(async () => {
-          const r = await fetch('/api/xem', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ viec: 'danh-dau', khoa, loai, ten, poster, nam, nguon }),
-          })
-          const j = await r.json()
-          if (typeof j.bat === 'boolean') datBat(j.bat)
-        })
-      }
+      onClick={() => doi(true)}
       className={`flex items-center gap-2 rounded px-4 py-2.5 text-sm font-medium transition disabled:opacity-60 ${
         bat ? 'bg-white/25 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'
       }`}

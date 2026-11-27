@@ -41,9 +41,26 @@ function dangGo(t: EventTarget | null): boolean {
 
 type O = { e: HTMLElement; x: number; y: number; r: DOMRect }
 
+/**
+ * Hộp thoại đang mở trên cùng (xem nhanh phim, menu TV), hoặc cả trang.
+ *
+ * Phải khoanh lại: hộp thoại phủ lên trang nhưng các thẻ phim phía sau VẪN là ô bấm được và
+ * vẫn có toạ độ — không khoanh thì mũi tên đi lòng vòng giữa các thẻ bị che, không bao giờ
+ * tới được "Xem ngay" (người dùng gặp thật trên TV Box 22/10/2026).
+ */
+function vungChon(): ParentNode {
+  // data-giu-tro: bảng bung không phải hộp thoại về ngữ nghĩa (bảng cài đặt của trình phát)
+  // nhưng cũng phải giữ ô trỏ ở trong.
+  const ds = document.querySelectorAll<HTMLElement>('[aria-modal="true"], [data-giu-tro]')
+  return ds.length ? ds[ds.length - 1] : document
+}
+
 function dsChonDuoc(): O[] {
   const ra: O[] = []
-  for (const e of document.querySelectorAll<HTMLElement>(CHON_DUOC)) {
+  for (const e of vungChon().querySelectorAll<HTMLElement>(CHON_DUOC)) {
+    // Nút "+ Lưu vào Xem sau" đè ở góc thẻ phim: với remote nó là cái bẫy — mũi tên xuống từ đầu
+    // trang rơi vào nó, bấm OK là lưu phim thay vì mở phim. Lưu vẫn làm được trong hộp thoại phim.
+    if (e.classList.contains('nut-luu')) continue
     const r = e.getBoundingClientRect()
     if (r.width === 0 || r.height === 0) continue
     const cs = getComputedStyle(e)
@@ -130,6 +147,8 @@ export default function PhimRemote() {
       // ----- Back -----
       if (PHIM_LUI.has(e.key) || MA_LUI.has(e.keyCode)) {
         if (dangGo(e.target)) return
+        // Hộp thoại / trình phát / menu đã tự xử lý Back (đóng mình) — đừng lùi trang thêm lần nữa
+        if (e.defaultPrevented) return
         if (document.querySelector('[data-lop-phu-mo="1"]')) return
         // Ở trang chủ để Back thoát ra ngoài như bình thường, đừng giữ người
         // dùng trong một vòng không lối ra.
@@ -152,7 +171,10 @@ export default function PhimRemote() {
       if (!ds.length) return
 
       const dangChon = document.activeElement
-      const laThat = dangChon instanceof HTMLElement && dangChon !== document.body
+      const vung = vungChon()
+      // Ô đang trỏ nằm ngoài hộp thoại (thẻ phim phía sau) cũng tính là chưa chọn gì.
+      const laThat =
+        dangChon instanceof HTMLElement && dangChon !== document.body && (vung === document || vung.contains(dangChon))
       // Chưa chọn gì thì mũi tên đầu tiên nhảy vào ô trên cùng bên trái.
       if (!laThat) {
         e.preventDefault()

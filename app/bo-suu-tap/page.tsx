@@ -1,8 +1,8 @@
-import Link from 'next/link'
 import TheePhim from '@/components/TheePhim'
 import { danhDauTheoLoai, lichSuXem } from '@/lib/theo-doi'
 import { coMac18 } from '@/lib/loc-18'
 import type { PhimTom } from '@/lib/vsmov'
+import Trong from '@/components/Trong'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,13 +22,15 @@ export default function TrangBoSuuTap() {
       <h1 className="text-2xl font-bold">Bộ sưu tập</h1>
 
       {trong && (
-        <p className="py-20 text-center text-sm text-white/40">
-          Chưa có gì ở đây. Vào trang một bộ phim rồi bấm <span className="text-white/70">Yêu thích</span> hoặc{' '}
-          <span className="text-white/70">Xem sau</span>.{' '}
-          <Link href="/" className="underline underline-offset-2 hover:text-white">
-            Về trang chủ
-          </Link>
-        </p>
+        <Trong
+          hinh="thich"
+          tieuDe="Bộ sưu tập còn trống"
+          moTa="Bấm dấu + trên thẻ phim, hoặc Yêu thích / Xem sau ở trang phim, là phim nằm ở đây."
+          nut={[
+            { nhan: 'Về trang chủ', href: '/', chinh: true },
+            { nhan: 'Duyệt phim', href: '/duyet' },
+          ]}
+        />
       )}
 
       {thich.length > 0 && (

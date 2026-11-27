@@ -5,12 +5,26 @@
  * đều quay lại đúng chỗ cũ trong lưới nhờ router.back().
  */
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+
+/**
+ * Thẻ phim vừa bấm (D1): hộp thoại nở ra TỪ đúng chỗ tấm poster thay vì hiện
+ * giữa màn. Không dùng ViewTransition có tên: thẻ vẫn nằm nguyên trong lưới khi
+ * hộp mở (khác với chuyển trang), và một phim có thể nằm ở nhiều hàng cùng lúc
+ * — trùng view-transition-name là trình duyệt bỏ cả hiệu ứng. Nên làm FLIP tay:
+ * nhớ khung thẻ lúc bấm, hộp mở thì chạy từ khung đó về chỗ thật.
+ */
+let theVuaBam: { khung: DOMRect; luc: number } | null = null
+
+export function ghiTheVuaBam(e: Element) {
+  theVuaBam = { khung: e.getBoundingClientRect(), luc: performance.now() }
+}
 
 export default function HopThoai({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const duong = usePathname()
   const oRef = useRef<HTMLDivElement>(null)
+  const hopRef = useRef<HTMLDivElement>(null)
 
   /**
    * TỰ ĐÓNG KHI ĐƯỜNG DẪN KHÔNG CÒN LÀ TRANG PHIM NỮA.
@@ -33,7 +47,10 @@ export default function HopThoai({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hien) return
     const f = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') router.back()
+      if (e.key !== 'Escape') return
+      // Đánh dấu đã xử lý: PhimRemote (TV) bỏ qua phím này, không thì lùi HAI bước, văng khỏi trang chủ
+      e.preventDefault()
+      router.back()
     }
     document.addEventListener('keydown', f)
     // Khoá cuộn nền để hộp thoại không trôi theo trang phía sau
@@ -45,17 +62,53 @@ export default function HopThoai({ children }: { children: React.ReactNode }) {
     }
   }, [router, hien])
 
+  /**
+   * Mở ra là trỏ sẵn vào nút chính (`data-nut-chinh`, "Xem ngay") — trên TV đó là thứ người ta
+   * bấm OK tiếp theo. Đóng lại thì trả ô trỏ về tấm thẻ đã mở hộp thoại, khỏi lạc về đầu trang.
+   */
+  useEffect(() => {
+    if (!hien) return
+    const truoc = document.activeElement as HTMLElement | null
+    const hop = hopRef.current
+    const nut = hop?.querySelector<HTMLElement>('[data-nut-chinh]') ?? hop?.querySelector<HTMLElement>('a[href]')
+    nut?.focus({ preventScroll: true })
+    return () => {
+      if (truoc?.isConnected) truoc.focus({ preventScroll: true })
+    }
+  }, [hien])
+
+  useLayoutEffect(() => {
+    const the = theVuaBam
+    theVuaBam = null
+    const hop = hopRef.current
+    // Quá 1,5 giây (nguồn chậm) thì thôi: bay từ một tấm thẻ đã cuộn đi mất trông lạc lõng.
+    if (!hien || !hop || !the || performance.now() - the.luc > 1500) return
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const o = hop.getBoundingClientRect()
+    const ti = the.khung.width / o.width
+    hop.style.animation = 'none'
+    hop.animate(
+      [
+        { transform: `translate(${the.khung.left - o.left}px, ${the.khung.top - o.top}px) scale(${ti})`, opacity: 0.4, borderRadius: '24px' },
+        { transform: 'none', opacity: 1, borderRadius: '12px' },
+      ],
+      { duration: 340, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' },
+    )
+  }, [hien])
+
   if (!hien) return null
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       className="mo-man fixed inset-0 z-[90] overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === oRef.current) router.back()
       }}
       ref={oRef}
     >
-      <div className="no-hop mx-auto my-8 w-full max-w-3xl overflow-hidden rounded-xl bg-[#181818] shadow-2xl ring-1 ring-white/10">
+      <div ref={hopRef} className="no-hop mx-auto my-8 w-full max-w-3xl origin-top-left overflow-hidden rounded-xl bg-noi shadow-2xl ring-1 ring-white/10">
         <div className="relative">
           <button
             onClick={() => router.back()}

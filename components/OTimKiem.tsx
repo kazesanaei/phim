@@ -207,7 +207,7 @@ export default function OTimKiem() {
       </form>
 
       {mo && (coGoiY || laTv || loiMic || dangNghe) && (
-        <div className="buong-xuong absolute right-0 top-full z-[70] mt-2 w-[min(92vw,26rem)] overflow-hidden rounded-lg border border-[var(--color-vien)] bg-[#141419] shadow-[0_18px_50px_rgba(0,0,0,.75)]">
+        <div className="buong-xuong absolute right-0 top-full z-[70] mt-2 w-[min(92vw,26rem)] overflow-hidden rounded-lg border border-[var(--color-vien)] bg-noi shadow-[0_18px_50px_rgba(0,0,0,.75)]">
           {(dangNghe || loiMic) && (
             <p
               className={`border-b border-[var(--color-vien)] px-3 py-2 text-xs ${

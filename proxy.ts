@@ -31,6 +31,10 @@ export async function proxy(req: NextRequest) {
   const duong = req.nextUrl.pathname
   if (CHO_QUA.some((d) => duong === d || duong.startsWith(d + '/'))) return NextResponse.next()
 
+  // Request từ chính máy chạy máy chủ, khi server.mjs chạy với --tin-may-nay (TV box). Xem server.mjs.
+  const maMayNay = process.env.MA_MAY_NAY
+  if (maMayNay && req.headers.get('x-may-nay') === maMayNay) return NextResponse.next()
+
   if (await daQuaCua()) return NextResponse.next()
 
   // API trả 401 để phía client biết mà xử lý, không chuyển hướng lung tung.

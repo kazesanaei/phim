@@ -58,6 +58,23 @@ export function coFfmpeg(): boolean {
   }
 }
 
+/**
+ * ffmpeg có xuất được vân tay chromaprint không (cần cho tự nhận intro). Bản Gyan "full" trên Windows
+ * có; bản ffmpeg của Termux trên TV Box thì KHÔNG — chạy tới đó mới báo "Unrecognized option
+ * 'fp_format'", sau khi đã tải danh sách tập và playlist từ nguồn. Hỏi một lần, nhớ kết quả.
+ */
+let coVanTayDem: boolean | null = null
+export function coVanTay(): boolean {
+  if (coVanTayDem !== null) return coVanTayDem
+  try {
+    const r = spawnSync(timLenh('ffmpeg'), ['-hide_banner', '-muxers'], { windowsHide: true, encoding: 'utf8' })
+    coVanTayDem = /\bchromaprint\b/.test(r.stdout || '')
+  } catch {
+    coVanTayDem = false
+  }
+  return coVanTayDem
+}
+
 /** Một luồng trong file: tiếng hoặc phụ đề nhúng. */
 export type LuongTep = {
   /** Chỉ số TRONG NHÓM cùng loại (a:0, a:1...) — đúng cái ffmpeg cần cho -map. */

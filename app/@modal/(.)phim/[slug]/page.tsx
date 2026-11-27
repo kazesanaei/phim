@@ -49,7 +49,7 @@ export default async function XemNhanh({ params }: PageProps<'/phim/[slug]'>) {
     <HopThoai>
       <div className="relative aspect-video w-full bg-black">
         <Anh src={anh} rong={800} uuTien anAnToan khungCho className="h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-[#181818]/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-noi via-noi/20 to-transparent" />
 
         <div className="absolute inset-x-0 bottom-0 p-5">
           <h2 className="text-2xl font-black leading-tight drop-shadow md:text-3xl">
@@ -62,6 +62,7 @@ export default async function XemNhanh({ params }: PageProps<'/phim/[slug]'>) {
             {tapTiep && (
               <Link
                 href={`/xem/${slug}?tap=${tapTiep.slug}`}
+                data-nut-chinh
                 className="flex items-center gap-2 rounded bg-white px-5 py-2 text-sm font-semibold text-black transition hover:bg-white/85"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">

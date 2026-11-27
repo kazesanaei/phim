@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import Anh from '@/components/Anh'
 import { connection } from 'next/server'
-import { tongQuan, theLoaiHayXem, theoNgay, xemNhieuNhat, gioPhut } from '@/lib/thong-ke'
+import { tongQuan, theLoaiHayXem, theoNgay, xemNhieuNhat, gioPhut, cacNam, namXem, type NamXem } from '@/lib/thong-ke'
+import Trong from '@/components/Trong'
 
 export const metadata = { title: 'Thống kê · Kho phim' }
 
@@ -39,7 +40,7 @@ function BieuDoNhiet({ ds }: { ds: { ngay: string; giay: number }[] }) {
   }
 
   const mau = (g: number) => {
-    if (!g) return 'bg-white/[.06]'
+    if (!g) return 'bg-mo'
     const m = g / dinh
     if (m > 0.66) return 'bg-[var(--color-nhan)]'
     if (m > 0.33) return 'bg-[var(--color-nhan)]/65'
@@ -72,8 +73,69 @@ function BieuDoNhiet({ ds }: { ds: { ngay: string; giay: number }[] }) {
   )
 }
 
-export default async function TrangThongKe() {
+function NamCuaBan({ n, cac }: { n: NamXem; cac: string[] }) {
+  const anh = n.phimDinh?.anh || n.phimDinh?.poster
+  const buoi = n.gioHay === null ? null : n.gioHay < 5 ? 'đêm khuya' : n.gioHay < 12 ? 'buổi sáng' : n.gioHay < 18 ? 'buổi chiều' : 'buổi tối'
+  return (
+    <section className="relative mt-6 overflow-hidden rounded-2xl ring-1 ring-white/10">
+      {anh && (
+        <Anh src={anh} rong={800} anAnToan className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-2xl" />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-nhan)]/35 via-[var(--color-nen)]/70 to-[var(--color-nen)]" />
+      <div className="relative p-6 md:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-3xl font-black md:text-4xl">Năm {n.nam} của bạn</h2>
+          {cac.length > 1 && (
+            <nav className="flex gap-1.5">
+              {cac.map((y) => (
+                <Link
+                  key={y}
+                  href={'/thong-ke?nam=' + y}
+                  aria-current={y === n.nam ? 'page' : undefined}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${y === n.nam ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20'}`}
+                >
+                  {y}
+                </Link>
+              ))}
+            </nav>
+          )}
+        </div>
+        <p className="chu-hien-thi mt-6 text-5xl font-black tabular-nums md:text-7xl">{gioPhut(n.giay)}</p>
+        <p className="mt-1 text-sm text-white/60">
+          {n.soPhim} phim · {n.soTap} tập đã mở
+        </p>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {n.phimDinh && (
+            <Link href={`/phim/${n.phimDinh.slug}`} className="rounded-xl bg-black/30 p-4 ring-1 ring-white/10 transition hover:bg-black/45 sm:col-span-2">
+              <p className="text-xs uppercase tracking-wider text-white/45">Phim của năm</p>
+              <p className="chu-hien-thi mt-1 line-clamp-2 text-xl font-bold">{n.phimDinh.ten || n.phimDinh.slug}</p>
+              <p className="mt-1 text-xs text-white/50">{gioPhut(n.phimDinh.giay)}</p>
+            </Link>
+          )}
+          {buoi && (
+            <div className="rounded-xl bg-black/30 p-4 ring-1 ring-white/10">
+              <p className="text-xs uppercase tracking-wider text-white/45">Hay xem vào</p>
+              <p className="chu-hien-thi mt-1 text-xl font-bold">{buoi}</p>
+              <p className="mt-1 text-xs text-white/50">quanh {n.gioHay} giờ</p>
+            </div>
+          )}
+          <div className="rounded-xl bg-black/30 p-4 ring-1 ring-white/10">
+            <p className="text-xs uppercase tracking-wider text-white/45">Chuỗi dài nhất</p>
+            <p className="chu-hien-thi mt-1 text-xl font-bold">{n.chuoiDai} ngày liền</p>
+            {n.thangDinh && <p className="mt-1 text-xs text-white/50">xem nhiều nhất tháng {n.thangDinh.thang}</p>}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export default async function TrangThongKe({ searchParams }: PageProps<'/thong-ke'>) {
   await connection()
+  const sp = await searchParams
+  const cac = cacNam()
+  const nam = typeof sp.nam === 'string' && cac.includes(sp.nam) ? sp.nam : cac[0]
   const tq = tongQuan()
   const theLoai = theLoaiHayXem()
   const ngay = theoNgay()
@@ -83,12 +145,11 @@ export default async function TrangThongKe() {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <h1 className="text-xl font-semibold">Thống kê xem phim</h1>
-        <p className="mt-2 text-sm text-white/45">
-          Chưa có gì để thống kê. Xem vài phim rồi quay lại đây.{' '}
-          <Link href="/" className="underline underline-offset-2 hover:text-white">
-            Về trang chủ
-          </Link>
-        </p>
+        <Trong
+          tieuDe="Chưa có gì để thống kê"
+          moTa="Xem vài phim rồi quay lại — ở đây sẽ có giờ xem, thể loại hay xem và năm xem phim của bạn."
+          nut={[{ nhan: 'Tìm phim để xem', href: '/', chinh: true }]}
+        />
       </div>
     )
   }
@@ -103,7 +164,10 @@ export default async function TrangThongKe() {
         ngồi trước màn hình.
       </p>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+      {nam && <NamCuaBan n={namXem(nam)} cac={cac} />}
+
+      <h2 className="mt-10 text-lg font-bold">Toàn bộ</h2>
+      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
         <O nhan="Đã xem" giaTri={gioPhut(tq.tongGiay)} />
         <O nhan="Số tập đã mở" giaTri={String(tq.soMuc)} phu={`${tq.soXong} tập xem hết`} />
         <O
@@ -129,7 +193,7 @@ export default async function TrangThongKe() {
             {theLoai.map((t) => (
               <div key={t.ten} className="flex items-center gap-3">
                 <span className="w-32 shrink-0 truncate text-sm text-white/70">{t.ten}</span>
-                <div className="h-4 flex-1 overflow-hidden rounded bg-white/[.06]">
+                <div className="h-4 flex-1 overflow-hidden rounded bg-mo">
                   <div className="h-full rounded bg-[var(--color-nhan)]/70" style={{ width: (t.n / dinhTL) * 100 + '%' }} />
                 </div>
                 <span className="w-8 shrink-0 text-right text-xs tabular-nums text-white/45">{t.n}</span>

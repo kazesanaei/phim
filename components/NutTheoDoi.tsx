@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { thongBao } from '@/components/ThongBao'
 
 /** Theo dõi phim bộ để được báo khi có tập mới. */
 export default function NutTheoDoi({
@@ -19,21 +20,24 @@ export default function NutTheoDoi({
   const [bat, datBat] = useState(banDau)
   const [dangChay, batDau] = useTransition()
 
+  const doi = (baoLai: boolean) =>
+    batDau(async () => {
+      const r = await fetch('/api/xem', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ viec: 'theo-doi', slug, ten, poster, tapHienTai }),
+      })
+      const j = await r.json()
+      if (typeof j.bat !== 'boolean') return
+      datBat(j.bat)
+      if (baoLai) thongBao(j.bat ? 'Sẽ báo khi có tập mới' : 'Đã bỏ theo dõi', { hoanTac: () => doi(false) })
+    })
+
   return (
     <button
       disabled={dangChay}
       title={bat ? 'Bỏ theo dõi' : 'Báo cho tôi khi có tập mới'}
-      onClick={() =>
-        batDau(async () => {
-          const r = await fetch('/api/xem', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ viec: 'theo-doi', slug, ten, poster, tapHienTai }),
-          })
-          const j = await r.json()
-          if (typeof j.bat === 'boolean') datBat(j.bat)
-        })
-      }
+      onClick={() => doi(true)}
       className={`flex items-center gap-2 rounded px-4 py-2.5 text-sm font-medium transition disabled:opacity-60 ${
         bat ? 'bg-white/25 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'
       }`}

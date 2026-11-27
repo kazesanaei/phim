@@ -17,10 +17,10 @@ function trungVi(ds: number[]): number {
 }
 
 /**
- * Câu mô tả nhịp ra tập từ các mốc (ms), hoặc null khi chưa đủ chắc để nói.
- * Chỉ trả về điều dữ liệu thật sự cho thấy — không đoán cho có.
+ * Các thứ trong tuần hay ra tập (0 = Chủ nhật), 'ngay' nếu gần như ngày nào cũng
+ * có, hoặc null khi chưa đủ chắc để nói. Chỉ trả về điều dữ liệu thật sự cho thấy.
  */
-export function nhipTuMoc(mocVao: number[]): string | null {
+export function thuRaTap(mocVao: number[]): number[] | 'ngay' | null {
   // Khử trùng theo GIÁ TRỊ thời gian, không theo chuỗi: hai nguồn ghi cùng một
   // thời điểm khác nhau ("…+07:00" và "…Z"). Mốc trùng sinh khoảng cách 0 ngày
   // và làm hàm nói nhầm thành "ra tập mỗi ngày".
@@ -28,7 +28,7 @@ export function nhipTuMoc(mocVao: number[]): string | null {
   if (moc.length < MAU_TOI_THIEU) return null
 
   const khoang = moc.slice(1).map((t, i) => (t - moc[i]) / NGAY)
-  if (trungVi(khoang) <= 1.5) return 'Ra tập gần như mỗi ngày'
+  if (trungVi(khoang) <= 1.5) return 'ngay'
 
   const dem = new Map<number, number>()
   for (const t of moc) {
@@ -47,11 +47,18 @@ export function nhipTuMoc(mocVao: number[]): string | null {
    */
   if (nhi && nhi[1] >= 2 && nhi[1] / nhat[1] >= 0.5 && (nhat[1] + nhi[1]) / moc.length >= 0.8) {
     // Xếp theo tuần bắt đầu từ Thứ Hai để câu đọc xuôi
-    const [a, b] = [nhat[0], nhi[0]].sort((x, y) => ((x + 6) % 7) - ((y + 6) % 7))
-    return `Thường có tập mới vào ${THU[a]} và ${THU[b]}`
+    return [nhat[0], nhi[0]].sort((x, y) => ((x + 6) % 7) - ((y + 6) % 7))
   }
-  if (nhat[1] / moc.length >= 0.6) return `Thường có tập mới vào ${THU[nhat[0]]}`
+  if (nhat[1] / moc.length >= 0.6) return [nhat[0]]
   return null
+}
+
+/** Câu mô tả nhịp ra tập từ các mốc (ms), hoặc null khi chưa đủ chắc để nói. */
+export function nhipTuMoc(mocVao: number[]): string | null {
+  const thu = thuRaTap(mocVao)
+  if (thu === 'ngay') return 'Ra tập gần như mỗi ngày'
+  if (!thu) return null
+  return 'Thường có tập mới vào ' + thu.map((t) => THU[t]).join(' và ')
 }
 
 /** "vừa xong", "5 giờ trước", "3 ngày trước"; quá một tháng thì ghi ngày. */

@@ -1,5 +1,6 @@
 import { connection } from 'next/server'
 import HeroXoay, { type MucHero } from '@/components/HeroXoay'
+import { layMau } from '@/lib/mau-phim'
 import HangPhim from '@/components/HangPhim'
 import TheePhim from '@/components/TheePhim'
 import { type PhimTom } from '@/lib/vsmov'
@@ -54,8 +55,8 @@ const SO_HERO = 5
 /** Ngưỡng phiếu TMDB để vào bảng xếp hạng — chặn phim 10 điểm từ vài phiếu. */
 const PHIEU_TOI_THIEU = 300
 
-function Cuon({ children }: { children: React.ReactNode }) {
-  return <div className="w-32 shrink-0 snap-start sm:w-36 md:w-40">{children}</div>
+function Cuon({ children, ngang }: { children: React.ReactNode; ngang?: boolean }) {
+  return <div className={`shrink-0 snap-start ${ngang ? 'w-60 md:w-72' : 'w-32 sm:w-36 md:w-40'}`}>{children}</div>
 }
 
 /** Top 10 dựng từ chính dữ liệu đã tải cho các hàng — không thêm request nào. */
@@ -93,6 +94,20 @@ export default async function TrangChu() {
   const tiepTuc = danhSachTiepTuc(20)
   const local = layPhimLocalMoi(20)
   const xemLai = danhSachXemLai(20)
+  const mauHero = await Promise.all(dsHero.map((h) => layMau(h.phim.poster)))
+  dsHero.forEach((h, i) => (h.mau = mauHero[i]))
+
+
+  /**
+   * Tự nhận intro/đoạn kết TRƯỚC cho tập sắp xem, để lúc bấm phát mốc đã có sẵn
+   * thay vì chờ 1–2 phút. Import động và bỏ qua lúc `next build` — cùng lý do với
+   * hâm ảnh: kéo lib có đường dẫn tệp động vào trang làm build gãy.
+   */
+  if (process.env.NEXT_PHASE !== 'phase-production-build') {
+    void import('@/lib/tu-dong-intro')
+      .then((m) => tiepTuc.filter((x) => x.tap && !/^(tap-)?full$/.test(x.tap)).slice(0, 3).forEach((x) => m.xepHangPhanTich(x.slug, x.tap as string)))
+      .catch(() => {})
+  }
 
   // Ghi các lần phim bộ lên tập mới để suy lịch ra tập (xem lib/lich-tap.ts).
   // insert-or-ignore theo (phim, tập) nên tải trang liên tục cũng không phình.
@@ -167,7 +182,7 @@ export default async function TrangChu() {
             <Link
               key={m.href}
               href={m.href}
-              className="shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-[13px] text-white/80 backdrop-blur transition hover:border-white/40 hover:bg-white/10 hover:text-white"
+              className="shrink-0 rounded-full border border-white/15 bg-mo px-3.5 py-1.5 text-[13px] text-white/80 backdrop-blur transition hover:border-white/40 hover:bg-white/10 hover:text-white"
             >
               {m.nhan}
             </Link>
@@ -177,7 +192,7 @@ export default async function TrangChu() {
             <Link
               key={m.href}
               href={m.href}
-              className="shrink-0 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-[13px] text-white/80 backdrop-blur transition hover:border-white/40 hover:bg-white/10 hover:text-white"
+              className="shrink-0 rounded-full border border-white/15 bg-mo px-3.5 py-1.5 text-[13px] text-white/80 backdrop-blur transition hover:border-white/40 hover:bg-white/10 hover:text-white"
             >
               {m.nhan}
             </Link>
@@ -198,7 +213,7 @@ export default async function TrangChu() {
               const pt = x.thoi_luong ? (x.vi_tri / x.thoi_luong) * 100 : 0
               const conLai = Math.max(0, Math.round((x.thoi_luong - x.vi_tri) / 60))
               return (
-                <Cuon key={x.khoa}>
+                <Cuon key={x.khoa} ngang>
                   <TheePhim
                     phim={phim}
                     href={`/xem/${x.slug}${x.tap ? '?tap=' + x.tap : ''}`}

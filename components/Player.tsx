@@ -21,6 +21,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type Hls from 'hls.js'
 import { srtSangVtt, doiThoiGian } from '@/lib/phu-de'
+import { SU_KIEN_TRANG_THAI } from '@/components/NhanDieuKhien'
+import { urlAnh } from '@/components/Anh'
+import { docCheDo } from '@/lib/che-do'
 import { laCham, donLichSu, type LanCho, type DangCho } from '@/lib/do-cham'
 import type { MocAniSkip } from '@/lib/aniskip-khop'
 import { MOC_CREDIT_RONG, boAfter, chuanHoa, nhanNut, nutAfterCredit, themAfter, type MocCredit } from '@/lib/after-credit'
@@ -87,6 +90,8 @@ type Props = {
    * máy chủ 2 không biết máy chủ 1 đã lỗi và đổi ngược về — vòng A → B → A.
    */
   maTapChung?: string
+  /** Máy chủ đang phát — để tự nhận intro đúng danh sách tập của máy chủ đó. */
+  soMayChu?: number
 }
 
 const TOC_DO = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
@@ -191,8 +196,28 @@ function mmss(giay: number): string {
   return h > 0 ? `${h}:${hai(p)}:${hai(s)}` : `${p}:${hai(s)}`
 }
 
-type CaiDat = { amLuong: number; tocDo: number; coChu: number; nenPhuDe: boolean; tangAm: boolean; roLoi: boolean }
-const MAC_DINH: CaiDat = { amLuong: 1, tocDo: 1, coChu: 100, nenPhuDe: true, tangAm: false, roLoi: false }
+type CaiDat = {
+  amLuong: number
+  tocDo: number
+  coChu: number
+  nenPhuDe: boolean
+  tangAm: boolean
+  roLoi: boolean
+  /** Tự nhảy qua intro khi phim chạy tới (mặc định BẬT — người dùng yêu cầu tự động như Netflix). */
+  tuBoIntro: boolean
+  /** Tới đoạn kết thì mở đếm ngược sang tập kế, nhạc kết vẫn chạy phía sau. */
+  tuSangTap: boolean
+}
+const MAC_DINH: CaiDat = {
+  amLuong: 1,
+  tocDo: 1,
+  coChu: 100,
+  nenPhuDe: true,
+  tangAm: false,
+  roLoi: false,
+  tuBoIntro: true,
+  tuSangTap: true,
+}
 
 function docCaiDat(): CaiDat {
   if (typeof window === 'undefined') return MAC_DINH
@@ -209,6 +234,8 @@ function docCaiDat(): CaiDat {
       nenPhuDe: typeof l.nenPhuDe === 'boolean' ? l.nenPhuDe : MAC_DINH.nenPhuDe,
       tangAm,
       roLoi: l.roLoi === true,
+      tuBoIntro: l.tuBoIntro !== false,
+      tuSangTap: l.tuSangTap !== false,
     }
   } catch {
     return MAC_DINH
@@ -277,6 +304,35 @@ function noiDuong(dt: DoThiAm, quaChan: boolean, roLoi: boolean) {
   dt.duong = duong
 }
 
+/**
+ * Bọc chữ của mọi cue trong `<c.phu>` để `::cue(.phu)` tô màu riêng: hai track
+ * cùng hiện thì CSS không có cách nào khác phân biệt track nào là track nào.
+ * Dòng chữ là mọi dòng không rỗng nằm sau một dòng mốc thời gian.
+ */
+export function bocPhuDePhu(vtt: string): string {
+  let trongCue = false
+  return vtt
+    .split(/\r?\n/)
+    .map((d) => {
+      if (d.includes('-->')) {
+        trongCue = true
+        return d
+      }
+      if (!d.trim()) {
+        trongCue = false
+        return d
+      }
+      return trongCue ? `<c.phu>${d}</c>` : d
+    })
+    .join('\n')
+}
+
+/** Phím remote TV có nghĩa riêng ở chế độ TV (xem xuLyTv trong Player). */
+const PHIM_REMOTE = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape', 'Backspace', 'GoBack', 'BrowserBack'])
+
+/** Hẹn giờ tắt: bao nhiêu giây cuối thì bắt đầu nhỏ tiếng và tối màn dần. */
+const GIAY_MO_DAN = 30
+
 export default function Player({
   nguon,
   khoa,
@@ -300,6 +356,7 @@ export default function Player({
   veTrang,
   tuGiay,
   maTapChung,
+  soMayChu = 0,
 }: Props) {
   const router = useRouter()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -341,6 +398,8 @@ export default function Player({
   const [tocDo, datTocDo] = useState(1)
   const [toanManHinh, datToanManHinh] = useState(false)
   const [hienDk, datHienDk] = useState(true)
+  /** Bản sao của `hien` cho bộ xử lý phím (khai báo `hien` nằm sau effect phím). */
+  const hienRef = useRef(true)
   const [bang, datBang] = useState<Bang | null>(null)
   const [dsPhuDe, datDsPhuDe] = useState<PhuDeMuc[]>([])
   const [chiSoPhuDe, datChiSoPhuDe] = useState(-1)
@@ -348,6 +407,9 @@ export default function Player({
   const [phuDeTruoc, datPhuDeTruoc] = useState(0)
   const [buGiay, datBuGiay] = useState(0)
   const [blobPhuDe, datBlobPhuDe] = useState<string | null>(null)
+  /** Phụ đề thứ hai (E1) — vd. Việt dưới, Anh trên — để học ngoại ngữ. -1 = tắt. */
+  const [chiSoPhuDe2, datChiSoPhuDe2] = useState(-1)
+  const [blobPhuDe2, datBlobPhuDe2] = useState<string | null>(null)
   const [coChu, datCoChu] = useState(MAC_DINH.coChu)
   const [nenPhuDe, datNenPhuDe] = useState(MAC_DINH.nenPhuDe)
   const [tiepTuc, datTiepTuc] = useState<number | null>(null)
@@ -367,6 +429,21 @@ export default function Player({
   const [intro, datIntro] = useState<MocIntro | null>(mocIntro)
   /** Mốc tự động cho anime từ AniSkip (lib/aniskip.ts). Mốc đánh dấu tay luôn thắng. */
   const [aniskip, datAniskip] = useState<MocAniSkip | null>(null)
+  /** Mốc TỰ NHẬN bằng vân tay âm thanh (lib/tu-dong-intro.ts) — chạy cho mọi phim bộ. */
+  const [vanTay, datVanTay] = useState<{
+    trangThai: string
+    intro: { tu: number; den: number } | null
+    ket: { tu: number; den: number } | null
+  }>({ trangThai: 'chua', intro: null, ket: null })
+  const [tuBoIntro, datTuBoIntro] = useState(MAC_DINH.tuBoIntro)
+  const [tuSangTap, datTuSangTap] = useState(MAC_DINH.tuSangTap)
+  /** Vừa tự bỏ qua intro: giữ mốc đầu intro để nút "Xem intro" quay lại được. */
+  const [daBoQua, datDaBoQua] = useState<number | null>(null)
+  /** 'het' = hết tập (phủ cả khung); 'ket' = tới đoạn kết (thẻ nhỏ ở góc, phim vẫn chạy). */
+  const [kieuDem, datKieuDem] = useState<'het' | 'ket'>('het')
+  const daTuBoIntroRef = useRef(false)
+  const daKichKetRef = useRef(false)
+  const tTruocRef = useRef(0)
   const [credit, datCredit] = useState<MocCredit>(mocCredit)
   const [dangDanhDau, datDangDanhDau] = useState<number | null>(null)
   const [nhac, datNhac] = useState<string | null>(null)
@@ -397,6 +474,8 @@ export default function Player({
     datNenPhuDe(c.nenPhuDe)
     datTangAm(c.tangAm)
     datRoLoi(c.roLoi)
+    datTuBoIntro(c.tuBoIntro)
+    datTuSangTap(c.tuSangTap)
     const w = window as unknown as { AudioContext?: unknown; webkitAudioContext?: unknown }
     datCoWebAudio(!!(w.AudioContext || w.webkitAudioContext))
     datCoPip(!!document.pictureInPictureEnabled)
@@ -504,7 +583,12 @@ export default function Player({
         else datLoi('Trình duyệt này không phát được luồng HLS.')
         return
       }
-      const hls = new HlsCtor({ enableWorker: true, lowLatencyMode: false })
+      /**
+       * progressive: giải mã dần từng khúc của đoạn video thay vì chờ tải trọn đoạn. Nguồn có đoạn đầu
+       * 6,8 MB đi chậm ~490 KB/s (đo trên TV Box 22/10/2026, Vương Triều Cuối Cùng) — không bật là
+       * người xem nhìn vòng quay ~14 giây chỉ để chờ đủ đoạn đầu. Proxy /api/tep vốn đã truyền dần.
+       */
+      const hls = new HlsCtor({ enableWorker: true, lowLatencyMode: false, progressive: true })
       hlsRef.current = hls
       hls.loadSource(src)
       hls.attachMedia(videoRef.current)
@@ -549,16 +633,23 @@ export default function Player({
   }, [src, laHls])
 
   // ---- phụ đề: dựng blob VTT --------------------------------------------
-  useEffect(() => {
+  useEffect(() => dungBlobPhuDe(chiSoPhuDe, false, datBlobPhuDe), [chiSoPhuDe, buGiay, dsPhuDe]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(
+    () => dungBlobPhuDe(chiSoPhuDe2 === chiSoPhuDe ? -1 : chiSoPhuDe2, true, datBlobPhuDe2),
+    [chiSoPhuDe2, chiSoPhuDe, buGiay, dsPhuDe], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  /** Nạp một phụ đề thành blob URL; trả hàm dọn để dùng thẳng làm cleanup của effect. */
+  function dungBlobPhuDe(chiSo: number, phu: boolean, dat: (u: string | null) => void) {
     let huy = false
     let tao: string | null = null
 
     async function nap() {
-      if (chiSoPhuDe < 0 || !dsPhuDe[chiSoPhuDe]) {
-        datBlobPhuDe(null)
+      if (chiSo < 0 || !dsPhuDe[chiSo]) {
+        dat(null)
         return
       }
-      const m = dsPhuDe[chiSoPhuDe]
+      const m = dsPhuDe[chiSo]
       try {
         let chu = m.noiDung
         if (!chu && m.url) chu = await (await fetch(m.url)).text()
@@ -566,11 +657,12 @@ export default function Player({
         // LUÔN chuẩn hoá, đừng tin dòng đầu: nguồn vsmov gắn nhãn WEBVTT nhưng
         // mốc thời gian vẫn là dấu phẩy kiểu SRT, trình duyệt đọc ra 0 cue.
         chu = srtSangVtt(chu)
-        const cuoi = buGiay ? doiThoiGian(chu, buGiay) : chu
+        let cuoi = buGiay ? doiThoiGian(chu, buGiay) : chu
+        if (phu) cuoi = bocPhuDePhu(cuoi)
         tao = URL.createObjectURL(new Blob([cuoi], { type: 'text/vtt' }))
-        if (!huy) datBlobPhuDe(tao)
+        if (!huy) dat(tao)
       } catch {
-        if (!huy) datBlobPhuDe(null)
+        if (!huy) dat(null)
       }
     }
     nap()
@@ -578,7 +670,7 @@ export default function Player({
       huy = true
       if (tao) URL.revokeObjectURL(tao)
     }
-  }, [chiSoPhuDe, buGiay, dsPhuDe])
+  }
 
   // Track vừa gắn mặc định là 'disabled', phải bật tay.
   useEffect(() => {
@@ -588,7 +680,7 @@ export default function Player({
       for (let i = 0; i < v.textTracks.length; i++) v.textTracks[i].mode = 'showing'
     }, 80)
     return () => clearTimeout(t)
-  }, [blobPhuDe])
+  }, [blobPhuDe, blobPhuDe2])
 
   // ---- âm lượng và tăng âm -----------------------------------------------
   /**
@@ -845,7 +937,44 @@ export default function Player({
     } catch {
       // không có tiến độ cũ thì xem từ đầu
     }
+    /**
+     * TV: bấm "Xem ngay" là phim chạy luôn, ô trỏ nằm sẵn ở nút Phát/Dừng của thanh dưới.
+     * Không có bước này thì người xem phải mò bằng mũi tên tới nút phát giữa màn hình, và
+     * mũi tên đầu tiên lại nhảy lên nút "Quay lại" ở góc trên (đo thật trên TV Box).
+     */
+    if (docCheDo() === 'tv') {
+      v.play().catch(() => {})
+      boxRef.current?.querySelector<HTMLElement>('.tp-duoi button')?.focus({ preventScroll: true })
+    }
   }, [khoa, tuGiay])
+
+  /**
+   * Mở đếm ngược sang tập kế — không nhảy ngay, để còn kịp huỷ.
+   * 'het' khi hết tập: phủ cả khung. 'ket' khi vừa tới đoạn kết: thẻ nhỏ ở góc,
+   * nhạc kết vẫn chạy phía sau — đúng kiểu Netflix.
+   * Đã TỰ chuyển liền mấy tập mà không ai chạm vào thì dừng lại hỏi, đừng phát
+   * cả đêm. Bộ đếm chỉ tăng khi tự chuyển thật (đếm ngược chạy hết), không tăng
+   * khi người xem tự bấm.
+   */
+  const moDemNguoc = useCallback(
+    (kieu: 'het' | 'ket') => {
+      if (!tapSau) return
+      let soLan = 0
+      try {
+        soLan = Number(sessionStorage.getItem(KHOA_TU_SANG) || '0')
+      } catch {
+        // trình duyệt chặn sessionStorage thì bỏ qua, cứ chạy tiếp
+      }
+      if (soLan + 1 >= NGUONG_HOI) {
+        videoRef.current?.pause()
+        datHoiConXem(true)
+        return
+      }
+      datKieuDem(kieu)
+      datDemNguoc(DEM_NGUOC_GIAY)
+    },
+    [tapSau],
+  )
 
   const khiHet = useCallback(() => {
     datDangPhat(false)
@@ -854,27 +983,21 @@ export default function Player({
       datHenGio(null)
       return
     }
-    if (!tapSau) return
-    // Xem liền mấy tập mà không ai chạm vào thì hỏi, đừng phát cả đêm.
-    let soLan = 0
-    try {
-      soLan = Number(sessionStorage.getItem(KHOA_TU_SANG) || '0') + 1
-      sessionStorage.setItem(KHOA_TU_SANG, String(soLan))
-    } catch {
-      // trình duyệt chặn sessionStorage thì bỏ qua, cứ chạy tiếp
-    }
-    if (soLan >= NGUONG_HOI) {
-      datHoiConXem(true)
-      return
-    }
-    // Không nhảy ngay: mở đếm ngược để còn kịp huỷ (xem DEM_NGUOC_GIAY).
-    datDemNguoc(DEM_NGUOC_GIAY)
-  }, [tapSau, luuTienDo, henGio])
+    // Đang đếm từ đoạn kết rồi thì để nó đếm nốt, đừng mở lại từ đầu
+    if (demNguoc !== null) return
+    moDemNguoc('het')
+  }, [luuTienDo, henGio, demNguoc, moDemNguoc])
 
   // ---- đếm ngược sang tập kế ---------------------------------------------
   useEffect(() => {
     if (demNguoc === null) return
     if (demNguoc <= 0) {
+      // Tự chuyển mà không ai bấm gì — đếm để biết lúc nào hỏi "còn xem không"
+      try {
+        sessionStorage.setItem(KHOA_TU_SANG, String(Number(sessionStorage.getItem(KHOA_TU_SANG) || '0') + 1))
+      } catch {
+        // không sao
+      }
       if (tapSau) router.push(tapSau.href)
       return
     }
@@ -902,6 +1025,43 @@ export default function Player({
     return () => clearInterval(t)
   }, [henGio])
 
+  // ---- báo trạng thái cho remote điện thoại (C2) ---------------------------
+  // Chỉ phát sự kiện trên window; components/NhanDieuKhien.tsx lo gửi đi (và chỉ
+  // gửi khi TV đã ghép điện thoại). Giây làm tròn để mỗi giây chạy một lần thôi.
+  const giayNguyen = Math.floor(thoiGian)
+  useEffect(() => {
+    const i = dsTap.findIndex((t) => t.dang)
+    window.dispatchEvent(
+      new CustomEvent(SU_KIEN_TRANG_THAI, {
+        detail: {
+          ten: tenPhim || tieuDe,
+          tap: nhanTap ?? null,
+          t: giayNguyen,
+          dai: Math.floor(thoiLuong),
+          dang: dangPhat,
+          phuDe: chiSoPhuDe >= 0,
+          coPhuDe: dsPhuDe.length > 0,
+          // Một khúc quanh tập đang xem thôi — phim 1.000 tập mà gửi cả danh sách là quá cỡ.
+          dsTap: i < 0 ? [] : dsTap.slice(Math.max(0, i - 2), i + 6),
+          tapSau: tapSau?.href ?? null,
+          tapTruoc: i > 0 ? dsTap[i - 1].href : null,
+        },
+      }),
+    )
+  }, [giayNguyen, thoiLuong, dangPhat, chiSoPhuDe, dsPhuDe.length, dsTap, tapSau, tenPhim, tieuDe, nhanTap])
+  useEffect(() => () => void window.dispatchEvent(new CustomEvent(SU_KIEN_TRANG_THAI, { detail: null })), [])
+
+  // ---- hẹn giờ êm (E4): 30 giây cuối nhỏ tiếng dần và tối dần --------------
+  // Tắt phụt giữa câu thoại là giật mình tỉnh giấc — đúng cái hẹn giờ muốn tránh.
+  // Chỉ chạm v.volume (đứng TRƯỚC GainNode tăng âm) nên mức tăng âm vẫn nhân đúng.
+  const conLaiTat =
+    typeof henGio === 'number' ? conLai : henGio === 'het-tap' && thoiLuong > 0 ? Math.max(0, thoiLuong - thoiGian) : Infinity
+  const mo = conLaiTat > 0 && conLaiTat <= GIAY_MO_DAN ? conLaiTat / GIAY_MO_DAN : 1
+  useEffect(() => {
+    const v = videoRef.current
+    if (v) v.volume = Math.min(1, amLuong) * mo
+  }, [mo, amLuong])
+
   // Bất kỳ thao tác nào cũng coi như "vẫn còn người xem"
   const conNguoi = useCallback(() => {
     try {
@@ -927,6 +1087,35 @@ export default function Player({
       })
     return () => huy.abort()
   }, [slug, tap, maTapChung, nguonTen])
+
+  // ---- mốc tự nhận bằng vân tay âm thanh (mọi phim bộ) ----------------------
+  // Phân tích một cặp tập mất 30 giây tới vài phút trên máy chủ, mà người xem
+  // thường bấm phát trước khi xong — nên hỏi lại vài nhịp cho tới khi có kết quả.
+  useEffect(() => {
+    if (!tap) return
+    let huy = false
+    let lan = 0
+    let hen: ReturnType<typeof setTimeout> | null = null
+    async function hoi() {
+      try {
+        const r = await fetch(
+          `/api/moc-tap?slug=${encodeURIComponent(slug)}&tap=${encodeURIComponent(tap as string)}&server=${soMayChu}`,
+        )
+        if (!r.ok || huy) return
+        const j = await r.json()
+        if (huy) return
+        datVanTay({ trangThai: j.trangThai, intro: j.intro ?? null, ket: j.ket ?? null })
+        if ((j.trangThai === 'dang-lam' || j.trangThai === 'chua') && ++lan < 20) hen = setTimeout(hoi, 15_000)
+      } catch {
+        // Mất mạng thì thôi — nút đánh dấu tay và AniSkip vẫn dùng được
+      }
+    }
+    hoi()
+    return () => {
+      huy = true
+      if (hen) clearTimeout(hen)
+    }
+  }, [slug, tap, soMayChu])
 
   // ---- đánh dấu / bỏ qua intro -------------------------------------------
   const baoNhac = useCallback((tin: string) => {
@@ -981,10 +1170,22 @@ export default function Player({
     [tepLocal, amDangChon],
   )
 
-  /** Intro đang dùng: mốc đánh dấu tay, không có thì opening của AniSkip. */
+  /**
+   * Mốc tự động gộp từ hai nguồn: AniSkip (anime, cộng đồng đánh dấu — chính xác
+   * nhất) thắng; thiếu thì dùng mốc tự nhận bằng vân tay âm thanh, chạy được cho
+   * MỌI phim bộ chứ không riêng anime. Mốc đánh dấu tay vẫn thắng cả hai.
+   */
+  const mocTD = useMemo(
+    () => ({ op: aniskip?.op ?? vanTay.intro, ed: aniskip?.ed ?? vanTay.ket }),
+    [aniskip, vanTay],
+  )
+  const nguonOp = aniskip?.op ? 'AniSkip' : 'tự nhận'
+  const nguonEd = aniskip?.ed ? 'AniSkip' : 'tự nhận'
+
+  /** Intro đang dùng: mốc đánh dấu tay, không có thì mốc tự động. */
   const introHieuLuc = useMemo<MocIntro | null>(
-    () => intro ?? (aniskip?.op ? { bat_dau: aniskip.op.tu, ket_thuc: aniskip.op.den } : null),
-    [intro, aniskip],
+    () => intro ?? (mocTD.op ? { bat_dau: mocTD.op.tu, ket_thuc: mocTD.op.den } : null),
+    [intro, mocTD],
   )
 
   const boQuaIntro = useCallback(() => {
@@ -1036,25 +1237,32 @@ export default function Player({
    * phần còn lại là cảnh sau credit. Ending chạy tới hết tập thì không có cảnh
    * nào — khi đó là nút "Bỏ qua ending" sang tập kế (boQuaEnding bên dưới).
    */
-  const sauEnding = !!aniskip?.ed && thoiLuong > 0 && aniskip.ed.den < thoiLuong - 5
+  /**
+   * Vân tay chỉ bắt phần GIỐNG NHAU giữa hai tập, nên phần khác nhau sau nhạc kết
+   * thường là đoạn GIỚI THIỆU TẬP SAU chứ không phải cảnh after credit — đo trên
+   * Đảo Hải Tặc 1158: dư 31 giây sau nhạc kết, đúng là preview. Coi đó là after
+   * credit thì thẻ "Tập tiếp theo" không bao giờ hiện. Cảnh after credit thật của
+   * phim bộ thường dài hơn — dư quá 45 giây mới tính. AniSkip đo chính xác nên giữ 5.
+   */
+  const sauEnding = !!mocTD.ed && thoiLuong > 0 && mocTD.ed.den < thoiLuong - (aniskip?.ed ? 5 : 45)
   const creditHieuLuc = useMemo<MocCredit>(
     () =>
       coCreditTay
         ? credit
-        : sauEnding && aniskip?.ed
-          ? { batDauCredit: aniskip.ed.tu, after: [aniskip.ed.den] }
+        : sauEnding && mocTD.ed
+          ? { batDauCredit: mocTD.ed.tu, after: [mocTD.ed.den] }
           : MOC_CREDIT_RONG,
-    [coCreditTay, credit, sauEnding, aniskip],
+    [coCreditTay, credit, sauEnding, mocTD],
   )
   const creditTuAniskip = !coCreditTay && creditHieuLuc.after.length > 0
   const nutCredit = useMemo(() => nutAfterCredit(creditHieuLuc, thoiGian), [creditHieuLuc, thoiGian])
   const boQuaEnding =
     !coCreditTay &&
     !sauEnding &&
-    !!aniskip?.ed &&
+    !!mocTD.ed &&
     !!tapSau &&
-    thoiGian >= aniskip.ed.tu &&
-    thoiGian < aniskip.ed.den - 1
+    thoiGian >= mocTD.ed.tu &&
+    thoiGian < mocTD.ed.den - 1
 
   const toiAfter = useCallback((den: number) => {
     const v = videoRef.current
@@ -1140,10 +1348,73 @@ export default function Player({
     return () => document.removeEventListener('fullscreenchange', f)
   }, [])
 
+  const danhThuc = useCallback(() => {
+    datHienDk(true)
+    if (anRef.current) clearTimeout(anRef.current)
+    // TV đi bằng remote, mỗi nút một nhịp bấm: 3 giây là thanh biến mất giữa chừng.
+    anRef.current = setTimeout(
+      () => {
+        if (videoRef.current && !videoRef.current.paused) datHienDk(false)
+      },
+      docCheDo() === 'tv' ? 6000 : 3000,
+    )
+  }, [])
+
+  /**
+   * TV: mở bảng (cài đặt, chọn tập, tốc độ...) là ô trỏ vào mục đang chọn — không có mục chọn
+   * thì mục đầu tiên. Đóng bảng thì trả ô trỏ về nút đã mở nó. Không có bước này thì bảng hiện
+   * ra mà ô trỏ vẫn ở nút Cài đặt, bấm Xuống là rơi ra danh sách tập dưới trình phát.
+   */
+  /**
+   * TV: nút nổi (Bỏ qua intro / ending, Tập tiếp theo) và thẻ "tập kế" ở đoạn kết hiện ra thì ô trỏ
+   * chuyển vào nút chính của nó — bấm OK là bỏ qua / sang tập, như Netflix trên TV. Chỉ giành ô trỏ
+   * khi người xem KHÔNG đang thao tác trên thanh điều khiển; bảng phủ kín (hết tập, hỏi còn xem
+   * không, lỗi phát → "Thử lại") thì luôn giành vì nó che hết.
+   */
+  useEffect(() => {
+    if (docCheDo() !== 'tv') return
+    const hop = boxRef.current
+    if (!hop) return
+    const phuKin = hop.querySelector<HTMLElement>('.tp-the button')
+    const noi = hop.querySelector<HTMLElement>('.tp-the-ket button, button.tp-noi, .tp-noi button')
+    const a = document.activeElement
+    const ranh = !a || a === document.body || !hop.contains(a) || (!hienRef.current && !!a.closest('.tp-duoi'))
+    const dich = phuKin ?? (ranh ? noi : null)
+    if (dich && dich !== a) dich.focus({ preventScroll: true })
+  }, [trongIntro, nutCredit, boQuaEnding, hienTapSau, demNguoc, kieuDem, daBoQua, hoiConXem, loi])
+
+  const truocBangRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (docCheDo() !== 'tv') return
+    const hop = boxRef.current
+    if (!bang) {
+      const truoc = truocBangRef.current
+      truocBangRef.current = null
+      if (truoc?.isConnected) truoc.focus({ preventScroll: true })
+      return
+    }
+    const a = document.activeElement as HTMLElement | null
+    if (!truocBangRef.current && a && hop?.contains(a) && !a.closest('.tp-bang')) truocBangRef.current = a
+    const p = hop?.querySelector('.tp-bang')
+    const muc = p?.querySelector<HTMLElement>('[aria-checked="true"]') ?? p?.querySelector<HTMLElement>('button, a[href], input, label')
+    muc?.focus({ preventScroll: true })
+  }, [bang])
+
   // ---- phím tắt ----------------------------------------------------------
   useEffect(() => {
     function xuLy(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null
+      if (docCheDo() === 'tv') {
+        if (xuLyTv(e, t)) {
+          e.preventDefault()
+          // Chạy ở pha capture: chặn luôn PhimRemote (điều hướng ô trỏ) cho phím đã dùng ở đây.
+          e.stopImmediatePropagation()
+          return
+        }
+        // Phím của remote mà xuLyTv nhường lại là để PhimRemote đi ô trỏ — KHÔNG được rơi xuống
+        // bảng phím tắt PC bên dưới (ở đó mũi tên là tua/âm lượng: đi qua mỗi nút lại tua 10 giây).
+        if (PHIM_REMOTE.has(e.key)) return
+      }
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
         // Thanh trượt vẫn để trình duyệt tự lo mũi tên của nó
         return
@@ -1240,9 +1511,69 @@ export default function Player({
       }
       if (chan) e.preventDefault()
     }
-    window.addEventListener('keydown', xuLy)
-    return () => window.removeEventListener('keydown', xuLy)
+    /**
+     * Remote TV chỉ có 4 mũi tên + OK + Back, phải chia nghĩa theo lúc (kiểu Netflix/YouTube trên TV):
+     *   thanh ẩn        — Trái/Phải tua ±10s; Lên/Xuống hiện thanh, ô trỏ vào nút Phát/Dừng; OK phát/dừng
+     *   thanh hiện      — mũi tên đi giữa các nút (PhimRemote lo), OK bấm nút đang trỏ
+     *   trỏ thanh tua   — Trái/Phải tua ±10s
+     *   Back            — đóng bảng → ẩn thanh → (lần sau) rời trang xem
+     * Âm lượng để cho nút âm lượng thật trên remote. Trước đây Lên/Xuống là âm lượng và Trái/Phải
+     * là tua ở MỌI lúc, đè lên điều hướng: không bao giờ xuống được thanh công cụ.
+     * Trả true = đã dùng phím, không cho đi tiếp.
+     */
+    function xuLyTv(e: KeyboardEvent, t: HTMLElement | null): boolean {
+      const hop = boxRef.current
+      if (!hop) return false
+      // Vào/ra toàn màn hình, WebView chuyển ô trỏ sang chính thẻ video — coi như chưa trỏ vào đâu.
+      const laNen = !t || t === document.body || t === videoRef.current || t === hop
+      const trongTp = laNen || hop.contains(t)
+      const dangAn = !hienRef.current
+      switch (e.key) {
+        case 'ArrowLeft':
+        case 'ArrowRight':
+          if (!trongTp) return false
+          danhThuc()
+          if (dangAn || t === tuaRef.current) {
+            nhay(e.key === 'ArrowRight' ? 10 : -10)
+            return true
+          }
+          return false
+        case 'ArrowUp':
+        case 'ArrowDown':
+          if (!trongTp) return false
+          danhThuc()
+          if (!dangAn && !laNen) return false
+          // Hiện thanh; ô trỏ đang ở trong thanh dưới thì giữ, không thì về nút Phát/Dừng
+          if (!hop.querySelector('.tp-duoi')?.contains(t)) hop.querySelector<HTMLElement>('.tp-duoi button')?.focus({ preventScroll: true })
+          return true
+        case 'Enter':
+          if (!trongTp) return false
+          danhThuc()
+          if (t && t !== tuaRef.current && (t.tagName === 'BUTTON' || t.tagName === 'A' || t.tagName === 'SELECT' || t.tagName === 'LABEL')) return false
+          batTat()
+          return true
+        case 'Escape':
+        case 'Backspace':
+        case 'GoBack':
+        case 'BrowserBack':
+          if (bang) {
+            datBang(null)
+            return true
+          }
+          if (!dangAn && videoRef.current && !videoRef.current.paused) {
+            if (anRef.current) clearTimeout(anRef.current)
+            datHienDk(false)
+            return true
+          }
+          return false
+      }
+      return false
+    }
+
+    window.addEventListener('keydown', xuLy, true)
+    return () => window.removeEventListener('keydown', xuLy, true)
   }, [
+    danhThuc,
     batTat,
     nhay,
     doiToanManHinh,
@@ -1272,13 +1603,6 @@ export default function Player({
   ])
 
   // ---- tự ẩn thanh điều khiển -------------------------------------------
-  const danhThuc = useCallback(() => {
-    datHienDk(true)
-    if (anRef.current) clearTimeout(anRef.current)
-    anRef.current = setTimeout(() => {
-      if (videoRef.current && !videoRef.current.paused) datHienDk(false)
-    }, 3000)
-  }, [])
 
   // ---- kéo thả phụ đề ----------------------------------------------------
   const themPhuDeTuFile = useCallback(async (f: File) => {
@@ -1314,6 +1638,7 @@ export default function Player({
     }`
     return (
       `#video-chinh::cue{font-size:${coChu}%;${kieu}}` +
+      `#video-chinh::cue(.phu){color:#ffe08a;font-size:${Math.round(coChu * 0.85)}%}` +
       `[data-che-do='tv'] #video-chinh::cue{font-size:${Math.round(coChu * 1.65)}%}`
     )
   }, [coChu, nenPhuDe])
@@ -1340,6 +1665,7 @@ export default function Player({
   const amHien = tat ? 0 : amLuong
   const dangTangAm = !tat && amLuong > 1
   const hien = hienDk || !dangPhat || !!bang || keoTua !== null
+  hienRef.current = hien
   const coLop = demNguoc !== null || hoiConXem || !!loi
   const tenTren = tenPhim || tieuDe
   const mayChuDang = mayChu.find((m) => m.dang)
@@ -1433,6 +1759,9 @@ export default function Player({
   return (
     <div
       ref={boxRef}
+      // Giữ ô trỏ của remote trong trình phát (PhimRemote, chỉ chạy ở chế độ TV): trên TV trình phát chiếm
+      // trọn màn, đi tuột xuống phần thông tin bên dưới là trang cuộn mất khung phim đang chiếu.
+      data-giu-tro
       className={`trinh-phat group/tp relative aspect-video w-full select-none overflow-hidden bg-black text-white md:rounded-xl ${
         hien ? '' : 'cursor-none'
       }`}
@@ -1456,7 +1785,7 @@ export default function Player({
       <video
         id="video-chinh"
         ref={videoRef}
-        poster={anhNen || poster}
+        poster={urlAnh(anhNen || poster, 1280) || undefined}
         className="h-full w-full object-contain"
         playsInline
         onClick={() => {
@@ -1505,10 +1834,52 @@ export default function Player({
         onEnded={khiHet}
         onTimeUpdate={(e) => {
           const v = e.currentTarget
-          datThoiGian(v.currentTime)
+          const t = v.currentTime
+          datThoiGian(t)
           if (v.buffered.length) datDem(v.buffered.end(v.buffered.length - 1))
-          if (tapSau && v.duration && v.duration - v.currentTime < 30) datHienTapSau(true)
+          if (tapSau && v.duration && v.duration - t < 30) datHienTapSau(true)
           else datHienTapSau(false)
+
+          /**
+           * Chỉ tự bỏ qua khi phim TỰ CHẠY tới chỗ đó. Bước nhảy giữa hai lần
+           * timeupdate (~0,25 giây) mà lớn thì là người xem vừa tua — họ tua lùi
+           * về intro để xem lại thì đừng đá họ ra, chỉ hiện nút "Bỏ qua intro".
+           * Mỗi tập chỉ tự bỏ qua một lần (ref), kể cả khi bấm "Xem intro".
+           */
+          const tuChay = Math.abs(t - tTruocRef.current) < 2
+          tTruocRef.current = t
+          if (
+            introHieuLuc &&
+            tuBoIntro &&
+            tuChay &&
+            !daTuBoIntroRef.current &&
+            t >= introHieuLuc.bat_dau &&
+            t < introHieuLuc.ket_thuc - 1
+          ) {
+            daTuBoIntroRef.current = true
+            v.currentTime = introHieuLuc.ket_thuc
+            datDaBoQua(introHieuLuc.bat_dau)
+            setTimeout(() => datDaBoQua(null), 6000)
+          }
+          // Tới đoạn kết chạy tới hết tập (không có cảnh after credit phía sau) thì
+          // mở thẻ "Tập tiếp theo" ở góc. Có cảnh sau credit thì để nút after credit
+          // lo — sang tập mới lúc đó là bỏ lỡ nó.
+          if (
+            mocTD.ed &&
+            !coCreditTay &&
+            !sauEnding &&
+            tapSau &&
+            tuSangTap &&
+            tuChay &&
+            !daKichKetRef.current &&
+            henGio !== 'het-tap' &&
+            demNguoc === null &&
+            t >= mocTD.ed.tu &&
+            t < mocTD.ed.den - 1
+          ) {
+            daKichKetRef.current = true
+            moDemNguoc('ket')
+          }
           if (tapSau && v.duration && v.duration - v.currentTime < TAI_TRUOC_GIAY && !daTaiTruocRef.current) {
             daTaiTruocRef.current = true
             router.prefetch(tapSau.href)
@@ -1524,6 +1895,9 @@ export default function Player({
             label={dsPhuDe[chiSoPhuDe]?.nhan || 'Phụ đề'}
             default
           />
+        )}
+        {blobPhuDe2 && (
+          <track key={blobPhuDe2} kind="subtitles" src={blobPhuDe2} srcLang={dsPhuDe[chiSoPhuDe2]?.ma || 'en'} label="Phụ đề thứ hai" />
         )}
       </video>
 
@@ -1565,6 +1939,14 @@ export default function Player({
           </span>
         )}
       </div>
+
+      {mo < 1 && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-1000 ease-linear"
+          style={{ opacity: (1 - mo) * 0.8 }}
+        />
+      )}
 
       {/* ---- giữa: đang tải / nút phát to ---- */}
       {dangTai && !loi && (
@@ -1761,7 +2143,7 @@ export default function Player({
         <button
           type="button"
           onClick={() => toiAfter(nutCredit.den)}
-          title={`Tua tới ${mmss(nutCredit.den)} (phím S)${creditTuAniskip ? ' — mốc từ AniSkip' : ''}`}
+          title={`Tua tới ${mmss(nutCredit.den)} (phím S)${creditTuAniskip ? ' — mốc ' + nguonEd : ''}`}
           className="tp-noi absolute bottom-24 right-4 flex items-center gap-2 rounded-md border border-white/70 bg-black/55 px-5 py-2.5 text-sm font-semibold backdrop-blur transition hover:border-white hover:bg-white hover:text-black md:right-6"
         >
           <Bieu ten="tua-nhanh" className="h-5 w-5" />
@@ -1774,7 +2156,7 @@ export default function Player({
         <button
           type="button"
           onClick={() => router.push(tapSau.href)}
-          title="Mốc ending từ AniSkip (phím S)"
+          title={`Mốc ending ${nguonEd} (phím S)`}
           className="tp-noi absolute bottom-24 right-4 flex items-center gap-2 rounded-md border border-white/70 bg-black/55 px-5 py-2.5 text-sm font-semibold backdrop-blur transition hover:border-white hover:bg-white hover:text-black md:right-6"
         >
           <Bieu ten="tap-sau" className="h-5 w-5" />
@@ -1784,7 +2166,25 @@ export default function Player({
 
       {/* Nút tập kế nhường chỗ cho nút after credit: cùng một góc, và đang có cảnh
           sau credit thì sang tập mới là bỏ lỡ nó. */}
-      {hienTapSau && tapSau && demNguoc === null && !trongIntro && !nutCredit && !boQuaEnding && !coLop && (
+      {/* Vừa tự bỏ qua intro: cho quay lại trong vài giây, phòng khi muốn nghe nhạc */}
+      {daBoQua !== null && !coLop && (
+        <div className="tp-noi absolute bottom-24 right-4 flex items-center gap-3 rounded-full bg-black/70 py-1.5 pl-4 pr-1.5 text-sm backdrop-blur md:right-6">
+          <span className="text-white/85">Đã bỏ qua intro</span>
+          <button
+            type="button"
+            onClick={() => {
+              const v = videoRef.current
+              if (v) v.currentTime = daBoQua
+              datDaBoQua(null)
+            }}
+            className="rounded-full bg-white/15 px-3 py-1 font-semibold transition hover:bg-white/25"
+          >
+            Xem intro
+          </button>
+        </div>
+      )}
+
+      {hienTapSau && tapSau && demNguoc === null && !trongIntro && !nutCredit && !boQuaEnding && daBoQua === null && !coLop && (
         <button
           type="button"
           onClick={() => router.push(tapSau.href)}
@@ -1797,9 +2197,43 @@ export default function Player({
 
       {/* ---- hết tập: đếm ngược sang tập kế ----
           Vùng bấm to vì trên TV phải trỏ trúng bằng con trỏ ảo. */}
-      {demNguoc !== null && tapSau && (
+      {demNguoc !== null && tapSau && kieuDem === 'ket' && (
+        <div className="tp-the-ket absolute bottom-24 right-4 z-20 w-[22rem] max-w-[calc(100%-2rem)] rounded-2xl bg-noi/95 p-4 shadow-2xl ring-1 ring-white/10 backdrop-blur md:right-6">
+          <div className="flex items-center gap-3">
+            <VongDem con={demNguoc} tong={DEM_NGUOC_GIAY} nho />
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-white/45">Tập tiếp theo</p>
+              <p className="truncate font-semibold">{tapSau.nhan}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                conNguoi()
+                router.push(tapSau.href)
+              }}
+              className="tp-nut-chu flex-1 rounded-md bg-white px-3 py-2 text-sm font-semibold text-black transition hover:bg-white/85"
+            >
+              Xem ngay
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                conNguoi()
+                datDemNguoc(null)
+              }}
+              className="tp-nut-chu flex-1 whitespace-nowrap rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/20"
+            >
+              Xem hết đoạn kết
+            </button>
+          </div>
+        </div>
+      )}
+
+      {demNguoc !== null && tapSau && kieuDem === 'het' && (
         <div className="absolute inset-0 z-20 grid place-items-center bg-black/75 backdrop-blur-sm">
-          <div className="tp-the mx-4 w-full max-w-sm rounded-2xl bg-[#141419]/95 p-6 text-center ring-1 ring-white/10">
+          <div data-giu-tro className="tp-the mx-4 w-full max-w-sm rounded-2xl bg-noi/95 p-6 text-center ring-1 ring-white/10">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-white/45">Tập tiếp theo</p>
             <p className="mt-1 truncate text-lg font-semibold">{tapSau.nhan}</p>
 
@@ -1827,7 +2261,7 @@ export default function Player({
 
       {hoiConXem && (
         <div className="absolute inset-0 z-20 grid place-items-center bg-black/85 px-6 text-center">
-          <div className="tp-the">
+          <div data-giu-tro className="tp-the">
             <p className="text-xl font-semibold">Bạn còn đang xem không?</p>
             <p className="mt-1 text-sm text-white/60">Đã tự chuyển {NGUONG_HOI} tập liên tiếp mà không ai chạm vào.</p>
             <div className="mt-5 flex justify-center gap-3">
@@ -2062,8 +2496,9 @@ export default function Player({
         <div className="absolute inset-0 z-30" onClick={() => datBang(null)}>
           <div
             role="menu"
+            data-giu-tro
             onClick={(e) => e.stopPropagation()}
-            className={`tp-bang buong-len absolute bottom-[4.75rem] right-3 overflow-y-auto rounded-2xl bg-[#121217]/95 py-1.5 text-sm shadow-2xl ring-1 ring-white/10 backdrop-blur-md md:right-4 ${
+            className={`tp-bang buong-len absolute bottom-[4.75rem] right-3 overflow-y-auto rounded-2xl bg-noi/95 py-1.5 text-sm shadow-2xl ring-1 ring-white/10 backdrop-blur-md md:right-4 ${
               bang === 'tap' ? 'tp-bang-tap w-[22rem] max-w-[calc(100%-1.5rem)]' : 'w-[20rem] max-w-[calc(100%-1.5rem)]'
             }`}
             style={{ maxHeight: 'min(72%, 30rem)' }}
@@ -2132,7 +2567,7 @@ export default function Player({
                     intro
                       ? `${mmss(intro.bat_dau)}–${mmss(intro.ket_thuc)}`
                       : introHieuLuc
-                        ? `AniSkip ${mmss(introHieuLuc.bat_dau)}–${mmss(introHieuLuc.ket_thuc)}`
+                        ? `${nguonOp === 'AniSkip' ? 'AniSkip' : 'Tự nhận'} ${mmss(introHieuLuc.bat_dau)}–${mmss(introHieuLuc.ket_thuc)}`
                         : 'Chưa đặt'
                   }
                   onClick={() => datBang('intro')}
@@ -2157,7 +2592,7 @@ export default function Player({
                     key={m.href}
                     href={m.href}
                     onClick={() => datBang(null)}
-                    className="tp-hang-bang flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-white/[0.07]"
+                    className="tp-hang-bang flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-mo"
                   >
                     <DauChon chon={m.dang} />
                     <span className={`truncate ${m.dang ? 'text-white' : 'text-white/75'}`}>{m.nhan}</span>
@@ -2180,7 +2615,24 @@ export default function Player({
                     {p.nhan}
                   </MucChon>
                 ))}
-                <label className="tp-hang-bang mx-3 my-1.5 flex cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-white/75 ring-1 ring-white/15 transition hover:bg-white/[0.07] hover:text-white">
+                {chiSoPhuDe >= 0 && dsPhuDe.length > 1 && (
+                  <>
+                    <p className="mt-1 border-t border-white/10 px-4 pb-1 pt-2.5 text-xs font-semibold text-white/55">
+                      Thêm dòng thứ hai (chữ vàng) — học ngoại ngữ
+                    </p>
+                    <MucChon chon={chiSoPhuDe2 < 0 || chiSoPhuDe2 === chiSoPhuDe} onClick={() => datChiSoPhuDe2(-1)}>
+                      Không
+                    </MucChon>
+                    {dsPhuDe.map((p, i) =>
+                      i === chiSoPhuDe ? null : (
+                        <MucChon key={i} chon={chiSoPhuDe2 === i} onClick={() => datChiSoPhuDe2(i)}>
+                          {p.nhan}
+                        </MucChon>
+                      ),
+                    )}
+                  </>
+                )}
+                <label className="tp-hang-bang mx-3 my-1.5 flex cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-white/75 ring-1 ring-white/15 transition hover:bg-mo hover:text-white">
                   Chọn tệp phụ đề .srt / .vtt
                   <input
                     type="file"
@@ -2317,6 +2769,43 @@ export default function Player({
             {bang === 'intro' && (
               <>
                 <TieuDeBang nhan="Đoạn intro" onLui={() => datBang('cai-dat')} />
+                <div className="tp-hang-bang flex items-center gap-3 px-4 py-2">
+                  <span className="flex-1 text-white/95">Tự bỏ qua intro</span>
+                  <CongTac
+                    bat={tuBoIntro}
+                    nhan="Tự bỏ qua intro"
+                    onDoi={(b) => {
+                      datTuBoIntro(b)
+                      ghiCaiDat({ tuBoIntro: b })
+                    }}
+                  />
+                </div>
+                <div className="tp-hang-bang flex items-center gap-3 px-4 py-2">
+                  <span className="flex-1 text-white/95">Tới đoạn kết thì sang tập kế</span>
+                  <CongTac
+                    bat={tuSangTap}
+                    nhan="Tới đoạn kết thì sang tập kế"
+                    onDoi={(b) => {
+                      datTuSangTap(b)
+                      ghiCaiDat({ tuSangTap: b })
+                    }}
+                  />
+                </div>
+                <p className="px-4 pb-1 text-xs leading-relaxed text-white/50">
+                  {aniskip?.op || aniskip?.ed
+                    ? 'Mốc tự động lấy từ AniSkip (anime).'
+                    : vanTay.trangThai === 'dang-lam' || vanTay.trangThai === 'chua'
+                      ? 'Đang so âm thanh với tập bên cạnh để tự nhận — mất khoảng 1–2 phút.'
+                      : vanTay.trangThai === 'mot-tap'
+                        ? 'Phim chỉ có một tập nên không có tập nào để so.'
+                        : vanTay.trangThai === 'khong-ho-tro'
+                          ? 'Máy này không tự nhận được intro (ffmpeg thiếu chromaprint) — dùng nút đánh dấu tay bên dưới.'
+                        : vanTay.trangThai === 'loi'
+                          ? 'Chưa tự nhận được vì không tải được nguồn; sẽ thử lại sau.'
+                          : vanTay.intro || vanTay.ket
+                            ? `Tự nhận bằng cách so âm thanh hai tập: ${vanTay.intro ? 'intro ' + mmss(vanTay.intro.tu) + '–' + mmss(vanTay.intro.den) : 'không có intro'}${vanTay.ket ? ', đoạn kết từ ' + mmss(vanTay.ket.tu) : ''}.`
+                            : 'Không thấy đoạn nhạc nào lặp lại giữa các tập — phim có thể không có intro.'}
+                </p>
                 <div className="px-4 pb-3 pt-1 text-xs leading-relaxed text-white/60">
                   {intro ? (
                     <p>
@@ -2328,7 +2817,7 @@ export default function Player({
                   )}
                   {!intro && introHieuLuc && (
                     <p className="mt-2 text-sky-300/80">
-                      Đang dùng mốc opening từ AniSkip ({mmss(introHieuLuc.bat_dau)}–{mmss(introHieuLuc.ket_thuc)}), riêng
+                      Đang dùng mốc opening {nguonOp === 'AniSkip' ? 'từ AniSkip' : 'tự nhận'} ({mmss(introHieuLuc.bat_dau)}–{mmss(introHieuLuc.ket_thuc)}), riêng
                       cho tập này. Đánh dấu tay thì mốc của bạn được dùng thay.
                     </p>
                   )}
@@ -2479,7 +2968,7 @@ export default function Player({
                       onClick={() => datBang(null)}
                       aria-current={t.dang ? 'true' : undefined}
                       className={`truncate rounded-md px-1 py-2 text-center text-xs font-semibold tabular-nums transition ${
-                        t.dang ? 'bg-[var(--color-nhan)] text-white' : 'bg-white/[0.07] text-white/80 hover:bg-white/15 hover:text-white'
+                        t.dang ? 'bg-[var(--color-nhan)] text-white' : 'bg-mo text-white/80 hover:bg-white/15 hover:text-white'
                       }`}
                     >
                       {t.nhan}
@@ -2746,7 +3235,7 @@ function HangBang({
       type="button"
       role="menuitem"
       onClick={onClick}
-      className="tp-hang-bang flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-white/[0.07]"
+      className="tp-hang-bang flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-mo"
     >
       <Bieu ten={bieu} className="h-5 w-5 shrink-0 text-white/70" />
       <span className="flex-1 text-white/95">{nhan}</span>
@@ -2761,7 +3250,7 @@ function TieuDeBang({ nhan, onLui }: { nhan: string; onLui: () => void }) {
     <button
       type="button"
       onClick={onLui}
-      className="tp-hang-bang mb-1 flex w-full items-center gap-2 border-b border-white/10 px-3 py-2.5 text-left font-semibold transition hover:bg-white/[0.05]"
+      className="tp-hang-bang mb-1 flex w-full items-center gap-2 border-b border-white/10 px-3 py-2.5 text-left font-semibold transition hover:bg-mo"
     >
       <Bieu ten="trai" className="h-5 w-5 text-white/70" />
       {nhan}
@@ -2784,7 +3273,7 @@ function MucChon({ children, chon, onClick }: { children: React.ReactNode; chon:
       role="menuitemradio"
       aria-checked={chon}
       onClick={onClick}
-      className="tp-hang-bang flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-white/[0.07]"
+      className="tp-hang-bang flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-mo"
     >
       <DauChon chon={chon} />
       <span className={`truncate ${chon ? 'text-white' : 'text-white/75'}`}>{children}</span>
@@ -2797,7 +3286,7 @@ function NutNho({ children, onClick }: { children: React.ReactNode; onClick: () 
     <button
       type="button"
       onClick={onClick}
-      className="tp-nut-nho flex-1 rounded-lg bg-white/[0.08] px-2 py-2 text-xs font-medium text-white/85 transition hover:bg-white/15 hover:text-white"
+      className="tp-nut-nho flex-1 rounded-lg bg-mo px-2 py-2 text-xs font-medium text-white/85 transition hover:bg-white/15 hover:text-white"
     >
       {children}
     </button>
@@ -2805,11 +3294,11 @@ function NutNho({ children, onClick }: { children: React.ReactNode; onClick: () 
 }
 
 /** Vòng đếm ngược sang tập kế: vòng tròn rút dần thay cho một thanh mỏng. */
-function VongDem({ con, tong }: { con: number; tong: number }) {
+function VongDem({ con, tong, nho = false }: { con: number; tong: number; nho?: boolean }) {
   const R = 26
   const C = 2 * Math.PI * R
   return (
-    <div className="relative mx-auto mt-4 h-20 w-20">
+    <div className={nho ? 'relative h-12 w-12 shrink-0' : 'relative mx-auto mt-4 h-20 w-20'}>
       <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90" aria-hidden>
         <circle cx="32" cy="32" r={R} fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="4" />
         <circle
@@ -2825,7 +3314,9 @@ function VongDem({ con, tong }: { con: number; tong: number }) {
           style={{ transition: 'stroke-dashoffset 1s linear' }}
         />
       </svg>
-      <span className="absolute inset-0 grid place-items-center text-2xl font-black tabular-nums">{con}</span>
+      <span className={`absolute inset-0 grid place-items-center font-black tabular-nums ${nho ? 'text-base' : 'text-2xl'}`}>
+        {con}
+      </span>
     </div>
   )
 }

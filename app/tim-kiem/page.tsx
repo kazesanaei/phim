@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import TheePhim from '@/components/TheePhim'
 import PhanTrang from '@/components/PhanTrang'
 import { timKiem } from '@/lib/nguon'
@@ -9,6 +8,10 @@ import { phimTheoNguoi, timTenNguoi } from '@/lib/quet-nguoi'
 import { lichSuXem } from '@/lib/theo-doi'
 import LocKetQua from '@/components/LocKetQua'
 import { capNhatPhimMoi, trangThaiCapNhat } from '@/lib/cap-nhat-moi'
+import Trong from '@/components/Trong'
+import Link from 'next/link'
+import Anh from '@/components/Anh'
+import { timCauThoai } from '@/lib/cau-thoai'
 
 export const revalidate = 60
 
@@ -82,9 +85,12 @@ export default async function TrangTimKiem({ searchParams }: PageProps<'/tim-kie
   const tenNguoi = trang === 1 ? timTenNguoi(q, 3) : []
   const phimCuaNguoi = trang === 1 ? phimTheoSlug(phimTheoNguoi(q, 120), 24).map(veTom) : []
 
+  const cauThoai = q ? timCauThoai(q) : []
+
   // Có lọc thì khối "Đã lọc" tự lo phần báo rỗng, đừng báo trùng hai lần.
   const khong =
     !coLoc &&
+    cauThoai.length === 0 &&
     tuNguon.items.length === 0 &&
     tuMay.items.length === 0 &&
     tuKhoDem.length === 0 &&
@@ -129,18 +135,19 @@ export default async function TrangTimKiem({ searchParams }: PageProps<'/tim-kie
       )}
 
       {khong && (
-        <p className="py-16 text-center text-sm text-white/40">
-          Không tìm thấy phim nào.{' '}
-          <Link href="/duyet" className="underline underline-offset-2 hover:text-white">
-            Thử duyệt theo thể loại
-          </Link>
-          .
-          {dangCapNhat && (
-            <span className="mt-2 block text-xs text-white/35">
-              Đang cập nhật phim mới từ nguồn vào kho, thử tìm lại sau ít phút.
-            </span>
-          )}
-        </p>
+        <Trong
+          hinh="tim"
+          tieuDe={q ? `Không có phim nào khớp “${q}”` : 'Không tìm thấy phim nào'}
+          moTa={
+            dangCapNhat
+              ? 'Đang cập nhật phim mới từ nguồn vào kho, thử tìm lại sau ít phút.'
+              : 'Thử gõ ít chữ hơn, tên tiếng Anh, tên diễn viên — hoặc một câu thoại nhớ được trong phim.'
+          }
+          nut={[
+            { nhan: 'Duyệt theo thể loại', href: '/duyet', chinh: true },
+            { nhan: 'Chọn ngẫu nhiên', href: '/ngau-nhien' },
+          ]}
+        />
       )}
 
       {phimCuaNguoi.length > 0 && (
@@ -157,6 +164,36 @@ export default async function TrangTimKiem({ searchParams }: PageProps<'/tim-kie
               <TheePhim key={p.slug} phim={p} />
             ))}
           </div>
+        </section>
+      )}
+
+      {cauThoai.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-sm font-semibold text-white/70">Câu thoại khớp ({cauThoai.length})</h2>
+          <ul className="grid gap-2 md:grid-cols-2">
+            {cauThoai.map((c, i) => (
+              <li key={i}>
+                <Link
+                  href={`/xem/${c.slug}?tap=tap-${c.soTap}&tu=${Math.max(0, Math.floor(c.giay) - 2)}`}
+                  className="flex items-center gap-3 rounded-lg bg-[var(--color-nen-2)] p-2 ring-1 ring-white/5 transition hover:ring-white/25 focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded bg-black/40">
+                    <Anh src={c.poster} rong={200} anAnToan className="h-full w-full object-cover" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-sm">“{c.chu}”</p>
+                    <p className="mt-0.5 text-xs text-white/45">
+                      {c.ten}
+                      {c.nhieuTap > 1 && ` · Tập ${c.soTap}`} · {Math.floor(c.giay / 60)}:{String(Math.floor(c.giay % 60)).padStart(2, '0')}
+                    </p>
+                  </div>
+                  <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5 shrink-0 fill-white/50">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

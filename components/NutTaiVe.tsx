@@ -58,7 +58,7 @@ export default function NutTaiVe({
       </button>
 
       {mo && (
-        <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-lg bg-neutral-900 p-2 text-sm shadow-xl ring-1 ring-white/10">
+        <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-lg bg-noi p-2 text-sm shadow-xl ring-1 ring-white/10">
           <button
             onClick={() => gui(tap)}
             className="w-full rounded px-3 py-2 text-left hover:bg-white/10"

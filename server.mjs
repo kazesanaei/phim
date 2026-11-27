@@ -14,8 +14,18 @@
 import { createServer as taoHttp } from 'node:http'
 import { createServer as taoHttps } from 'node:https'
 import { readFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import dns from 'node:dns'
 import next from 'next'
 import { baoDamChungChi, diaChiLan } from './scripts/tao-chung-chi.mjs'
+
+/**
+ * Kết nối ra nguồn phim: thử IPv4 TRƯỚC. Trên TV Box (Termux), máy tra địa chỉ xếp IPv6 lên đầu, mà
+ * IPv6 của mạng nhà chập chờn: một địa chỉ IPv6 của Cloudflare không trả lời là fetch đứng chờ đủ
+ * 10 giây mới bỏ, thử lại thêm vài lượt — đo được video mất 29 giây mới chạy, ngay sau khi máy chủ
+ * vừa khởi động (log: ConnectTimeoutError, attempted addresses: 2606:4700:...). IPv4 thì luôn thông.
+ */
+dns.setDefaultResultOrder('ipv4first')
 
 const CONG_HTTP = Number(process.env.PORT || 3000)
 const CONG_HTTPS = Number(process.env.PORT_HTTPS || 3443)
@@ -26,6 +36,20 @@ const CONG_HTTPS = Number(process.env.PORT_HTTPS || 3443)
  */
 const RA_LAN = process.argv.includes('--lan') || process.env.HOST === '0.0.0.0'
 const HOST = RA_LAN ? '0.0.0.0' : '127.0.0.1'
+
+/**
+ * `--tin-may-nay`: request đi từ CHÍNH máy chạy máy chủ (127.0.0.1, ::1) thì miễn mật khẩu.
+ * Dùng cho TV box: app Kho phim trên box mở 127.0.0.1, bấm là vào xem, trong khi điện thoại
+ * và laptop trong mạng nhà vẫn phải đăng nhập.
+ *
+ * Đánh dấu bằng header `x-may-nay` mang mã ngẫu nhiên của tiến trình này; proxy.ts so mã.
+ * Header cùng tên khách gửi lên bị xoá TRƯỚC — máy khác trong mạng không giả được.
+ * Không đọc X-Forwarded-For: ai cũng tự điền được.
+ */
+const TIN_MAY_NAY = process.argv.includes('--tin-may-nay')
+const MA_MAY_NAY = randomBytes(24).toString('hex')
+process.env.MA_MAY_NAY = TIN_MAY_NAY ? MA_MAY_NAY : ''
+const LOOPBACK = /^(127\.|::1$|::ffff:127\.)/
 
 /** Đường tải CA. Để ngoài Next nên không dính cửa xác thực — cần vậy, vì phải
  *  tải được CA TRƯỚC khi đăng nhập. Đây là phần công khai của CA, không phải
@@ -53,6 +77,8 @@ if (RA_LAN) {
 }
 
 function phucVu(req, res) {
+  delete req.headers['x-may-nay']
+  if (TIN_MAY_NAY && LOOPBACK.test(req.socket.remoteAddress || '')) req.headers['x-may-nay'] = MA_MAY_NAY
   if (tlsSan && req.url && req.url.split('?')[0] === DUONG_CA) {
     // Kiểu MIME này khiến Android nhận ra là chứng chỉ và mở thẳng màn hình cài.
     res.writeHead(200, {

@@ -55,3 +55,30 @@ export function nhanNgonNgu(ma: string | undefined, duPhong = 'Phụ đề'): st
   const k = ma.toLowerCase()
   return TEN_NGON_NGU[k] || ma.toUpperCase()
 }
+
+/* ------------------------- tìm theo câu thoại ------------------------- */
+
+export type Cue = { giay: number; chu: string }
+
+/** Tách VTT thành từng câu: mốc bắt đầu (giây) + chữ đã bỏ thẻ định dạng. */
+export function docCue(vtt: string): Cue[] {
+  const ra: Cue[] = []
+  const dong = vtt.split(/\r?\n/)
+  for (let i = 0; i < dong.length; i++) {
+    const m = /^(?:(\d+):)?(\d{1,2}):(\d{2})\.(\d{1,3})\s+-->/.exec(dong[i].trim())
+    if (!m) continue
+    const giay = Number(m[1] || 0) * 3600 + Number(m[2]) * 60 + Number(m[3])
+    const chu: string[] = []
+    while (dong[i + 1]?.trim()) chu.push(dong[++i].trim())
+    const sach = chu.join(' ').replace(/<[^>]*>/g, '').replace(/\{[^}]*\}/g, '').trim()
+    if (sach) ra.push({ giay, chu: sach })
+  }
+  return ra
+}
+
+/**
+ * Đổi đ→d cho chỉ mục tìm câu thoại. FTS5 `remove_diacritics` bỏ dấu thanh và
+ * dấu mũ nhưng coi đ là một chữ riêng chứ không phải d có dấu, nên không có bước
+ * này thì gõ "dau roi" không ra "đâu rồi" (đã gặp thật khi đo, xem lib/cau-thoai.ts).
+ */
+export const boD = (s: string) => s.replace(/đ/g, 'd').replace(/Đ/g, 'D')

@@ -1,6 +1,8 @@
+import ThanhTai from '@/components/ThanhTai'
 export default function DangTai() {
   return (
     <div className="mx-auto flex max-w-[1400px] animate-pulse flex-col gap-6 px-4 py-8 md:flex-row md:py-10">
+      <ThanhTai />
       <div className="aspect-[2/3] w-40 shrink-0 self-center rounded-lg bg-[var(--color-nen-2)] md:w-56 md:self-start" />
       <div className="min-w-0 flex-1 space-y-3">
         <div className="h-9 w-2/3 rounded bg-[var(--color-nen-2)]" />
