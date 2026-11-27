@@ -12,7 +12,8 @@ import { createReadStream } from 'node:fs'
 import { stat, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
-import { urlChoPhep, duongDanChoPhep, chanCheoTrang, traLoiLoi, LoiChan } from '@/lib/an-toan'
+import { urlChoPhep, duongDanChoPhep, chanCheoTrang, traLoiLoi, LoiChan, hocMienPhat } from '@/lib/an-toan'
+import { mienTrongPlaylist } from '@/lib/mien-phat'
 import { UA, luongChuyenMa } from '@/lib/ffmpeg'
 import { srtSangVtt } from '@/lib/phu-de'
 
@@ -94,6 +95,9 @@ async function tuXa(req: Request, raw: string, conLai = 3): Promise<Response> {
   const laPlaylist = u.pathname.endsWith('.m3u8') || ct.includes('mpegurl')
   if (laPlaylist) {
     const chu = await r.text()
+    // Playlist tải từ tên miền đã được phép: mảnh video và playlist con nằm ở
+    // CDN khác thì học luôn, không thì mảnh đầu tiên đã dính 403.
+    if (r.ok) for (const h of mienTrongPlaylist(chu, u)) hocMienPhat('https://' + h + '/', 'playlist ' + u.hostname)
     return new Response(vietLaiPlaylist(chu, u), {
       status: r.status,
       headers: {

@@ -427,6 +427,23 @@ Ba lỗi tìm ra khi thử bằng nguồn giả (mọi máy chủ trả 404):
   thể loại gì; còn là kinh dị / hình sự / hành động / tài liệu... thì **gắn mác**; phim chiếu
   rạp phổ biến (từ 300 phiếu TMDB, như Sắc, Giới) thì **gắn mác**; còn lại **ẩn**.
 
+### Tự theo khi nguồn đổi máy chủ phát (27/11)
+
+Triệu chứng: phim mới bấm xem là báo **"Máy chủ này không phát được tập này"** ngay. Nguyên
+nhân: KKPhim chuyển gần hết phim mới sang `a.kvp726.com` (đo 27/11: 11/13 phim mới cập nhật),
+tên miền này không có trong danh sách cho phép nên `/api/tep` trả 403. Trước đó nguồn cũng đã
+đổi kkphimplayer6 → kkphimplayer7.
+
+- App giờ **tự học** tên miền phát từ chính API nguồn (`link_m3u8` của KKPhim, `link_embed`
+  của vsmov) và từ playlist tải về từ tên miền đã được phép (CDN mảnh video riêng). Lưu ở bảng
+  `mien_phat`, khởi động lại vẫn nhớ. Không bao giờ học từ tham số `u` người gọi gửi lên.
+- Chốt chặn vẫn giữ: chỉ nhận tên miền công khai dạng chữ (`lib/mien-phat.ts`), địa chỉ IP,
+  `localhost`, `.lan`, `.local`, `.internal`... luôn bị chặn.
+- Cửa sổ máy chủ ghi `[phim] học tên miền phát mới...` và `[phim] chặn: Miền không được phép:
+  ...` — lần sau nguồn đổi gì, nhìn đây là biết.
+- `a.kvp726.com` **chặn IP nước ngoài** ("Vui lòng sử dụng mạng trong nước"): mạng công ty đi
+  qua VPN / proxy đặt ở nước ngoài thì vẫn không phát được, trình phát sẽ tự đổi máy chủ khác.
+
 ### Quét và duyệt 18+ (19/10)
 
 - **Quét chạy nền** (`lib/quet-18.ts`): ~20 trang danh sách + một lượt gọi chi tiết mỗi phim,

@@ -23,6 +23,7 @@ import { xetTen18, mucTheoTheLoai } from '../lib/ten-18.ts'
 import { chuanHoa, themAfter, nutAfterCredit, nhanNut } from '../lib/after-credit.ts'
 import { laCham } from '../lib/do-cham.ts'
 import { chonMal, docAniSkip, laAnime } from '../lib/aniskip-khop.ts'
+import { laMienCongKhai, mienTrongPlaylist } from '../lib/mien-phat.ts'
 
 const GOC = 'https://vsmov.com/api'
 const APP = process.env.APP || 'http://127.0.0.1:3000'
@@ -267,6 +268,27 @@ await phep('Lọc 18+ hai mức: chặn phim tình dục, chỉ gắn mác phim 
   assert.equal(mucTheoTheLoai(['phim-18', 'tam-ly'], { soPhieu: 12 }).muc, 'chan')
   assert.equal(mucTheoTheLoai(['phim-18', 'hanh-dong'], { ten: 'SONE-381', tenGoc: 'SONE-381' }).muc, 'chan')
   return '3 ca chặn, 2 ca gắn mác, 3 ca không bắt oan, 5 ca theo thể loại'
+})
+
+await phep('Học tên miền phát: nhận máy chủ mới của nguồn, chặn địa chỉ nội bộ', async () => {
+  // Máy chủ KKPhim chuyển sang từ 11/2026 — danh sách cố định cũ trả 403
+  assert.ok(laMienCongKhai('a.kvp726.com'))
+  assert.ok(laMienCongKhai('v7.kkphimplayer7.com'))
+  for (const xau of ['127.0.0.1', '192.168.1.1', 'localhost', 'router.lan', 'nas.local', 'db.internal', '[::1]', 'a..b.com', '-x.com', '']) {
+    assert.equal(laMienCongKhai(xau), false, 'phải chặn: ' + xau)
+  }
+  const goc = new URL('https://a.kvp726.com/20261127/abc/index.m3u8')
+  const pl = [
+    '#EXTM3U',
+    '#EXT-X-KEY:METHOD=AES-128,URI="https://khoa.cdn-x.net/k.key"',
+    '#EXTINF:6.0,',
+    'seg-0001.ts',
+    '#EXTINF:6.0,',
+    'https://s3.cdn-x.net/p/seg-0002.ts',
+    '/1080/index.m3u8',
+  ].join('\n')
+  assert.deepEqual(mienTrongPlaylist(pl, goc).sort(), ['khoa.cdn-x.net', 's3.cdn-x.net'])
+  return '2 máy chủ thật nhận, 10 địa chỉ nội bộ / hỏng bị chặn, đọc đúng tên miền trong playlist'
 })
 
 await phep('After credit: nút hiện đúng lúc, xem xong cảnh 1 mới mời sang cảnh 2', async () => {

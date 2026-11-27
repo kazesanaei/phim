@@ -7,6 +7,7 @@
  *  2. /danh-sach/* BỎ QUA mọi tham số lọc. Muốn lọc thì phải đi qua
  *     /the-loai/{slug}, /quoc-gia/{slug} hoặc /nam/{year}.
  */
+import { hocMienPhat } from './an-toan'
 
 const GOC = 'https://vsmov.com/api'
 
@@ -224,6 +225,18 @@ export async function layChiTiet(slug: string, dungDem = true): Promise<ChiTiet 
   const m = (j.movie || {}) as Bat
   if (!m.slug) return null
   const eps = (j.episodes || []) as Bat[]
+  const mayChu = eps
+    .map((s) => ({
+      // tên server trong dữ liệu có kèm xuống dòng và khoảng trắng thừa
+      ten: String(s.server_name || 'Server').replace(/\s+/g, ' ').trim(),
+      tap: ((s.server_data || []) as Bat[])
+        .map((e) => ({ ten: String(e.name || ''), slug: String(e.slug || ''), embed: String(e.link_embed || '') }))
+        .filter((e) => e.embed),
+    }))
+    .filter((s) => s.tap.length)
+  // Nguồn đổi máy chủ phát thì app tự theo — xem lib/mien-phat.ts
+  for (const s of mayChu) for (const t of s.tap.slice(0, 3)) hocMienPhat(t.embed, 'vsmov')
+
   return {
     ...veTom(m),
     moTa: lotThe(m.content),
@@ -235,14 +248,6 @@ export async function layChiTiet(slug: string, dungDem = true): Promise<ChiTiet 
     daoDien: ((m.director || []) as string[]).filter(Boolean),
     theLoai: ((m.category || []) as Bat[]).map((c) => ({ ten: String(c.name), slug: String(c.slug) })),
     quocGia: ((m.country || []) as Bat[]).map((c) => ({ ten: String(c.name), slug: String(c.slug) })),
-    mayChu: eps
-      .map((s) => ({
-        // tên server trong dữ liệu có kèm xuống dòng và khoảng trắng thừa
-        ten: String(s.server_name || 'Server').replace(/\s+/g, ' ').trim(),
-        tap: ((s.server_data || []) as Bat[])
-          .map((e) => ({ ten: String(e.name || ''), slug: String(e.slug || ''), embed: String(e.link_embed || '') }))
-          .filter((e) => e.embed),
-      }))
-      .filter((s) => s.tap.length),
+    mayChu,
   }
 }

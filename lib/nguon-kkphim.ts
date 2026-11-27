@@ -12,6 +12,7 @@
  * Danh mục trần (`/the-loai`, `/quoc-gia`) trả `data` chứ không phải `data.items`.
  */
 import type { PhimTom, Trang, ChiTiet, MayChu, MucDanhMuc } from './vsmov'
+import { hocMienPhat } from './an-toan'
 
 const GOC = 'https://phimapi.com'
 /** CDN ảnh của nguồn này — khác host với API, và phải có dấu / ở cuối. */
@@ -146,6 +147,8 @@ export async function layChiTiet(slug: string): Promise<ChiTiet | null> {
         .filter((e) => e.embed),
     }))
     .filter((s) => s.tap.length)
+  // Nguồn đổi máy chủ phát (kkphimplayer6 → kvp726...) thì app tự theo — xem lib/mien-phat.ts
+  for (const s of mayChu) for (const t of s.tap.slice(0, 3)) hocMienPhat(t.embed, TEN_NGUON)
 
   return {
     ...veTom(m),

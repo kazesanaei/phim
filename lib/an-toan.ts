@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { thuMucNguon } from './db'
+import { db, thuMucNguon } from './db'
+import { laMienCongKhai, mienCuaUrl } from './mien-phat'
 
 /** Lỗi do đầu vào bị chặn — route bắt lỗi này và trả 403. */
 export class LoiChan extends Error {}
@@ -13,7 +14,56 @@ const MIEN_CHO_PHEP = ['vsmov.com', 'streamvsmov.com', 'phimapi.com', 'kkphim.co
  * subdomain, nên allowlist theo hậu tố không bắt được — cần mẫu riêng.
  * Mẫu cố ý chặt: bắt buộc đúng "kkphimplayer<số>.com", không nhận gì khác.
  */
-const MAU_MIEN = [/^(?:[a-z0-9-]+\.)?kkphimplayer\d{1,2}\.com$/]
+const MAU_MIEN = [/^(?:[a-z0-9-]+\.)?kkphimplayer\d{1,2}\.com$/, /^(?:[a-z0-9-]+\.)?kvp\d{2,4}\.com$/]
+
+/**
+ * Tên miền phát HỌC ĐƯỢC từ chính API nguồn (xem lib/mien-phat.ts vì sao cần).
+ *
+ * Tin những gì nguồn chỉ tới cũng là mức tin app vốn có: app đã phát mọi thứ
+ * nguồn đưa. Cái KHÔNG tin là tham số `u` người gọi /api/tep gửi lên — nên chỉ
+ * học ở phía máy chủ, từ dữ liệu nguồn (link_m3u8, link_embed) và từ playlist
+ * tải về từ một tên miền đã được phép; không bao giờ học từ request.
+ *
+ * Lưu trong SQLite (bảng mien_phat) để khởi động lại vẫn nhớ. Bộ nhớ đệm đặt ở
+ * globalThis, KHÔNG ở biến module: Next đóng gói mỗi route một bản module, cache
+ * module-scope ở route này không thấy cái route kia vừa học (bẫy #17). Đệm chỉ
+ * giữ kết quả "được phép" — thứ không bao giờ bị rút lại — nên không thể cũ.
+ */
+const dem = globalThis as unknown as { __mienPhat?: Set<string> }
+function damBaoBang() {
+  db.exec(`create table if not exists mien_phat (
+    host text primary key, nguon text, hoc_luc text not null default (datetime('now')))`)
+}
+
+export function hocMienPhat(raw: string, nguon: string): void {
+  const host = mienCuaUrl(raw)
+  if (!host || !laMienCongKhai(host)) return
+  const s = (dem.__mienPhat ??= new Set())
+  if (s.has(host)) return
+  try {
+    damBaoBang()
+    const moi = db.prepare('insert or ignore into mien_phat (host, nguon) values (?, ?)').run(host, nguon).changes
+    if (moi) console.log(`[phim] học tên miền phát mới của ${nguon}: ${host}`)
+    s.add(host)
+  } catch {
+    // ghi không được (DB đang khoá) thì lần sau học lại — đừng làm gãy việc dựng trang
+  }
+}
+
+function daHoc(host: string): boolean {
+  const s = (dem.__mienPhat ??= new Set())
+  if (s.has(host)) return true
+  try {
+    damBaoBang()
+    if (db.prepare('select 1 from mien_phat where host = ?').get(host)) {
+      s.add(host)
+      return true
+    }
+  } catch {
+    // bảng lỗi thì coi như chưa học
+  }
+  return false
+}
 
 /** CDN ảnh của các nguồn. Cố ý TÁCH khỏi MIEN_CHO_PHEP: /api/tep (video, phụ
  *  đề) không có việc gì với CDN ảnh, và /api/anh không có việc gì với host phát
@@ -39,7 +89,9 @@ export function urlChoPhep(raw: string): URL {
   const u = phanTich(raw)
   const host = u.hostname.toLowerCase()
   const ok =
-    MIEN_CHO_PHEP.some((m) => host === m || host.endsWith('.' + m)) || MAU_MIEN.some((r) => r.test(host))
+    MIEN_CHO_PHEP.some((m) => host === m || host.endsWith('.' + m)) ||
+    MAU_MIEN.some((r) => r.test(host)) ||
+    (laMienCongKhai(host) && daHoc(host))
   if (!ok) throw new LoiChan('Miền không được phép: ' + host)
   return u
 }
@@ -141,7 +193,11 @@ export function chanCheoTrang(req: Request) {
 }
 
 export function traLoiLoi(e: unknown): Response {
-  if (e instanceof LoiChan) return Response.json({ loi: e.message }, { status: 403 })
+  if (e instanceof LoiChan) {
+    // Ghi ra cửa sổ máy chủ: nguồn đổi tên miền phát thì nhìn đây là biết ngay
+    console.warn('[phim] chặn:', e.message)
+    return Response.json({ loi: e.message }, { status: 403 })
+  }
   // Không trả nguyên văn message lỗi hệ thống ra client (lộ đường dẫn nội bộ).
   // Chi tiết ghi ra log máy chủ, client chỉ thấy câu chung.
   console.error('[phim] lỗi máy chủ:', e)
